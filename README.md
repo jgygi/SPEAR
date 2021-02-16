@@ -1,6 +1,4 @@
-## SPEAR
-
-#### Sparse Supervised Bayesian Factor Model for Multi-Omic Analysis
+## SPEAR - Sparse Supervised Bayesian Factor Model for Multi-Omic Analysis
 
 ### Installation
 

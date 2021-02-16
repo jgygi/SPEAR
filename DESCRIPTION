@@ -1,11 +1,11 @@
 Package: SPEARcomplete
 Type: Package
-Title: Final version of SPEAR that works with missing data and different data types.
+Title: SPEAR - Sparse Supervised Bayesian Factor Model for Multi-omic Analyses
 Version: 1.0
-Date: 2020-10-30
-Author: Who wrote it
-Maintainer: Who to complain to <yourfault@somewhere.net>
-Description: More about what it does (maybe more than one line)
+Date: 2021-01-26
+Author: Leying Guan, Jeremy Gygi
+Maintainer: Jeremy Gygi <jeremy.gygi@yale.edu>
+Description: A sparse supervised Bayesian factor model for multi-omic analysis.
 License: What license is it under?
 Imports: Rcpp (>= 1.0.5), RcppArmadillo, parallel, glmnet, elasticnet, BH
 LinkingTo: Rcpp, RcppArmadillo, BH

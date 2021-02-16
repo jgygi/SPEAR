@@ -1,6 +1,6 @@
-dataGen_gassian <- function(N = 500, Ntest = 2000, P = 500, D = 4, seed = 123, num_factors = 5, c = 1, 
-                            pi = 0.2, eta = 1, num_specific =D-2, Ymodel = "factor",
-                            pi_reg = 0.05){
+dataGen_gaussian <- function(N = 500, Ntest = 2000, P = 500, D = 4, seed = 123, num_factors = 5, c = 1, 
+                             pi = 0.2, eta = 1, num_specific =D-2, Ymodel = "factor",
+                             pi_reg = 0.05){
   set.seed(seed)
   Theta0 = list(); Gamma0 = list()
   X = list(); Xte = list()
@@ -66,9 +66,9 @@ dataGen_gassian <- function(N = 500, Ntest = 2000, P = 500, D = 4, seed = 123, n
 
 
 dataGen_ordinal <- function(N = 500, Ntest = 2000, P = 500, levels = 7,
-                             D = 4, seed = 123, num_factors = 5, c = 1, 
-                             pi = 0.2, eta = 1, num_specific =D-2, Ymodel = "factor",
-                             pi_reg = 0.05){
+                            D = 4, seed = 123, num_factors = 5, c = 1, 
+                            pi = 0.2, eta = 1, num_specific =D-2, Ymodel = "factor",
+                            pi_reg = 0.05){
   set.seed(seed)
   Theta0 = list(); Gamma0 = list()
   X = list(); Xte = list()
@@ -188,7 +188,7 @@ loss_calculation <- function(Phat, y, type = "deviance"){
 
 #' Create the data from lists, and create the functional pathway list.
 #'@param Y Response array.
-#'@param List
+#'@param X description
 #'@param refit Whether to refit the model with elasticNet. If FALSE, the coefficients are from the spear model.
 #'@param rule Rule to use for picking cross validation model: "min" or "1se".
 #'@param standardize Whether to standardize the data.
@@ -276,8 +276,263 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
   return(list(Y = Y, X = X_, functional_path = functional_path,
               pattern_samples = pattern_samples, pattern_features = pattern_features,
               nclasses = nclasses
-              ))
+  ))
 }
+#' Create the data from lists, and create the functional pathway list.
+#'@param X description
+#'@param Y  description
+#'@param Z  description
+#'@param Xobs  description
+#'@param Yobs  description
+#'@param foldid  description
+#'@param weights  description
+#'@param family  description
+#'@param inits.type  description
+#'@param num.factors  description
+#'@param seed  description
+#'@param scale.x  description
+#'@param scale.y  description
+#'@param num.folds  description
+#'@param warmup.iterations  description
+#'@param max.iterations  description
+#'@param elbo.threshold  description
+#'@param elbo.threshold.count  description
+#'@param cv.nlambda  description
+#'@param print.out  description
+#'@param save.model  description
+#'@param save.path  description
+#'@param save.name  description
+#'@export
+run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
+                         num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
+                         warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
+                         save.model = TRUE, save.path = NULL, save.name = NULL){
+  cat("
+          __________________________________________
+          |                                        |
+          |           |''---____                   |
+          |     ______|  SPEAR  '''''-----______   |
+          |     ''''''|  v.1.0  _____-----''''''   |
+          |           |__---''''                   |
+          |________________________________________|
+      
+ SPEAR version 1.0. Please direct all questions to Jeremy Gygi (jeremy.gygi@yale.edu) or Leying Guan (leying.guan@yale.edu).\n\n")
+  
+  
+  # Prepare SPEAR object
+  cat("*****************\n Preparing SPEAR\n*****************\n")
+  
+  cat("\nPreparing omics data...\n")
+  
+  # Make sure X is a list:
+  if(scale.x){
+    X.scaled <- lapply(X, scale)
+  } else {
+    X.scaled <- X
+  }
+  if(is.null(names(X.scaled))){
+    cat(paste0("*** Names for datasets in X not provided. Renaming to ", paste(paste0("X", 1:length(X.scaled)), collapse = ", "), "\n"))
+    names(X.scaled) <- paste0("X", 1:length(X.scaled))
+  }
+  for(d in 1:length(X.scaled)){
+    if(is.null(colnames(X.scaled[[d]]))){
+      cat(paste0("*** Feature names in ", names(X.scaled)[d], " not provided. Renaming to ", paste0(names(X.scaled)[d], "_feat", 1), " ... ", paste0(names(X.scaled)[d], "_feat", ncol(X.scaled[[d]])), "\n"))
+      colnames(X.scaled[[d]]) <- paste0(names(X.scaled)[d], "_feat", 1:ncol(X.scaled[[d]]))
+    }
+  }
+  cat(paste0("Detected ", length(X.scaled), " datasets:\n"))
+  for(i in 1:length(X.scaled)){
+    cat(paste0(names(X.scaled)[i], "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n"))
+  }
+  
+  if(scale.y){
+    Y.scaled <- scale(Y)
+  } else {
+    Y.scaled <- Y
+  }
+  if(is.null(colnames(Y.scaled))){
+    cat(paste0("*** Names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
+    colnames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
+  }
+  cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
+  for(i in 1:ncol(Y.scaled)){
+    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", ifelse(family == 0, "Gaussian", "Ordinal"), "\n"))
+  }
+  
+  
+  
+  
+  cat("\n")
+  
+  # Run Preparation Function:
+  data <- SPEARcomplete::preparation(Y = Y.scaled, X = X.scaled, family = family)
+  data$xlist <- X.scaled
+  
+  # Parameters:
+  cat(paste0("Preparing SPEAR parameters...\n"))
+  
+  # Seed:
+  if(is.null(seed)){
+    cat(paste0("*** seed not provided. Consider using a seed (i.e. 123) for reproducibility.\n"))
+  } else {
+    cat(paste0("~~~ seed set to ", seed, ".\n"))
+    set.seed(seed)
+  }
+  # Set up matrices that indicate which samples are missing (since none are missing, just fill with 1's)
+  if(is.null(Xobs)){
+    cat(paste0("*** Xobs not provided. Assuming full observations in X.\n"))
+    Xobs <- array(1, dim  = dim(data$X))
+  }
+  if(is.null(Yobs)){
+    cat(paste0("*** Yobs not provided. Assuming full observations in Y.\n"))
+    Yobs <- array(1, dim  = dim(data$Y))
+  }
+  # Assigning fold-id's to each of the N subjects in the training set:
+  if(is.null(foldid)){
+    cat(paste0("*** foldid not provided. Assigning folds randomly from 1 to ", num.folds, ".\n"))
+    foldid = sample(1:num.folds, nrow(data$X), replace = T)
+  } else {
+    if(length(foldid) == nrow(data$X)){
+      cat(paste0("~~~ foldid provided | passed\n"))
+    } else {
+      cat(paste0("~~~ foldid provided | ERROR: length(foldid) = ", length(foldid), " != Number of Subjects (", nrow(data$X), "). Cannot use provided foldids.\n"))
+      stop(paste0("SPEAR preparation ERROR: length(foldid) = ", length(foldid), " != Number of Subjects (", nrow(data$X), "). Cannot use provided foldids.\n"))
+    }
+  }
+  
+  if(is.null(weights)){
+    cat(paste0("*** weights not provided. Using c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)\n"))
+    weights <- c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)
+  } else {
+    cat(paste0("~~~ weights - using c(", paste(round(weights, 2), collapse = ", "), ")\n"))
+  }
+  if(is.null(num.factors)){
+    cat(paste0("*** num.factors not provided. Defaulting to K = 5 factors\n"))
+    num.factors <- 5
+  } else {
+    cat(paste0("~~~ num.factors - using K = ", num.factors, " factors\n"))
+  }
+  
+  if(is.null(Z)){
+    Z <- data$X
+  }
+  
+  other.params <- c("warmup", "max.iterations", "elbo.threshold", "elbo.threshold.count")
+  if(is.null(warmup.iterations)){
+    warm_up <- 50
+  } else {
+    warm_up <- warmup.iterations
+  }
+  if(is.null(max.iterations)){
+    max_iter <- 1000
+  } else {
+    max_iter <- max.iterations
+  }
+  if(is.null(elbo.threshold)){
+    thres_elbo <- 0.1
+  } else {
+    thres_elbo <- elbo.threshold
+  }
+  if(is.null(elbo.threshold.count)){
+    thres_count <- 5
+  } else {
+    thres_count <- elbo.threshold.count
+  }
+  
+  
+  
+  cat("\n*****************\n  Running SPEAR\n*****************\n\n")
+  
+  if(.Platform$OS.type == "windows"){
+    cat(paste0("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
+        Consider using SPEAR on a unix operating system for boosted performance.\n"))
+    numCores <- 1
+  } else {
+    numCores <- parallel::detectCores()
+  }
+  
+  # Run cv.spear:
+  spear_fit <- cv.spear(X = data$X, 
+                        Y = data$Y,
+                        Xobs = Xobs, 
+                        Yobs = Yobs,
+                        Z = Z, 
+                        pattern_samples = data$pattern_samples,
+                        pattern_features = data$pattern_features,
+                        family = family, 
+                        nclasses = data$nclasses,
+                        ws = weights,
+                        foldid = foldid, 
+                        num_factors = num.factors,  
+                        functional_path = data$functional_path,
+                        print_out = print.out, 
+                        inits_type = inits.type, 
+                        warm_up= warm_up, 
+                        max_iter = max_iter, 
+                        seed = seed, 
+                        thres_elbo = thres_elbo, 
+                        thres_count = thres_count, 
+                        crossYonly = F,
+                        numCores = numCores)
+  
+  # Run cv.eval:
+  
+  cat("\nFinished running SPEAR.\n")
+  cat("\n*****************\n  Evaluating CV:\n*****************\n")
+  
+  cv.eval <- cv.evaluation(fitted.obj = spear_fit, 
+                           X = data$X, 
+                           Y = data$Y, 
+                           Z = Z, 
+                           family = family, 
+                           nclasses = data$nclasses, 
+                           pattern_samples = data$pattern_samples, 
+                           pattern_features = data$pattern_features, 
+                           nlambda = cv.nlambda)
+  
+  # Return a SPEARobject:
+  params <- list()
+  params$weights <- weights
+  params$foldid <- foldid
+  params$seed <- seed
+  params$num_factors = num.factors
+  params$max_iter = max_iter
+  params$thres_elbo = thres_elbo
+  params$thres_count = thres_count
+  params$family <- family
+  
+  SPEARobj <- list(fit = spear_fit,
+                   cv.eval = cv.eval,
+                   params = params,
+                   data = data)
+  
+  cat("\nSPEAR has been run successfully.\n\n")
+  
+  # Save SPEAR results:
+  if(save.model){
+    # Check save.path:
+    if(is.null(save.path)){
+      dir.create(paste0("SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S")))
+      cat(paste0("*** No directory specificied for saving SPEAR results. Generated temporary folder at:\n", getwd(), "/SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), "/\n"))
+      save.path <- paste0(getwd(), "/SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), "/")
+    } else if(save.path == ""){
+      save.path <- paste0(getwd(), "/")
+    } else if(!endsWith(save.path, "/")){
+      save.path <- paste0(save.path, "/")
+    }
+    if(is.null(save.name)){
+      cat(paste0("*** No filename specified for saving SPEAR results. Saving as ", paste0(save.path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds"), "\n"))
+      save.name <- paste0(save.path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds")
+    } else if(!endsWith(save.name, ".rds")){
+      save.name <- paste0(save.name, ".rds")
+    }
+    saveRDS(SPEARobj, file = paste0(save.path, save.name))
+    cat(paste0("Saved SPEARobject to RDS file at ", paste0(save.path, save.name)))
+  }
+  
+  return(SPEARobj)
+}
+
 
 
 #cross-validation: select models with high accuracy for predicting Y.
@@ -332,7 +587,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
     }
   }
-
+  
   for(l in 1:num_weights){
     U0 = array(0, dim = c(n, num_factors))
     for(k in 1:num_patterns){
@@ -372,7 +627,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }else{
         Yhat.cv[,,k,l] =  (ucv %*% b)
         if(family == 2){
-        Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
+          Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
         }
       }
     }
@@ -440,10 +695,10 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       cvsd_tmp = apply(errs,2,sd)/sqrt(n-1)
       cvm[l,j] = min(cv_tmp)
       cvsd[l,j] = cvsd_tmp[which.min(cv_tmp)]
-        for(foldind in 1:nfolds){
-          Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
-        }
-
+      for(foldind in 1:nfolds){
+        Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
+      }
+      
       factors.keep[,,j,l] = factors.keep[,,j,l] *chats[which.min(cv_tmp)]
       projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
       if(family == 2){

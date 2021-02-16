@@ -17,6 +17,8 @@ preparation(
 \arguments{
 \item{Y}{Response array.}
 
+\item{X}{description}
+
 \item{refit}{Whether to refit the model with elasticNet. If FALSE, the coefficients are from the spear model.}
 
 \item{rule}{Rule to use for picking cross validation model: "min" or "1se".}

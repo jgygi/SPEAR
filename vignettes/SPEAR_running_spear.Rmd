@@ -103,12 +103,12 @@ save.name <- "SPEAR_vignette_object.rds" # name for SPEARobject (rds file)
 seed <- 123 # reproducible seed
 
 # Running cross-validated SPEAR:
-SPEARobj <- run_cv_spear(X = X, 
-                         Y = Y, 
-                         num.factors = num.factors, 
-                         seed = seed, 
-                         save.path = save.path, 
-                         save.name = save.name)
+#SPEARobj <- run_cv_spear(X = X, 
+#                         Y = Y, 
+#                         num.factors = num.factors, 
+#                         seed = seed, 
+#                         save.path = save.path, 
+#                         save.name = save.name)
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)
 

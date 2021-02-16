@@ -34,7 +34,8 @@ cv.spear(
   inits_post_mu = NULL,
   seed = 1,
   crossYonly = F,
-  numCores = NULL
+  numCores = NULL,
+  run.debug = FALSE
 )
 }
 \arguments{
@@ -75,6 +76,8 @@ cv.spear(
 \item{b2:}{hyper parametr, no need to tune usually.}
 
 \item{seed:}{random seed number.}
+
+\item{run.debug:}{debug?}
 }
 \description{
 Cross-fit of SPEAR

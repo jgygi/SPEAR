@@ -27,7 +27,8 @@ run_cv_spear(
   print.out = 100,
   save.model = TRUE,
   save.path = NULL,
-  save.name = NULL
+  save.name = NULL,
+  run.debug = FALSE
 )
 }
 \arguments{
@@ -76,6 +77,8 @@ run_cv_spear(
 \item{save.path}{description}
 
 \item{save.name}{description}
+
+\item{run.debug}{debug?}
 }
 \description{
 Create the data from lists, and create the functional pathway list.

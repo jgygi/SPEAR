@@ -15,7 +15,7 @@ vignette: >
 
 ##### Installing SPEAR:
 
-```{r, include = FALSE}
+```{r}
 # Set up the path to the downladed tar.gz package:
 #path_to_SPEAR_tar.gz <- "~/Dropbox/shared_folder/SPEARcomplete_1.0.tar.gz"
 

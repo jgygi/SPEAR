@@ -914,7 +914,8 @@ double pos(double x){
  *
  */
 
-//[[Rcpp::export]]
+//' @export
+// [[Rcpp::export]]
 void spear_(const int family, arma::mat& Y,  arma::mat& X,
             const arma::mat& Yobs, const arma::mat& Xobs,
             const arma::mat& Z, const arma::vec nclasses, const List& functional_path,

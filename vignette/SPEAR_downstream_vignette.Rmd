@@ -1,10 +1,12 @@
 ---
-title: "SPEAR Vignette"
+title: "SPEAR: Downstream Analysis"
 author: "Jeremy Gygi"
 date: "1/26/21"
-output:
-  html_document:
-    df_print: paged
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SPEAR-downstream_analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
 ---
 
 ### This vignette will provide insight into downstream analysis using SPEAR:

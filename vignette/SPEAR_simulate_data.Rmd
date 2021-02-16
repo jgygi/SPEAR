@@ -1,10 +1,12 @@
 ---
-title: "SPEAR simulating data"
+title: "SPEAR: Simulating Data"
 author: "Jeremy Gygi"
 date: "1/26/21"
-output:
-  html_document:
-    df_print: paged
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SPEAR-simulate_data}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
 ---
 
 ### This vignette sets up simulated omics data for use with SPEAR. Once generated, this data can be used in the SPEAR_vignette.Rmd file.

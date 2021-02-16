@@ -36,8 +36,6 @@ library(glmnet)
 library(parallel)
 
 # Recommended Packages (for downstream analysis):
-path_to_SPEARkit <- "~/Dropbox/shared_folder/SPEARkit/SPEARkit.R"
-source(path_to_SPEARkit)
 library(jsonlite)
 library(dplyr)
 library(reshape2)

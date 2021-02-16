@@ -1,0 +1,12 @@
+Package: SPEARcomplete
+Type: Package
+Title: Final version of SPEAR that works with missing data and different data types.
+Version: 1.0
+Date: 2020-10-30
+Author: Who wrote it
+Maintainer: Who to complain to <yourfault@somewhere.net>
+Description: More about what it does (maybe more than one line)
+License: What license is it under?
+Imports: Rcpp (>= 1.0.5), RcppArmadillo, parallel, glmnet, elasticnet, BH
+LinkingTo: Rcpp, RcppArmadillo, BH
+RoxygenNote: 7.1.1

@@ -1,8 +1,8 @@
 ### SPEARkit Functions ###
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET NEW SPEAR PREDICTIONS
-#
+#' Predict response values for new samples.
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 SPEAR.predict_new_samples <- function(SPEARobj, X, scale.x = TRUE){
   w.idx <- which.min(apply(SPEARobj$cv.eval$cvm,1,sum))
   # Quickly check that the dimensions in X match:
@@ -32,8 +32,9 @@ SPEAR.predict_new_samples <- function(SPEARobj, X, scale.x = TRUE){
 #stop("test")
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET BEST SPEAR WEIGHTS:
+#' Get best SPEAR weights per response Y
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # include.best.overall - add a final element to the named vector for the best overall weight
 SPEAR.get_best_weights <- function(SPEARobj, include.best.overall = FALSE){
   indices = apply(SPEARobj$cv.eval$cvm, 2, which.min)
@@ -47,8 +48,9 @@ SPEAR.get_best_weights <- function(SPEARobj, include.best.overall = FALSE){
   return(ws)
 }
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET FACTOR CONTRIBUTIONS:
+#' Get factor contributions to Y
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # Threshold: minimum value for a factor contribution to be "relevant"
 SPEAR.get_factor_contributions <- function(SPEARobj, threshold = .01){
   factor.contributions <- list()
@@ -66,8 +68,9 @@ SPEAR.get_factor_contributions <- function(SPEARobj, threshold = .01){
 }
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# PLOT FACTOR CONTRIBUTIONS:
+#' Plot factor contributions to Y
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # Threshold: minimum value for a factor contribution to be "relevant"
 # show.labels - should the contribution values be shown on the graph?
 SPEAR.plot_factor_contributions <- function(SPEARobj, threshold = .01, show.labels = TRUE, show.irrelevant = FALSE){
@@ -101,8 +104,9 @@ SPEAR.plot_factor_contributions <- function(SPEARobj, threshold = .01, show.labe
 }
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET CV PREDICTION ERRORS:
+#' Get CV prediction errors
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # Verbose: return a matrix with both best values of w AND cv.errors? Or just errors?
 SPEAR.get_cv_prediction_error <- function(SPEARobj, show.all.w = FALSE, verbose = FALSE){
   if(show.all.w){
@@ -128,8 +132,9 @@ SPEAR.get_cv_prediction_error <- function(SPEARobj, show.all.w = FALSE, verbose 
 }
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# PLOT FACTOR LOADINGS:
+#' Plot factor loadings
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # Threshold: minimum value for a factor contribution to be "relevant"
 # plot.per.omic: should each omic be a different plot?
 # show.feature.names: show feature names (on Y axis)? Recommended as FALSE for large datasets
@@ -213,8 +218,9 @@ SPEAR.plot_factor_loadings <- function(SPEARobj, threshold = .01, plot.per.omic 
 }
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET FEATURES:
+#' Get factor features
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # Threshold: minimum value for a factor contribution to be "relevant"
 # cutoff - posterior selection probability cutoff (defaults to .5)
 SPEAR.get_factor_features <- function(SPEARobj, cutoff = .5, threshold = .01){
@@ -261,8 +267,9 @@ SPEAR.get_factor_features <- function(SPEARobj, cutoff = .5, threshold = .01){
 
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET CV PREDICTIONS
+#' Get CV predictions
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # SPEARobj - a SPEAR object
 # w - 'best' (choose best w for each response through cvm)
 #     'overall' (choose best overall w for ALL responses through cvm)
@@ -316,8 +323,9 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
 
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# PLOT CV PREDICTIONS:
+#' Plot CV predictions
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # SPEARobj - a SPEAR object
 # ncol - number of columns to display in the final plot. Defaults to auto
 # nrow - number of rows to display in the final plot. Defaults to 1
@@ -345,8 +353,9 @@ SPEAR.plot_cv_predictions <- function(SPEARobj, ncol = NULL, nrow = 1){
 
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# GET FACTOR SCORES
+#' Get factor scores
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # SPEARobj - a SPEAR object
 # w - 'best' (choose best w for each response through cvm)
 #     'overall' (choose best overall w for ALL responses through cvm)
@@ -396,8 +405,9 @@ SPEAR.get_factor_scores <- function(SPEARobj, w = "best"){
 
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# PLOT FACTOR GRID
+#' Plot factor grid
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # SPEARobj - a SPEAR object
 # w - 'best' (choose best w for each response through cvm)
 #     'overall' (choose best overall w for ALL responses through cvm)
@@ -544,8 +554,9 @@ SPEAR.plot_factor_grid <- function(SPEARobj, w = "overall", groups = NULL, facto
 
 
 
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-# PLOT FACTOR SCORES
+#' Plot factor scores
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@export
 # SPEARobj - a SPEAR object
 # w - 'best' (choose best w for each response through cvm)
 #     'overall' (choose best overall w for ALL responses through cvm)

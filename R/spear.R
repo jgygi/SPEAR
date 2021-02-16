@@ -233,6 +233,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
 #'@param a2: hyper parametr, no need to tune usually.
 #'@param b2: hyper parametr, no need to tune usually.
 #'@param seed: random seed number.
+#'@param run.debug: debug?
 #'@export
 cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
                      functional_path, foldid = foldid,
@@ -241,7 +242,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                      a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                     inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL){
+                     inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)
   px = ncol(X); py = ncol(Y); pz = ncol(Z); n = nrow(Y)
@@ -337,6 +338,9 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
    #results <- sapply(fold_ids, run_parallel)
   )
   print(a)
+  if(run.debug){
+    print(results)
+  }
   factors_coefs = array(0, dim = c(ncol(X), num_factors, num_patterns,max(foldid), length(ws)));
   projection_coefs = array(0, dim = c(num_factors, ncol(Y), max(foldid), length(ws)));
   for(k in 1:(length(results)-1)){

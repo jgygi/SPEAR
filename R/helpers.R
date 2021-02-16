@@ -302,11 +302,12 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.model  description
 #'@param save.path  description
 #'@param save.name  description
+#'@param run.debug debug?
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
-                         save.model = TRUE, save.path = NULL, save.name = NULL){
+                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE){
   cat("
           __________________________________________
           |                                        |
@@ -473,7 +474,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         thres_elbo = thres_elbo, 
                         thres_count = thres_count, 
                         crossYonly = F,
-                        numCores = numCores)
+                        numCores = numCores,
+                        run.debug = run.debug)
   
   # Run cv.eval:
   

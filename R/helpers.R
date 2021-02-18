@@ -529,7 +529,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       save.name <- paste0(save.name, ".rds")
     }
     saveRDS(SPEARobj, file = paste0(save.path, save.name))
-    cat(paste0("Saved SPEARobject to RDS file at ", paste0(save.path, save.name)))
+    cat(paste0("Saved SPEARobject to RDS file at ", save.name))
   }
   
   return(SPEARobj)

@@ -1,5 +1,13 @@
 ## SPEAR - Sparse Supervised Bayesian Factor Model for Multi-Omic Analysis
 
+### Package Requirements
+
+The following packages are required for installing SPEAR and the vignettes. Future versions of SPEAR will install these automatically. All of them can be installed via the `install.packages` function.
+
+**SPEAR Installation:** `Rcpp`, `RcppArmadillo`, `BH`, `glmnet`, `parallel`
+
+**Vignettes:** `jsonlite`, `dplyr`, `reshape2`, `stringr`, `ggplot2`, `cowplot`, `ggthemes`, `maps`
+
 ### Installation
 
 To install in R:

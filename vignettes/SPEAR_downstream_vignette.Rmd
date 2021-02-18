@@ -173,10 +173,14 @@ Finally, if we want to extract the SPEAR predictions, we use the functions below
 #  w - which weight to use? 
 #  'best' will return lowest cvm per response. 
 #  'overall' returns the lowest cvm overall. When only measuring one response, 'best' is the same as 'overall'.
-#  'all' returns a list with each prediction for each value of 'w'.
 spear.predictions.best <- SPEAR.get_cv_predictions(SPEARobj, w = "best")
-spear.predictions.overall <- SPEAR.get_cv_predictions(SPEARobj, w = "all")
-spear.predictions.all <- SPEAR.get_cv_predictions(SPEARobj, w = "all")
+spear.predictions.overall <- SPEAR.get_cv_predictions(SPEARobj, w = "overall")
+
+# We can also choose by hand the value of w trained by SPEAR:
+spear.predictions.w2 <- SPEAR.get_cv_predictions(SPEARobj, w = 2)
+
+# If we try to use a weight that wasn't used by SPEAR (see SPEARobj$params$weights), it will return an error:
+try(spear.predictions.w2 <- SPEAR.get_cv_predictions(SPEARobj, w = -1))
 
 print(spear.predictions.best$predictions[1:10])
 ```

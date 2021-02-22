@@ -1,0 +1,446 @@
+---
+title: "SPEAR: Ordinal Simulation"
+date: "2/19/21"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SPEAR-ordinal_simulation}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+##### Installing SPEAR:
+
+```{r}
+# Set up the path to the downladed tar.gz package:
+#path_to_SPEAR_tar.gz <- "~/Dropbox/shared_folder/SPEARcomplete_1.0.tar.gz"
+
+# Run this command to install the SPEARcomplete (SPEAR) package
+#install.packages(path_to_SPEAR_tar.gz, repos = NULL, type="source")
+
+# If this fails, you may need to install these packages:
+#install.packages('BH')
+#install.packages('Rcpp')
+#install.packages('RcppArmadillo')
+#install.packages('glmnet')
+```
+
+##### Required Libraries:
+
+```{r}
+# Required Packages for SPEAR:
+library(SPEARcomplete)
+library(glmnet)
+library(parallel)
+
+# Recommended Packages (for downstream analysis):
+library(jsonlite)
+library(dplyr)
+library(reshape2)
+library(stringr)
+library(ggplot2)
+library(cowplot)
+```
+
+##### Simulate Ordinal Data:
+
+Function:
+```{r}
+simulate_ordinal_data <- function(N = 500, Ntest = 2000, P = 500, levels = 7, D = 4, seed = NULL, num_factors = 5, 
+                                  scale_spread = 1, pi = 0.2, num_specific =D-2, Ymodel = "factor",
+                                  influence_y = 2, pi_reg = 0.05){
+  if(!is.null(seed)){
+    set.seed(seed)
+  }
+  
+  # 1) Sample classes:
+  Y <- sample(1:levels, N, replace = TRUE)
+  Ytest <- sample(1:levels, Ntest, replace = TRUE)
+  
+  # 2) Make Factors:
+  U0 <- matrix(0, nrow = N, ncol = num_factors)
+  U0test <- matrix(0, nrow = Ntest, ncol = num_factors)
+  
+  # Linear means:
+  mu <- Y
+  mu.test <- Ytest
+  
+  # sds:
+  sd <- scale_spread
+  
+  for(k in 1:num_factors){
+    if(k %in% 1:influence_y){
+      U0[,k] <- sapply(mu, function(mu0){return(rnorm(1, mu0, sd))})
+      U0test[,k] <- sapply(mu.test, function(mu0){return(rnorm(1, mu0, sd))})
+    } else {
+      U0[,k] <- rnorm(N, 0, sd)
+      U0test[,k] <- rnorm(Ntest, 0, sd)
+    }
+    # Standardize:
+    U0[,k] <- scale(U0[,k])
+    U0test[,k] <- scale(U0test[,k])
+  }
+
+  
+  
+  # Generate X:
+  Theta0 = list(); Gamma0 = list()
+  X = list(); Xtest = list()
+  scale_mean.X = c(); scale_sd.X = c()
+  for(d in 1:D){
+    Theta0[[d]] = matrix(rnorm(P*num_factors, sd = 1), ncol = P) * c
+    Gamma0[[d]] = matrix(rbinom(P*num_factors, size = 1, prob  = pi), ncol = P)
+  }
+  for(k in 1:num_factors){
+    ii = sample(1:D, num_specific)
+    for(d in 1:D){
+      if(!(d%in%ii)){
+        Gamma0[[d]][k,] = 0
+        Theta0[[d]] = Theta0[[d]] * Gamma0[[d]]
+      }
+    }
+  }
+  for(d in 1:D){
+    X[[d]] = scale(U0 %*% Theta0[[d]]+matrix(rnorm(N*P), ncol = P))
+    Xtest[[d]] = scale(U0test %*% Theta0[[d]]+matrix(rnorm(Ntest*P), ncol = P))
+    tmp1 = apply(X[[d]], 2, mean);
+    tmp2 =  apply(X[[d]], 2, sd);
+    scale_mean.X =c(scale_mean.X, tmp1)
+    scale_sd.X = c(scale_sd.X, tmp2)
+    X[[d]] = t(apply(X[[d]], 1, function(z) (z - tmp1)/tmp2))
+    Xtest[[d]] = t(apply(Xtest[[d]], 1, function(z) (z - tmp1)/tmp2))
+  }
+  
+  # Make data SPEAR-friendly:
+  Y <- Y - 1
+  Ytest <- Ytest - 1
+  
+  # Split into training/testing:
+  data.tr = preparation(Y = Y, X = X, path.type = "assay", family = 1)
+  data.te = preparation(Y = Ytest, X = Xtest, path.type = "assay", family = 1)
+  
+  # add final items:
+  data.tr$U0 <- U0
+  data.te$U0 <- U0test
+  data.tr$xlist <- X
+  data.te$xlist <- Xtest
+  
+  # Return list:
+  data <- list(data.tr = data.tr, data.te = data.te)
+  return(data)
+}
+```
+
+Generating the ordinal data:
+```{r}
+N <- 100; 
+Ntest <- 2000; 
+P <- 100; 
+levels <- 5; 
+D <- 4; 
+seed <- 2021; 
+num_factors <- 5; 
+pi <- 0.2; 
+num_specific <- 2; 
+Ymodel <- "factor"; 
+pi_reg <- 0.05; 
+influence_y <- 2
+
+scale_spread <- 1 # .1 = easier, 1 = harder
+
+sim.data <- simulate_ordinal_data(N = N, Ntest = Ntest, P = P, levels = levels, D = D, seed = seed, num_factors = num_factors, scale_spread = scale_spread,
+                              pi = pi, num_specific = num_specific, Ymodel = Ymodel, influence_y = influence_y, pi_reg = pi_reg)
+
+# Check distribution of labels:
+table(sim.data$data.tr$Y)
+table(sim.data$data.te$Y)
+
+# Check distribution of signal vs label:
+plot(sim.data$data.te$Y, sim.data$data.te$U0[,1])
+```
+
+Loading simulated multi-omic data: (skip this if using your own data)
+
+```{r}
+X <- sim.data$data.tr$xlist
+Y <- sim.data$data.tr$Y
+```
+
+Naming the features, subjects, and datasets (for downstream analysis):
+
+```{r}
+colnames(Y) <- "OrdinalResponse"
+rownames(Y) <- paste0("Subject", 1:nrow(Y))
+names(X) <- paste0("OmicsData", 1:length(X))
+for(i in 1:length(X)){
+  colnames(X[[i]]) <- paste0(names(X)[i], "_feat", 1:ncol(X[[i]]))
+  rownames(X[[i]]) <- paste0("Subject", 1:nrow(X[[i]]))
+}
+
+# Make sure the subjects (rows) are consistent across X and Y
+all(rownames(Y) == rownames(X[[1]]))
+```
+
+
+##### SPEARordinal:
+```{r}
+# Run the cv version of SPEAR
+#    Main Parameters:
+# X - Omics datasets (as list of matrices). Rows = subjects, columns = features
+# Y - Response (as matrix). Rows = subjects, columns = response features
+#
+#    Other Parameters:
+num.factors = 6 # How many factors should SPEAR generate? 5-10 should be sufficient for most cases
+save.path <- getwd() # path for SPEARobject (rds file) to be saved
+save.name <- "SPEARordinalsim_ordinal.rds" # name for SPEARobject (rds file)
+seed <- 2020 # reproducible seed
+family <- 1 # Use family = 1 for SPEARordinal
+
+# Running cross-validated SPEAR:
+SPEARobj.ordinal <- run_cv_spear(X = X, 
+                         Y = Y, 
+                         num.factors = num.factors, 
+                         seed = seed, 
+                         save.path = save.path, 
+                         save.name = save.name,
+                         family = family)
+SPEARobj.ordinal <- readRDS(paste0(save.path, "/", save.name))
+
+# This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)
+```
+
+##### SPEARgaussian:
+```{r}
+# Run the cv version of SPEAR
+#    Main Parameters:
+# X - Omics datasets (as list of matrices). Rows = subjects, columns = features
+# Y - Response (as matrix). Rows = subjects, columns = response features
+#
+#    Other Parameters:
+num.factors = 6 # How many factors should SPEAR generate? 5-10 should be sufficient for most cases
+save.path <- getwd() # path for SPEARobject (rds file) to be saved
+save.name <- "SPEARordinalsim_gaussian.rds" # name for SPEARobject (rds file)
+seed <- 2020 # reproducible seed
+family <- 0 # Use family = 0 for SPEARgaussian
+
+# Running cross-validated SPEAR:
+SPEARobj.gaussian <- run_cv_spear(X = X, 
+                         Y = Y, 
+                         scale.y = FALSE,
+                         num.factors = num.factors, 
+                         seed = seed, 
+                         save.path = save.path, 
+                         save.name = save.name,
+                         family = family)
+SPEARobj.gaussian <- readRDS(paste0(save.path, "/", save.name))
+
+# This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)
+```
+
+##### Lasso:
+```{r}
+foldid = sample(1:5, N, replace = T)
+lasso_fit = cv.glmnet(sim.data$data.tr$X, sim.data$data.tr$Y, foldid = foldid)
+yhat.lasso.tr = predict(lasso_fit, sim.data$data.tr$X, s = "lambda.min")
+yhat.lasso.te  = predict(lasso_fit, sim.data$data.te$X, s = "lambda.min")
+```
+
+
+
+### Downstream Analysis:
+
+Misclassification:
+```{r}
+err.truth.te <- list()
+
+# Ordinal:
+yhat.spear.tr.o = sim.data$data.tr$X %*% SPEARobj.ordinal$cv.eval$reg_coefs[,1,1,which.min(SPEARobj.ordinal$cv.eval$cvm)]
+yhat.spear.te.o = sim.data$data.te$X %*% SPEARobj.ordinal$cv.eval$reg_coefs[,1,1,which.min(SPEARobj.ordinal$cv.eval$cvm)]
+intercept.o = SPEARobj.ordinal$cv.eval$intercepts[[1]][which.min(SPEARobj.ordinal$cv.eval$cvm),]
+# calculate deviance loss
+Phat.te.spear.o = prob_calculation(yhat.spear.te.o, intercept =intercept.o ) 
+# Calculate misclassification:
+err.truth.te[1] <-  mean((apply(Phat.te.spear.o, 1, which.max)-1) != sim.data$data.te$Y)
+
+# Gaussian:
+yhat.spear.tr.g = sim.data$data.tr$X %*% SPEARobj.gaussian$cv.eval$reg_coefs[,1,1,which.min(SPEARobj.gaussian$cv.eval$cvm)]
+yhat.spear.te.g = sim.data$data.te$X %*% SPEARobj.gaussian$cv.eval$reg_coefs[,1,1,which.min(SPEARobj.gaussian$cv.eval$cvm)]
+intercept.g = SPEARobj.gaussian$cv.eval$intercepts[[1]][which.min(SPEARobj.gaussian$cv.eval$cvm),]
+# Add intercept
+yhat.spear.pred.tr = yhat.spear.tr.g + unique(intercept.g)[1]
+yhat.spear.pred.te = yhat.spear.te.g + unique(intercept.g)[1]
+# Round to nearest class
+yhat.spear.roundedpred.tr = as.integer(round(yhat.spear.pred.tr, 0))
+yhat.spear.roundedpred.tr[yhat.spear.roundedpred.tr<0] <- 0
+yhat.spear.roundedpred.tr[yhat.spear.roundedpred.tr>(levels-1)] <- (levels-1)
+yhat.spear.roundedpred.te = as.integer(round(yhat.spear.pred.te, 0))
+yhat.spear.roundedpred.te[yhat.spear.roundedpred.te<0] <- 0
+yhat.spear.roundedpred.te[yhat.spear.roundedpred.te>(levels-1)] <- (levels-1)
+# Get misclassification:
+err.truth.te[2] =  mean(yhat.spear.roundedpred.te != sim.data$data.te$Y)
+
+# Lasso:
+Phat.te.lasso = Phat.te.spear.o
+for(k in 1:ncol(Phat.te.lasso)){
+  Phat.te.lasso[,k] = (yhat.lasso.te - k+1)^2
+}
+label.lasso.te = apply(Phat.te.lasso,1,which.min)-1
+# Calculate misclassification:
+err.truth.te[3] =  mean(label.lasso.te!=sim.data$data.te$Y)
+
+print(err.truth.te)
+```
+
+Plots:
+
+```{r}
+### plots ------------------------------------------------------------------------------------------
+# spread of true classes
+ymax <- max(table(yhat.spear.roundedpred.te), table((apply(Phat.te.spear.o, 1, which.max)-1)), table(data$data.te$Y))
+color_vec <- RColorBrewer::brewer.pal(levels, "RdBu")
+
+data$data.tr$truth <- data$data.tr$U0[,1]
+data$data.te$truth <- data$data.te$U0[,1]
+
+g1 <- ggplot() +
+  geom_point(aes(x = data$data.te$Y, y = data$data.te$truth, fill = as.character(data$data.te$Y)), shape = 21, size = 1.5, alpha = .4) +
+  geom_segment(aes(x = 0 - .25, 
+                   y = mean(data$data.te$truth[which(data$data.te$Y == 0)], na.rm = TRUE), 
+                   xend = 0 + .25, 
+                   yend =  mean(data$data.te$truth[which(data$data.te$Y == 0)], na.rm = TRUE)), lwd = 1) +
+  geom_segment(aes(x = 1 - .25, 
+                   y = mean(data$data.te$truth[which(data$data.te$Y == 1)], na.rm = TRUE), 
+                   xend = 1 + .25, 
+                   yend =  mean(data$data.te$truth[which(data$data.te$Y == 1)], na.rm = TRUE)), lwd = 1) +
+  geom_segment(aes(x = 2 - .25, 
+                   y = mean(data$data.te$truth[which(data$data.te$Y == 2)], na.rm = TRUE), 
+                   xend = 2 + .25, 
+                   yend =  mean(data$data.te$truth[which(data$data.te$Y == 2)], na.rm = TRUE)), lwd = 1) +
+  geom_segment(aes(x = 3 - .25, 
+                   y = mean(data$data.te$truth[which(data$data.te$Y == 3)], na.rm = TRUE), 
+                   xend = 3 + .25, 
+                   yend =  mean(data$data.te$truth[which(data$data.te$Y == 3)], na.rm = TRUE)), lwd = 1) +
+  geom_segment(aes(x = 4 - .25, 
+                   y = mean(data$data.te$truth[which(data$data.te$Y == 4)], na.rm = TRUE), 
+                   xend = 4 + .25, 
+                   yend =  mean(data$data.te$truth[which(data$data.te$Y == 4)], na.rm = TRUE)), lwd = 1) +
+  xlab("True Label") +
+  ylab("Signal") +
+  geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+  scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+  scale_fill_manual(values = color_vec, guide = FALSE) +
+  ggtitle("Signal per Classes") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+g2 <- ggplot() +
+  geom_histogram(aes(x = data$data.te$Y, fill = as.character(data$data.te$Y)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+  xlab("True Label") +
+  ylab("Count") +
+  scale_fill_manual(values = color_vec, guide = FALSE) +
+  geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+  scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+  ylim(c(NA, ymax)) +
+  ggtitle("True Class Distribution") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+  
+  
+temp <- tibble(pred = (apply(Phat.te.spear.o, 1, which.max)-1), actual = data$data.te$Y)
+temp$correct <- temp$pred == temp$actual
+g3 <- ggplot(temp) +
+  geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+  xlab("True Label") +
+  ylab("Count") +
+  geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+  scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+  scale_fill_manual(values = color_vec, guide = FALSE) +
+  ylim(c(NA, ymax)) +
+  ggtitle("SPEARordinal Predictions") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+temp <- tibble(pred = yhat.spear.roundedpred.te, actual = data$data.te$Y)
+temp$correct <- temp$pred == temp$actual
+g4 <- ggplot(temp) +
+  geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+  xlab("True Label") +
+  ylab("Count") +
+  geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+  scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+  scale_fill_manual(values = color_vec, guide = FALSE) +
+  ylim(c(NA, ymax)) +
+  ggtitle("SPEARgaussian Predictions") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+# Class Probability (from Ordinal)
+# i.e. each plot shows the probability of a point being 0 (for first plot)
+g5 <- ggplot() +
+    geom_boxplot(aes(x = data$data.te$Y, group = data$data.te$Y, y = Phat.te.spear.o[,1], fill = as.character(data$data.te$Y)), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+    xlab("True Label") +
+    ylab("Probability") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_fill_manual(values = color_vec, guide = FALSE) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    ggtitle("Probability Class 0") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+
+g6 <- ggplot() +
+    geom_boxplot(aes(x = data$data.te$Y, group = data$data.te$Y, y = Phat.te.spear.o[,2], fill = as.character(data$data.te$Y)), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+    xlab("True Label") +
+    ylab("Probability") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_fill_manual(values = color_vec, guide = FALSE) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    ggtitle("Probability Class 1") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+
+g7 <- ggplot() +
+    geom_boxplot(aes(x = data$data.te$Y, group = data$data.te$Y, y = Phat.te.spear.o[,3], fill = as.character(data$data.te$Y)), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+    xlab("True Label") +
+    ylab("Probability") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_fill_manual(values = color_vec, guide = FALSE) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    ggtitle("Probability Class 2") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+
+g8 <- ggplot() +
+    geom_boxplot(aes(x = data$data.te$Y, group = data$data.te$Y, y = Phat.te.spear.o[,4], fill = as.character(data$data.te$Y)), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+    xlab("True Label") +
+    ylab("Probability") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_fill_manual(values = color_vec, guide = FALSE) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    ggtitle("Probability Class 3") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+
+g9 <- ggplot() +
+    geom_boxplot(aes(x = data$data.te$Y, group = data$data.te$Y, y = Phat.te.spear.o[,5], fill = as.character(data$data.te$Y)), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+    xlab("True Label") +
+    ylab("Probability") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_fill_manual(values = color_vec, guide = FALSE) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    ggtitle("Probability Class 4") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+
+
+  
+# plot grid
+pg_top <- plot_grid(g1, g2, g3, g4, 
+          ncol = 4, nrow = 1)
+pg_bottom <- plot_grid(g5, g6, g7, g8, g9, 
+          ncol = 5, nrow = 1)
+pg <- plot_grid(pg_top, pg_bottom, ncol = 1)
+
+pg
+```
+
+

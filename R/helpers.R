@@ -346,7 +346,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     cat(paste0(names(X.scaled)[i], "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n"))
   }
   
-  if(scale.y){
+  if(scale.y & family == 0){
     Y.scaled <- scale(Y)
   } else {
     Y.scaled <- Y

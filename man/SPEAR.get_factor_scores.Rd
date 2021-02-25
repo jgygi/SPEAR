@@ -8,6 +8,8 @@ SPEAR.get_factor_scores(SPEARobj, w = "best")
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
+
+\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
 }
 \description{
 Get factor scores

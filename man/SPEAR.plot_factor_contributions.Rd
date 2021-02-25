@@ -6,6 +6,7 @@
 \usage{
 SPEAR.plot_factor_contributions(
   SPEARobj,
+  w = "best",
   threshold = 0.01,
   show.labels = TRUE,
   show.irrelevant = FALSE
@@ -13,6 +14,14 @@ SPEAR.plot_factor_contributions(
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
+
+\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
+
+\item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
+
+\item{show.labels}{Show the contributions as geom_text on the plot? Defaults to TRUE}
+
+\item{show.irrelevant}{Show all contributions, even those below the threshold? Defaults to FALSE}
 }
 \description{
 Plot factor contributions to Y

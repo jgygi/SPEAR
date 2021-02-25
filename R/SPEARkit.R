@@ -673,7 +673,6 @@ SPEAR.plot_factor_scores <- function(SPEARobj, w = "overall", groups = NULL, fac
 SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line = TRUE){
   cv.errors <- SPEARobj$cv.eval$cvm
   cv.errors <- as.data.frame(cbind(cv.errors, SPEARobj$params$weights))
-  print(cv.errors)
   colnames(cv.errors) <- c("Y1", "w")
   cv.errors$lowest <- cv.errors$Y1 == min(cv.errors$Y1)
   g <- ggplot(cv.errors)

@@ -126,8 +126,8 @@ dataGen <- function(N = 500, Ntest = 2000, P = 500, D = 4, iteration = NULL, see
 # Data simulation parameters:
 K = 5 # number of factors
 D = 4 # number of omics datasets to simulate
-N = 200 # number of subjects in the training set
-P = 200 # number of features to simulate per omics dataset
+N = 100 # number of subjects in the training set
+P = 100 # number of features to simulate per omics dataset
 c = 3 # signal-to-noise ratio. 1 is low, 3 is high
 c = sqrt(c *log(P*D)/N) 
 Ymodel = "factor" # parameter indicating that Y (gaussian response) is generated from the factors

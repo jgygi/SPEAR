@@ -27,7 +27,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                   a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1, robust_eps = 2.0/(sqrt(nrow(X)*log(nrow(X))))){
+                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X)))){
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -241,7 +241,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                      inits_type = "pca", warm_up = 100, max_iter = 1000,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
-                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =2.0/(sqrt(nrow(X)*log(nrow(X)))),
+                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1.0/(sqrt(nrow(X))),
                      inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)

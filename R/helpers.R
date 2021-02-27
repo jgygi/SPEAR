@@ -556,7 +556,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@export
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
-                          factor_contribution = F){
+                          factor_contribution = F, max_iter = 1e4){
   n = nrow(Y);
   px = ncol(X);
   py = ncol(Y);
@@ -609,13 +609,13 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
     r2norm = rep(1, py)
     if(py == 1){
       Yhat[,1,l] =  (U0 %*% projection_coefs[,1,l])
-      if(family == 2){
+      if(family != 0){
         r2norm =  sqrt(mean(Yhat[,1,l]^2))
         Yhat[,1,l] = Yhat[,1,l]/r2norm
       }
     }else{
       Yhat[,,l] =  (U0 %*% projection_coefs[,,l])
-      if(family == 2){
+      if(family != 0){
         r2norm =  sqrt(apply(Yhat[,,l]^2,2,function(z) mean(z^2)))
         Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
       }
@@ -631,12 +631,12 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       b = cv.projection_coefs[,,k,l]
       if(py == 1){
         Yhat.cv[,1,k,l] =  (ucv %*% b)
-        if(family == 2){
+        if(family != 2){
           Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
         }
       }else{
         Yhat.cv[,,k,l] =  (ucv %*% b)
-        if(family == 2){
+        if(family != 2){
           Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
         }
       }
@@ -648,39 +648,66 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       if(family == 0){
         tmp = lm(y~Yhat[,j,l])
         cmax = tmp$coefficients[2]
-      }else if(nclasses[j] == 2){
+      }else if(family==1){
         tmp = glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
         cmax = tmp$beta[1,ncol(tmp$beta)]
       }else{
-        yfactor= as.factor(y)
-        tmp = ordinalNet(cbind(yhat,rep(0,length(yhat))), yfactor,lambdaVals=1e-4, reverse=T)
+        reverseY = max(y) - y
+        reverseY = as.factor(reverseY)
+        tmp = ordinalNet(cbind(yhat,rep(0,length(yhat))), reverseY,lambdaVals=1e-4)
         tmp = tmp$coefs
         cmax = tmp[length(tmp)-1]
       }
       chats = seq(0, cmax, length.out = nlambda)
       errs = array(NA, dim = c(n,length(chats)))
       for(k in 1:nfolds){
+        if(family == 1){
+          tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
+          a0 = tmp0$a0
+          c0 = tmp0$beta[1]
+        }else if(family == 2){
+          tmp0 = ordinalNet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),reverseY[foldid!=k],lambdaVals=1e-4)
+          a0 = tmp0$coefs[1:(nclasses[j]-1)]
+          c0 = tmp0$coefs[nclasses[j]]
+        }
         for(ll in 1:length(chats)){
           if(family == 0){
             a = mean(y[foldid!=k] - chats[ll] * yhat_cv[foldid!=k])
             errs[foldid==k,ll] = (y[foldid == k] - a - chats[ll] * yhat_cv[foldid==k])^2
           }else if(family == 1){
-            tmp <-glmnet(y[foldid!=k] ~ offset(chats[ll]*yhat_cv[foldid!=k]), family = "binomial", lambda = 1e-4)
-            a = tmp$coefficients[1]
+            if(ll == 1){
+              tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial")
+              a = tmp$coefficients[1]
+            }else{
+              if(abs(c0) >=abs(chats[ll])){
+                tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial",  start = a)
+                a = tmp$coefficients[1]
+              }else{
+                a = a0
+              }
+            }
             Probs = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a))
-            errs[foldid==k, ll] = y[foldid == k] * log(Probs+1e-10) +
-              (1 - y[foldid == k]) * log(1 - Probs+1e-10);
+            errs[foldid==k, ll] = -2*(y[foldid == k] * log(Probs+1e-10) +
+              (1 - y[foldid == k]) * log(1 - Probs+1e-10));
           }else if(family == 2){
-            tmp <- ordinalNet(cbind(,rep(0,sum(foldid==k))), yfactor,lambdaVals=1e-4, reverse=T)
-            polr(yfactor[foldid!=k] ~ offset())
-            a = tmp$zeta
-            a = -a0* abs(chats[ll])
+            if(ll == 1){
+              tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]))
+              a = tmp$zeta
+            }else{
+              if(abs(c0) >=abs(chats[ll])){
+                tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]),start = a)
+                a = tmp$zeta
+              }else{
+                a = a0
+              }
+            }
+            a1 = a[(nclasses[j]-1):1]
             ##deviance loss
             Pmat0 = matrix(0, ncol = max(y), nrow = sum(foldid == k))
             Pmat = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
             y_extended = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
             for(kk in 1:length(a)){
-              Pmat0[,kk] = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a[kk]))
+              Pmat0[,kk] = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a1[kk]))
             }
             for(kk in 1:ncol(Pmat)){
               y_extended[y[foldid==k]==(kk-1),kk]=1
@@ -704,20 +731,20 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
       }
       projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
-      if(family == 2){
+      if(family != 0){
         projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
       }
       if(family == 0){
         intercepts[[j]][l,] = mean(y - mean(yhat *chats[which.min(cv_tmp)] ))
-      }else if(nclasses[j]==2){
-        tmp = glm(y ~ offset(chats[which.min(cv_tmp)] * yhat))
+      }else if(family==1){
+        tmp = glm(y ~ offset(chats[which.min(cv_tmp)] * yhat), family = "binomial")
         a = tmp$coefficients[1]
         intercepts[[j]][l,] = a
       }else{
         tmp = polr(reverseY ~ offset(-chats[which.min(cv_tmp)] * yhat))
         a = tmp$zeta
         a = a[length(a):1]
-        intercepts[[j]][l,] = -a
+        intercepts[[j]][l,] = a
       }
     }
   }

@@ -31,6 +31,7 @@ cv.spear(
   b1 = sqrt(nrow(X)),
   a2 = sqrt(nrow(X)),
   b2 = sqrt(nrow(X)),
+  robust_eps = 1/(sqrt(nrow(X))),
   inits_post_mu = NULL,
   seed = 1,
   crossYonly = F,

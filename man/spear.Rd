@@ -31,7 +31,8 @@ spear(
   a2 = sqrt(nrow(X)),
   b2 = sqrt(nrow(X)),
   inits_post_mu = NULL,
-  seed = 1
+  seed = 1,
+  robust_eps = 1/(sqrt(nrow(X)))
 )
 }
 \arguments{

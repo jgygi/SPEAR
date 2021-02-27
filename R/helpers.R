@@ -303,6 +303,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.path  description
 #'@param save.name  description
 #'@param run.debug debug?
+#'@param robust_eps description
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
@@ -455,9 +456,9 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   if(is.null(robust_eps)){
     robust_eps = 2.0/sqrt(nrow(data$X)*log(nrow(data$X)))
   }
-  for(k in 1:num.folds){
-    print(table(data$Y[foldid==k]))
-  }
+  #for(k in 1:num.folds){
+  #  print(table(data$Y[foldid==k]))
+  #}
   print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),

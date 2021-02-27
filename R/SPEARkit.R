@@ -91,7 +91,8 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
   factor.contributions <- matrix(unlist(factor.contributions), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
   colnames(factor.contributions) <- colnames(SPEARobj$data$Y)
   rownames(factor.contributions) <- paste0("Factor", 1:nrow(factor.contributions))
-
+  colnames(rel.factors) <- colnames(SPEARobj_tcga$data$Y)
+  rownames(rel.factors) <- paste0("Factor", 1:nrow(rel.factors))
   return(list(factor.contributions = factor.contributions, relevant.factors = relevant.factors, threshold = threshold))
 }
 
@@ -356,6 +357,17 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
   pred.mat <- matrix(SPEARobj$cv.eval$Yhat.keep[,,w.idxs], ncol=ncol(SPEARobj$data$Y))
   colnames(pred.mat) <- colnames(SPEARobj$data$Y)
   rownames(pred.mat) <- rownames(SPEARobj$data$X)
+  if(w == "best" & ncol(SPEARobj$data$Y) > 1){
+    temp <- pred.mat[,1,1]
+    for(i in 2:ncol(SPEARobj$data$Y)){
+      temp <- cbind(temp, pred.mat[,i,i])
+    }
+    pred.mat <- temp
+  } else {
+    pred.mat <- pred.mat[,,1]
+  }
+  # Get Weights:colnames(rel.factors) <- colnames(SPEARobj_tcga$data$Y)
+  rownames(rel.factors) <- paste0("Factor", 1:nrow(rel.factors))
   ws <- SPEARobj$params$weights[w.idxs]
   names(ws) <- colnames(SPEARobj$data$Y)
   temp <- list()
@@ -664,6 +676,62 @@ SPEAR.plot_factor_scores <- function(SPEARobj, w = "overall", groups = NULL, fac
   return(g)
   
 }
+
+#' Plot factor scores per subject
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param show.w.labels Label points with their weights? Defaults to TRUE
+#'@param show.min.w.line Draw a dashed line at the lowest mean cv error? Defaults to TRUE
+#'@param show.overall Plot the overall mean cv error (only works with more than one response)? Defaults to FALSE
+#'@export
+SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line = TRUE, show.overall = FALSE){
+  # Only show one line if there's only one response
+  
+  # Get the cv errors:
+  cv.errors <- as.data.frame(SPEARobj$cv.eval$cvm)
+  if(show.overall & ncol(SPEARobj$data$Y) > 1){
+    overall.values <- rowSums(cv.errors)/ncol(cv.errors)
+  }
+  minimum.values <- apply(cv.errors, 2, min)
+  cv.errors <- cbind(cv.errors, SPEARobj$params$weights)
+  colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
+  
+  
+  # Melt to make graph
+  cv.errors.melted <- reshape2::melt(cv.errors, id.vars = c("w"))
+  cv.errors.melted$Minimum <- rep(minimum.values, each = nrow(cv.errors))
+  
+  # Make the plot:
+  g <- ggplot(cv.errors.melted)
+  
+  g <- g + geom_line(aes(x = w, y = value, group = variable, color = variable)) +
+    geom_point(aes(x = w, y = value, group = variable, color = variable), size = 3) +
+    scale_color_brewer(palette = "RdBu") +
+    scale_x_continuous(breaks = round(SPEARobj$params$weights, 2)) +
+    ylab("Mean CV Error") +
+    ylim(c(0, NA)) +
+    ggtitle("Mean CV Errors of SPEAR weights") +
+    theme_bw()
+  
+  if(show.min.w.line){
+    g <- g + geom_hline(aes(yintercept = Minimum, color = variable), lwd = .5, linetype = "dashed")
+    if(exists("overall.values")){
+      g <- g + geom_hline(yintercept = min(overall.values), lwd = .5, linetype = "dashed")
+    }
+  }
+  
+  if(show.w.labels){
+    g <- g + geom_text(aes(x = w, y = value+.05, label = paste0("w=", round(w, 2))))
+  }
+  if(exists("overall.values")){
+    g <- g + geom_line(data = data.frame(w = SPEARobj$params$weights, overall = overall.values), aes(x = w, y = overall), color = "black") +
+      geom_point(data = data.frame(w = SPEARobj$params$weights, overall = overall.values), aes(x = w, y = overall), color = "black", size = 3)
+  }
+  
+  return(g)
+}
+  
+
+
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 

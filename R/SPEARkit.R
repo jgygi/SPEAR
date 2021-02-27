@@ -665,41 +665,6 @@ SPEAR.plot_factor_scores <- function(SPEARobj, w = "overall", groups = NULL, fac
   
 }
 
-#' Plot factor scores per subject
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param show.w.labels Label points with their weights? Defaults to TRUE
-#'@param show.min.w.line Draw a dashed line at the lowest mean cv error? Defaults to TRUE
-#'@export
-SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line = TRUE){
-  cv.errors <- SPEARobj$cv.eval$cvm
-  cv.errors <- as.data.frame(cbind(cv.errors, SPEARobj$params$weights))
-  colnames(cv.errors) <- c("Y1", "w")
-  cv.errors$lowest <- cv.errors$Y1 == min(cv.errors$Y1)
-  g <- ggplot(cv.errors)
-  
-  if(show.min.w.line){
-    g <- g + geom_hline(yintercept = min(cv.errors$Y1), lwd = .5, linetype = "dashed", color = "red")
-  }
-  
-  g <- g + geom_line(aes(x = w, y = Y1)) +
-    geom_point(aes(x = w, y = Y1, color = lowest), size = 3) +
-    scale_color_manual(values = c("red", "black"), breaks = c(TRUE, FALSE), guide = FALSE) +
-    scale_x_continuous(breaks = round(SPEARobj$params$weights, 2)) +
-    ylab("Mean CV Error") +
-    ylim(c(0, NA)) +
-    ggtitle("Mean CV Errors of SPEAR weights") +
-    theme_bw()
-  
-  if(show.w.labels){
-    g <- g + geom_text(aes(x = w, y = Y1+.05, label = paste0("w=", round(w, 2))))
-  }
-  
-  return(g)
-}
-  
-
-
-
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 # GET PATHWAY INFO FROM GENES:

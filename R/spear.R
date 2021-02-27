@@ -27,7 +27,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                   a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1){
+                  inits_post_mu = NULL,seed = 1, robust_eps = 2.0/(sqrt(nrow(X)*log(nrow(X))))){
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -146,7 +146,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
            post_a1 = post_a1, post_b1 = post_b1,
            post_a2x = post_a2x, post_b2x = post_b2x,
            post_a2y = post_a2y, post_b2y = post_b2y,
-           meanFactors = meanFactors, seed0 = seed)
+           meanFactors = meanFactors, seed0 = seed,robust_eps =robust_eps)
     ###return both the factors after re-order and sign-fliping
     post_beta =array(0, dim = dim(post_mu))
     post_bx =  post_tmuX *  post_tpiX
@@ -241,7 +241,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                      inits_type = "pca", warm_up = 100, max_iter = 1000,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
-                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
+                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =2.0/(sqrt(nrow(X)*log(nrow(X)))),
                      inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)
@@ -287,7 +287,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                    ws = ws,  num_factors = num_factors, warm_up = warm_up,
                    max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                    thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed)
+                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps)
       
     }else{
       subsets = which(foldid != fold_id)
@@ -317,14 +317,16 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
           pattern_samples_cv[[k]] = as.integer(ids[as.character(ll1)])
         }
       }
-      fit = spear(family  = family, Y = Ycv, X = Xcv, Yobs = Yobs_cv, Xobs = Xobs_cv, Z = Zcv,
+      fit <- try(spear(family  = family, Y = Ycv, X = Xcv, Yobs = Yobs_cv, Xobs = Xobs_cv, Z = Zcv,
                   nclasses =  nclasses,  functional_path = functional_path,
                   pattern_samples = pattern_samples_cv, pattern_features = pattern_features,
                   ws = ws,  num_factors = num_factors, warm_up = warm_up,
                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                   thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                  a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed)
-      # Leying, we should check here if 'fit' is a try-error object
+                  a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps))
+      if(class(fit)=="try-error"){
+        stop(paste0("fold",fold_id,":C++failure."))
+      }
       res = list(post_betas = fit$post_betas, post_bys = fit$post_bys, 
                  fold_id = fold_id)
     }
@@ -337,6 +339,9 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
    results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
    #results <- sapply(fold_ids, run_parallel)
   )
+  # a <- system.time(
+  #   results <- run_parallel(0)
+  # )
   print(a)
   if(run.debug){
     print(results)
@@ -350,6 +355,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   return(list(results = results[[1]],
               factors_coefs = factors_coefs,
               projection_coefs = projection_coefs, foldid = foldid))
+  #return(list(results = results))
   
 }
 

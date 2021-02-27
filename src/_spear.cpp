@@ -12,7 +12,8 @@ using namespace Rcpp;
  */
 void UPXI_update_binomial(int idx, arma::mat& S, arma::mat& Y, arma::mat& Yapprox,  
                           arma::vec& offset, arma::vec& Delta,
-                          arma::vec& intercepts, arma::mat& UPXI, arma::mat& nu_mat){
+                          arma::vec& intercepts, arma::mat& UPXI, arma::mat& nu_mat,
+                          const double robust_eps){
   //Jakolaa bound
   int n = UPXI.n_rows;
   int K = UPXI.n_cols;
@@ -29,6 +30,7 @@ void UPXI_update_binomial(int idx, arma::mat& S, arma::mat& Y, arma::mat& Yappro
         lambdas(i) = 1.0/8.0;
       }
     }
+    lambdas = lambdas + robust_eps;
     nu_mat.col(idx) += 2.0 * lambdas;
     Yapprox.col(idx) += (2 * S.col(k) - 1.0)/4.0  - lambdas * intercepts(k);
   }
@@ -39,7 +41,8 @@ void update_binomial_approximation(arma::mat& Y, const arma::mat& Yobs,
                                    const arma::vec nclasses,  arma::mat& Yapprox, 
                                    arma::mat& meanFactors, arma::mat& U2,
                                    arma::mat& post_tmu, arma::mat& post_tsigma2,
-                                   arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat){
+                                   arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat,
+                                   const double robust_eps){
   int p = Y.n_cols;
   int n = Y.n_rows;
   int num_factors = meanFactors.n_cols;
@@ -73,13 +76,13 @@ void update_binomial_approximation(arma::mat& Y, const arma::mat& Yobs,
     arma::vec tmp1 = Yobs.col(j);
     for(int k = 0; k < K; k++){
       arma::vec lambdas = exp(-UPXI.col(k));
-      lambdas = (1.0 - lambdas)/(1.0+lambdas)/(4 * UPXI.col(k));
+      lambdas = (1.0 - lambdas)/(1.0+lambdas)/(4 * UPXI.col(k))+robust_eps;
       intercept_prev(k) = arma::sum((2 * S.col(k) - 1.0) % tmp1)/4 - arma::sum(lambdas % offset % tmp1);
       intercept_prev(k) = intercept_prev(k)/arma::sum(lambdas % tmp1);
     }
     //update UPXI matrix and Y approx
     UPXI_update_binomial(j, S, Y,  Yapprox, offset,  Delta,
-                         intercept_prev,  UPXI, nu_mat);
+                         intercept_prev,  UPXI, nu_mat, robust_eps);
     intercepts(j) = intercept_prev;
   }
 }
@@ -93,7 +96,8 @@ void update_binomial_approximation(arma::mat& Y, const arma::mat& Yobs,
  */
 void UPXI_update_ordinal(int idx,  arma::mat& Y,  arma::mat& Yapprox, 
                          arma::vec& offset, arma::vec& Delta, 
-                         arma::vec& intercepts, arma::mat& UPXI, arma::mat& nu_mat){
+                         arma::vec& intercepts, arma::mat& UPXI, arma::mat& nu_mat,
+                         const double robust_eps){
   //Jakolaa bound
   int n = UPXI.n_rows;
   int K = UPXI.n_cols;
@@ -112,15 +116,17 @@ void UPXI_update_ordinal(int idx,  arma::mat& Y,  arma::mat& Yapprox,
       }else{
         lambda = 1.0/8.0;
       }
+      lambda = lambda + robust_eps;
       Yapprox(i, idx) = -intercepts(0) - 1.0/(4 * lambda);
       nu_mat(i, idx) = 2 * lambda;
     }else if(Y(i, idx) == K){
       double lambda = exp(-UPXI(i, K-1));
       if(UPXI(i,K-1) > 1e-4){
-        lambda = (1.0 - lambda)/(1.0+lambda)/(4 * UPXI(i,0));
+        lambda = (1.0 - lambda)/(1.0+lambda)/(4 * UPXI(i,0))+ robust_eps;
       }else{
         lambda = 1.0/8.0;
       }
+      lambda = lambda + robust_eps;
       Yapprox(i, idx) = - intercepts(K-1) + 1.0/(4 * lambda);
       nu_mat(i, idx) = 2 * lambda;
     }else{
@@ -136,6 +142,8 @@ void UPXI_update_ordinal(int idx,  arma::mat& Y,  arma::mat& Yapprox,
       }else{
         lambda2 = 1.0/8.0;
       }
+      lambda1 = lambda1 + robust_eps;
+      lambda2 = lambda2 + robust_eps;
       nu_mat(i, idx) =  (lambda1 + lambda2);
       Yapprox(i, idx) = - intercepts(Y(i, idx)-1)* lambda1 - intercepts(Y(i, idx)) * lambda2;
       Yapprox(i, idx) = Yapprox(i, idx)/(nu_mat(i,idx));
@@ -196,7 +204,7 @@ arma::vec optim_ordinal(arma::vec& init_val, arma::vec& linear_coefs,
 
 void ordinalINTERCEPTS(arma::vec& y, arma::vec& yobs, arma::vec& offset, arma::mat& UPXI,
                        int K,  arma::vec& linear_coefs, arma::vec& quad_coefs,
-                       arma::vec& logDelta_coefs){
+                       arma::vec& logDelta_coefs, const double robust_eps){
   int n = y.n_elem;
   for(int k = 0; k < K; k++){
     arma::uvec idx1 = arma::find((y == k) && (yobs == 1));
@@ -209,6 +217,7 @@ void ordinalINTERCEPTS(arma::vec& y, arma::vec& yobs, arma::vec& offset, arma::m
         lambda(i) = (1.0 - lambda(i))/(1.0 + lambda(i))/(4 * UPXI(i,k));
       }
     }
+    lambda = lambda+robust_eps;
     linear_coefs(k) = (idx2.n_elem * 1.0- idx1.n_elem * 1.0)/2.0;
     linear_coefs(k) -= 2.0 * arma::sum(offset(idx1) % lambda(idx1)) +
       2.0 * arma::sum(offset(idx2) % lambda(idx2));
@@ -223,7 +232,8 @@ void update_ordinal_approximation(arma::mat& Y, const arma::mat& Yobs,
                                   const arma::vec nclasses, arma::mat& Yapprox, 
                                   arma::mat& meanFactors, arma::mat& U2,
                                   arma::mat& post_tmu, arma::mat& post_tsigma2,
-                                  arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat){
+                                  arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat,
+                                  const double robust_eps){
   int n = Y.n_rows;
   int p = Y.n_cols;
   int num_factors = meanFactors.n_cols;
@@ -262,7 +272,7 @@ void update_ordinal_approximation(arma::mat& Y, const arma::mat& Yobs,
     arma::vec linear_coefs = arma::zeros<arma::vec>(K);
     arma::vec quad_coefs = arma::zeros<arma::vec>(K);
     arma::vec logDelta_coefs = arma::zeros<arma::vec>(K);
-    ordinalINTERCEPTS(y, yobs, offset, UPXI, K, linear_coefs, quad_coefs, logDelta_coefs);
+    ordinalINTERCEPTS(y, yobs, offset, UPXI, K, linear_coefs, quad_coefs, logDelta_coefs, robust_eps);
     arma::vec solve_val = arma::zeros<arma::vec>(m);
     double obj = obj_fun_ordinal(init_val, linear_coefs, quad_coefs, logDelta_coefs);
     solve_val = optim_ordinal(init_val, linear_coefs, quad_coefs,logDelta_coefs);
@@ -272,7 +282,7 @@ void update_ordinal_approximation(arma::mat& Y, const arma::mat& Yobs,
     }
     //update UPXI matrix and Y approx
     UPXI_update_ordinal(j, Y,  Yapprox, offset,  Delta,
-                        intercept_prev,  UPXI, nu_mat);
+                        intercept_prev,  UPXI, nu_mat, robust_eps);
     intercepts(j) = intercept_prev;
   }
 }
@@ -451,87 +461,6 @@ double update_projection_constrained(const int num_factors, arma::mat& Y, const 
 }
 
 
-
-// double update_projection_constrained(const int num_factors, arma::mat& Y, const arma::mat& Yobs,
-//                                      arma::mat& nuYmat, arma::mat& meanFactors,  arma::mat& U2,
-//                                      arma::mat& post_tmu, arma::mat& post_tsigma2,
-//                                      arma::mat& tau, double lower){
-//   int p = Y.n_cols;
-//   double Delta = 0.0;
-//   for(int j = 0; j < p; j++){
-//     arma::vec y =  Y.col(j);
-//     arma::uvec obs = arma::find(Yobs.col(j) == 1);
-//     arma::vec nu_vec = nuYmat.col(j);
-//     nu_vec = nu_vec(obs);
-//     y = y(obs);
-//     int n_obs = nu_vec.n_elem;
-//     arma::mat meanFactors_sub = meanFactors.rows(obs);
-//     arma::mat U2_sub = U2.rows(obs);
-//     arma::vec response = arma::zeros<arma::vec>(n_obs);
-//     response = response + y;
-//     for(int k = 0; k < num_factors; k++){
-//       double bkl = post_tmu(j,k);
-//       response = response - bkl * meanFactors_sub.col(k);
-//     }
-//     for(int k = 0; k < num_factors; k++){
-//       double bkl = post_tmu(j,k) ;
-//       arma::vec f = meanFactors_sub.col(k);
-//       arma::vec u = U2_sub.col(k);
-//       response = response + f * bkl;
-//       arma::vec response1 = (response % nu_vec) ;
-//       double tmp = arma::sum(nu_vec % u)+  tau(j,k);
-//       post_tsigma2(j,k)  = 1.0/tmp;
-//     }
-//     //impose the constraint
-//     arma::mat cov = arma::zeros<arma::mat>(num_factors, num_factors);
-//     for(int k =0; k < num_factors; k++){
-//       arma::vec f = meanFactors_sub.col(k);
-//       for(int k1 = 0; k1 < num_factors; k1++){
-//         arma::vec f1 = meanFactors_sub.col(k1);
-//         if(k!=k1){
-//           cov(k, k1) = arma::sum(f % f1 % nu_vec);
-//         }
-//       }
-//     }
-//     for(int k = 0; k < num_factors; k++){
-//       arma::vec u = U2_sub.col(k);
-//       cov(k,k) = arma::sum( u % nu_vec);
-//     }
-//     arma::mat V1, U1;
-//     arma::vec S1;
-//     arma::svd(U1, S1, V1, cov, "std");
-//     arma::vec tmp1 = meanFactors_sub.t() * (y % nu_vec);
-//     if(V1.n_elem < 1){
-//       Rcout << "svd decomposition failure" << "\n";
-//       Rcout << cov << "\n" ;
-//     }
-//     tmp1 = V1.t() * tmp1;
-//     arma::vec mu = V1 * (tmp1 % (1.0/(S1)));
-//     double norm = arma::sum(arma::square(mu));
-//     if((norm <= 1.0) & (norm >= (lower))){
-//       post_tmu.row(j) = mu.t();
-//     }else{
-//       arma::vec z = tmp1 % tmp1;
-//       double lambda_max =std::sqrt(arma::sum(z));
-//       double lambda_min =0.0;
-//       double lambda = 0.0;
-//       if(norm >= 1.0){
-//         lambda = binary_search(lambda_min, lambda_max, 1.0, S1, z, 1000);
-//       }else{
-//         lambda_min = -min(S1);
-//         lambda = binary_search(lambda_min, lambda_max, lower, S1, z, 1000);
-//       }
-//       if((lambda <= lambda_min)){
-//         mu = V1 * (tmp1 % (1.0/(S1+lambda + 1e-10)));
-//       }else{
-//         mu = V1 * (tmp1 % (1.0/(S1+lambda)));
-//       }
-//       post_tmu.row(j) = mu.t();
-//     }
-//   }
-//   return Delta;
-// }
-// 
 
 arma::mat U2calculation(const int& num_factors, const arma::mat& Z, arma::mat& meanFactors,
                         arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi){
@@ -936,7 +865,8 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
             arma::mat& post_a1, arma::mat& post_b1,
             arma::vec& post_a2x, arma::vec& post_b2x, 
             arma::vec& post_a2y, arma::vec& post_b2y,
-            arma::mat& meanFactors, const int seed0){
+            arma::mat& meanFactors, const int seed0,
+            const double robust_eps){
   int num_pattern = pattern_samples.size();
   int py = Y.n_cols;
   int px = X.n_cols;
@@ -976,10 +906,10 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
   }
   if(family == 1){
     update_binomial_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,  
-                             U2,  post_tmuY, post_tsigma2Y,  post_tpiY, interceptsY, nuYmat);
+                             U2,  post_tmuY, post_tsigma2Y,  post_tpiY, interceptsY, nuYmat, robust_eps);
   }else if(family == 2){
     update_ordinal_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,  
-                            U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat);
+                            U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat, robust_eps);
   }
   int it = 0;
   for(int j = 0; j < px; j++){
@@ -1034,10 +964,10 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
       }
     }else if(family == 1){
       update_binomial_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,  
-                                    U2,  post_tmuY, post_tsigma2Y,  post_tpiY, interceptsY, nuYmat);
+                                    U2,  post_tmuY, post_tsigma2Y,  post_tpiY, interceptsY, nuYmat, robust_eps);
     }else if(family == 2){
       update_ordinal_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,  
-                                   U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat);
+                                   U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat, robust_eps);
     }
     delta2 = update_factor(num_factors, Yapprox,  Yobs, X,  Xobs, Z,  weights,
                   pattern_samples, pattern_features,

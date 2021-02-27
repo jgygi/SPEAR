@@ -6,6 +6,7 @@
 \usage{
 SPEAR.plot_factor_loadings(
   SPEARobj,
+  w = "best",
   threshold = 0.01,
   plot.per.omic = FALSE,
   return.list = FALSE,
@@ -15,6 +16,18 @@ SPEAR.plot_factor_loadings(
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
+
+\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
+
+\item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
+
+\item{plot.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to FALSE}
+
+\item{return.list}{Return a list of plots instead of a cowplot object? Defaults to FALSE}
+
+\item{show.feature.names}{Show row names (features) for factor loadings? Defaults to FALSE}
+
+\item{plot.irrelevant.factors}{Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE}
 }
 \description{
 Plot factor loadings

@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit.R
 \name{SPEAR.plot_factor_grid}
 \alias{SPEAR.plot_factor_grid}
-\title{Plot factor grid}
+\title{Plot grid of factor scores per subject}
 \usage{
 SPEAR.plot_factor_grid(
   SPEARobj,
@@ -15,7 +15,17 @@ SPEAR.plot_factor_grid(
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
+
+\item{w}{Weight for SPEAR. Defaults to "overall", choosing the weight with the best overall mean cross-validated error for ALL responses. Can also be one of the weights used to train SPEAR (SPEARobj$params$weights)}
+
+\item{groups}{A named vector of a grouping variable, where names(groups) = rownames(SPEARobj$data$X). Names are required to match to ensure correct representation of the data.}
+
+\item{factors}{A vector of factors to be plotted (i.e. c(1, 2)). Defaults to plotting all factors (NULL).}
+
+\item{return.as.list}{Return plots as a list instead of a cowplot object? Defaults to FALSE}
+
+\item{include.legend}{Include legend at the bottom of the plot? Defaults to TRUE}
 }
 \description{
-Plot factor grid
+Plot grid of factor scores per subject
 }

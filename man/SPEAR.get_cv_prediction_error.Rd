@@ -8,6 +8,10 @@ SPEAR.get_cv_prediction_error(SPEARobj, show.all.w = FALSE, verbose = FALSE)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
+
+\item{show.all.w}{Show mean cross-validated error for all weights (w)? Defaults to FALSE}
+
+\item{verbose}{Return a matrix with each response (column in Y) with the best weight and cvm. Defaults to FALSE}
 }
 \description{
 Get CV prediction errors

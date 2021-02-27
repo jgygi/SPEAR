@@ -15,7 +15,9 @@ cv.evaluation(
   nclasses,
   pattern_samples,
   pattern_features,
-  nlambda = 100
+  nlambda = 100,
+  factor_contribution = F,
+  max_iter = 10000
 )
 }
 \arguments{

@@ -80,6 +80,8 @@ run_cv_spear(
 \item{save.name}{description}
 
 \item{run.debug}{debug?}
+
+\item{robust_eps}{description}
 }
 \description{
 Create the data from lists, and create the functional pathway list.

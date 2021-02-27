@@ -8,8 +8,6 @@ SPEAR.get_best_weights(SPEARobj, include.best.overall = FALSE)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
-
-\item{include.best.overall}{Should the best overall weight be returned as well? If only one response is being predicted, overall = best.}
 }
 \description{
 Get best SPEAR weights per response Y

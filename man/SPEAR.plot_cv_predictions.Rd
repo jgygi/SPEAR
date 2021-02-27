@@ -4,16 +4,10 @@
 \alias{SPEAR.plot_cv_predictions}
 \title{Plot CV predictions}
 \usage{
-SPEAR.plot_cv_predictions(SPEARobj, w = "best", ncol = NULL, nrow = 1)
+SPEAR.plot_cv_predictions(SPEARobj, ncol = NULL, nrow = 1)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
-
-\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
-
-\item{ncol}{Number of columns to display in the final plot. Defaults to NULL (number of different response variables in Y)}
-
-\item{nrow}{Number of rows to display in the final plot. Defaults to 1}
 }
 \description{
 Plot CV predictions

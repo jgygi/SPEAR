@@ -4,16 +4,10 @@
 \alias{SPEAR.predict_new_samples}
 \title{Predict response values for new samples.}
 \usage{
-SPEAR.predict_new_samples(SPEARobj, X, w = "best", scale.x = TRUE)
+SPEAR.predict_new_samples(SPEARobj, X, scale.x = TRUE)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
-
-\item{X}{A list of matrices of testing data. Needs to match the dimensions of the training data used with the SPEARobj (check SPEARobj$data$xlist)}
-
-\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
-
-\item{scale.x}{Should parameter 'X' be scaled? Defaults to TRUE.}
 }
 \description{
 Predict response values for new samples.

@@ -28,8 +28,7 @@ run_cv_spear(
   save.model = TRUE,
   save.path = NULL,
   save.name = NULL,
-  run.debug = FALSE,
-  robust_eps = NULL
+  run.debug = FALSE
 )
 }
 \arguments{

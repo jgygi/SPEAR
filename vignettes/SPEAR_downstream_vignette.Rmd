@@ -4,16 +4,29 @@ author: "Jeremy Gygi"
 date: "1/26/21"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{SPEAR_3-downstream_analysis}
+  %\VignetteIndexEntry{SPEAR-downstream_analysis}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
 
 ### This vignette will provide insight into downstream analysis using SPEAR:
+### 1. Installation / Libraries
 
 ##### Installing SPEAR:
 
-Follow installation instructions in README (located [here](https://github.com/jgygi/SPEAR))
+```{r}
+# Set up the path to the downladed tar.gz package:
+#path_to_SPEAR_tar.gz <- "~/Dropbox/shared_folder/SPEARcomplete_1.0.tar.gz"
+
+# Run this command to install the SPEARcomplete (SPEAR) package
+#install.packages(path_to_SPEAR_tar.gz, repos = NULL, type="source")
+
+# If this fails, you may need to install these packages:
+#install.packages('BH')
+#install.packages('Rcpp')
+#install.packages('RcppArmadillo')
+#install.packages('glmnet')
+```
 
 ##### Required Libraries:
 
@@ -43,12 +56,7 @@ names(SPEARobj)
 ```
 
 The SPEAR object returned has 4 components:
-1. fit (the cross-validated SPEAR object)
-2. cv.eval (the results from evaluating the fit object)
-3. params (the parameters used for this specific SPEAR object)
-4. data (the data used to train the SPEAR models in the object)
 
-Variables used to reference results:
 + N - number of subjects [nrow(X)]
 + P - number of total features (across all omics) [ncol(X)]
 + D - number of omics datasets [length(X)]
@@ -57,6 +65,7 @@ Variables used to reference results:
 + K - number of factors SPEAR constructed
 + W - number of weights used in CV
 + F - number of folds used in CV
+
 
 1. fit - the cross-validated SPEAR object
     + results
@@ -88,19 +97,11 @@ Variables used to reference results:
     + thres_count
 4. data - the data used by SPEAR
 
-While it isn't necessary to extract these matrices directly from the model, it is useful to understand where the results are coming from. Most typical downstream analyses can be performed using the built-in SPEAR functions described below.
 
-### Getting the best value of w (weight)
+Now with our SPEAR object (SPEARobj), we can do some downstream analysis to see the model results. Each chunk of code represents a different function using the SPEAR object.
 
-SPEAR generates factors based on a weight parameter, $w$. As SPEAR is reconstructing factors, it uses the weighted objective function below.
 
-![SPEAR overview](vignette_weightexplanation.png){width=500px}
-
-When $w\approx0$, it means that SPEAR will focus on generating factors that influence the response ($Y$). 
-
-When $w\ge1$, it means that SPEAR is equally considering the relationship between the constructed factors and both the datasets ($X$) and the response ($Y$). 
-
-This $w$ parameter is tuned automatically, meaning SPEAR will return factors constructed on the "best" $w$ (based on mean cross-validated prediction error from the training) by default. 
+### Getting the best value of w
 
 SPEAR will generate a different set of factors for each value supplied in the 'weights' argument (if no argument is supplied, will default to c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0).
 ```{r}
@@ -108,20 +109,13 @@ SPEAR will generate a different set of factors for each value supplied in the 'w
 SPEARobj$params$weights
 ```
 
-SPEAR uses the mean cross-validation error to determine which is the best $w$ to use.
+SPEAR will use cvm (mean cv error) to determine which is the best 'w' to use.
 ```{r}
 # Get best weights (w):
 #      Parameters: 
 # include.best.overall (only useful with more than one response... if two responses perform best with different values of w, select the single w with minimized cvm for all responses)
 SPEAR.get_best_weights(SPEARobj, include.best.overall = TRUE)
 ```
-
-We can plot the mean cross-validation errors to visualize the impact of $w$ on the data.
-
-```{r fig.width = 7}
-SPEAR.plot_cv_prediction_errors(SPEARobj, show.w.labels = TRUE, show.min.w.line = TRUE)
-```
-
 
 ### Factor Contributions:
 

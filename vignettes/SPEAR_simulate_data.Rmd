@@ -4,7 +4,7 @@ author: "Jeremy Gygi"
 date: "1/26/21"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{SPEAR_1-simulate_data}
+  %\VignetteIndexEntry{SPEAR-simulate_data}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -15,7 +15,19 @@ vignette: >
 
 ##### Installing SPEAR:
 
-Follow installation instructions in README (located [here](https://github.com/jgygi/SPEAR))
+```{r}
+# Set up the path to the downladed tar.gz package:
+#path_to_SPEAR_tar.gz <- "~/Dropbox/shared_folder/SPEARcomplete_1.0.tar.gz"
+
+# Run this command to install the SPEARcomplete (SPEAR) package
+#install.packages(path_to_SPEAR_tar.gz, repos = NULL, type="source")
+
+# If this fails, you may need to install these packages:
+#install.packages('BH')
+#install.packages('Rcpp')
+#install.packages('RcppArmadillo')
+#install.packages('glmnet')
+```
 
 ##### Required Libraries:
 

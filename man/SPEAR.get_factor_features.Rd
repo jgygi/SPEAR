@@ -4,16 +4,10 @@
 \alias{SPEAR.get_factor_features}
 \title{Get factor features}
 \usage{
-SPEAR.get_factor_features(SPEARobj, w = "best", threshold = 0.01, cutoff = 0.5)
+SPEAR.get_factor_features(SPEARobj, cutoff = 0.5, threshold = 0.01)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
-
-\item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
-
-\item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
-
-\item{cutoff}{Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5}
 }
 \description{
 Get factor features

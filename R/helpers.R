@@ -459,7 +459,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   #for(k in 1:num.folds){
   #  print(table(data$Y[foldid==k]))
   #}
-  print(foldid)
+  #print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 

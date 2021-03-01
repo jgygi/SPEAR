@@ -22,6 +22,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 library(SPEARcomplete)
 library(glmnet)
 library(parallel)
+library(ordinalNet)
 
 # Recommended Packages (for downstream analysis):
 library(jsonlite)
@@ -231,8 +232,8 @@ SPEAR.plot_factor_grid(SPEARobj, groups = groups)
 We can choose to only plot a subset of factors: (i.e. the relevant factors)
 
 ```{r fig.width=9, fig.height = 7}
-relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$relevant.factors == 1)
-SPEAR.plot_factor_grid(SPEARobj, groups = groups, factors = relevant.factors.to.Y)
+#relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$relevant.factors == 1)
+#SPEAR.plot_factor_grid(SPEARobj, groups = groups, factors = relevant.factors.to.Y)
 ```
 
 Finally, we can look into factor scores vs. the cv-predictions from SPEAR:
@@ -305,8 +306,8 @@ Y - colnames(SPEARobj\$data\$Y)
 # Get the names of features contributing to relevant factors
 #   cutoff - posterior probability selection cutoff, features with probabilities higher than 'cutoff' will be added to the list
 #   threshold - minimum factor contribution to be deemed "relevant"
-feature.list <- SPEAR.get_factor_features(SPEARobj, cutoff = .5, threshold = .01)
-names(feature.list) # show relevant factors per response
+#feature.list <- SPEAR.get_factor_features(SPEARobj, cutoff = .5, threshold = .01)
+#names(feature.list) # show relevant factors per response
 ```
 
 
@@ -314,7 +315,7 @@ names(feature.list) # show relevant factors per response
 
 If a testing dataset has been set aside from the data SPEAR was trained on, you can use a trained SPEAR model to predict responses for the new data. This testing data is required to have the same number of features (columns) in X as the training dataset.
 
-```{r fig.width = 7}
+```{r fig.width = 7, eval=FALSE}
 # Below uses simulated data generated in the SPEAR_simulate_data.Rmd
 path_to_sim_data <- getwd() # Replace with the path to the 'simulated_gaussian_data.rds' file
 sim.data <- readRDS(paste0(path_to_sim_data, "/simulated_gaussian_data.rds"))

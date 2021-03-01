@@ -303,7 +303,6 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.path  description
 #'@param save.name  description
 #'@param run.debug debug?
-#'@param robust_eps description
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
@@ -367,7 +366,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   cat("\n")
   
   # Run Preparation Function:
-  data <- SPEARcomplete::preparation(Y = Y.scaled, X = X.scaled, family = family)
+  data <- preparation(Y = Y.scaled, X = X.scaled, family = family)
   data$xlist <- X.scaled
   
   # Parameters:
@@ -453,13 +452,17 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   }
   
   # Run cv.spear:
-  if(is.null(robust_eps)){
-    robust_eps = 2.0/sqrt(nrow(data$X)*log(nrow(data$X)))
+  if(run.debug){
+    cat("robust_eps:\n")
+    if(is.null(robust_eps)){
+      robust_eps = 1.0/sqrt(nrow(data$X))
+    }
+    cat("foldids:\n")
+    for(k in 1:num.folds){
+      print(table(data$Y[foldid==k]))
+    }
   }
-  #for(k in 1:num.folds){
-  #  print(table(data$Y[foldid==k]))
-  #}
-  #print(foldid)
+  print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 
@@ -562,6 +565,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   px = ncol(X);
   py = ncol(Y);
   pz = ncol(Z);
+  standardize_family = c(1,2)
   foldid = fitted.obj$foldid;
   cv.fact_coefs = fitted.obj$factors_coefs;
   cv.projection_coefs = fitted.obj$projection_coefs;
@@ -610,13 +614,13 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
     r2norm = rep(1, py)
     if(py == 1){
       Yhat[,1,l] =  (U0 %*% projection_coefs[,1,l])
-      if(family != 0){
+      if(family %in%  standardize_family){
         r2norm =  sqrt(mean(Yhat[,1,l]^2))
         Yhat[,1,l] = Yhat[,1,l]/r2norm
       }
     }else{
       Yhat[,,l] =  (U0 %*% projection_coefs[,,l])
-      if(family != 0){
+      if(family %in%  standardize_family){
         r2norm =  sqrt(apply(Yhat[,,l]^2,2,function(z) mean(z^2)))
         Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
       }
@@ -632,12 +636,12 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       b = cv.projection_coefs[,,k,l]
       if(py == 1){
         Yhat.cv[,1,k,l] =  (ucv %*% b)
-        if(family != 2){
+        if(family %in%  standardize_family){
           Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
         }
       }else{
         Yhat.cv[,,k,l] =  (ucv %*% b)
-        if(family != 2){
+        if(family %in%  standardize_family){
           Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
         }
       }
@@ -662,6 +666,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       chats = seq(0, cmax, length.out = nlambda)
       errs = array(NA, dim = c(n,length(chats)))
       for(k in 1:nfolds){
+        yhat_cv = Yhat.cv[,j,k,l]
         if(family == 1){
           tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
           a0 = tmp0$a0

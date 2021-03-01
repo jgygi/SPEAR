@@ -68,3 +68,13 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+
+static const R_CallMethodDef CallEntries[] = {
+    {"_SPEARcomplete_spear_", (DL_FUNC) &_SPEARcomplete_spear_, 53},
+    {NULL, NULL, 0}
+};
+
+RcppExport void R_init_SPEARcomplete(DllInfo *dll) {
+    R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
+    R_useDynamicSymbols(dll, FALSE);
+}

@@ -91,10 +91,11 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
   factor.contributions <- matrix(unlist(factor.contributions), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
   colnames(factor.contributions) <- colnames(SPEARobj$data$Y)
   rownames(factor.contributions) <- paste0("Factor", 1:nrow(factor.contributions))
-  colnames(rel.factors) <- colnames(SPEARobj_tcga$data$Y)
-  rownames(rel.factors) <- paste0("Factor", 1:nrow(rel.factors))
+  colnames(relevant.factors) <- colnames(factor.contributions)
+  rownames(relevant.factors) <- rownames(factor.contributions)
   return(list(factor.contributions = factor.contributions, relevant.factors = relevant.factors, threshold = threshold))
 }
+
 
 
 #' Plot factor contributions to Y
@@ -354,7 +355,7 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
   }
-  pred.mat <- matrix(SPEARobj$cv.eval$Yhat.keep[,,w.idxs], ncol=ncol(SPEARobj$data$Y))
+  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
   colnames(pred.mat) <- colnames(SPEARobj$data$Y)
   rownames(pred.mat) <- rownames(SPEARobj$data$X)
   if(w == "best" & ncol(SPEARobj$data$Y) > 1){
@@ -366,15 +367,14 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
   } else {
     pred.mat <- pred.mat[,,1]
   }
-  # Get Weights:colnames(rel.factors) <- colnames(SPEARobj_tcga$data$Y)
-  rownames(rel.factors) <- paste0("Factor", 1:nrow(rel.factors))
+  # Add weights:
   ws <- SPEARobj$params$weights[w.idxs]
   names(ws) <- colnames(SPEARobj$data$Y)
   temp <- list()
   temp$predictions <- pred.mat
   temp$weights <- ws
   results <- temp
-
+  
   return(results)
 }
 
@@ -509,8 +509,8 @@ SPEAR.plot_factor_grid <- function(SPEARobj, w = "overall", groups = NULL, facto
               scale_color_distiller(palette = "RdBu", guide = FALSE)
           } else {
             g <- g + geom_density(aes_string(x = paste0("Factor",factors[i]), group = "Group", color = "Group", fill = "Group"), alpha = .15) +
-              scale_color_brewer(palette = "Set1", guide = FALSE) +
-              scale_fill_brewer(palette = "Set1", guide = FALSE)
+              scale_color_brewer(palette = "RdBu", guide = FALSE) +
+              scale_fill_brewer(palette = "RdBu", guide = FALSE)
           }
           
           plotlist[[length(plotlist) + 1]] <- g
@@ -525,7 +525,7 @@ SPEAR.plot_factor_grid <- function(SPEARobj, w = "overall", groups = NULL, facto
           if(any(is.numeric(Uhat$Group))){
             g <- g + scale_color_distiller(palette = "RdBu", guide = FALSE)
           } else {
-            g <- g + scale_color_brewer(palette = "Set1", guide = FALSE)
+            g <- g + scale_color_brewer(palette = "RdBu", guide = FALSE)
           }
           
           plotlist[[length(plotlist) + 1]] <- g
@@ -557,7 +557,7 @@ SPEAR.plot_factor_grid <- function(SPEARobj, w = "overall", groups = NULL, facto
     if(include.legend){
       g <- ggplot(data = Uhat) +
         geom_point(aes_string(x = paste0("Factor",factors[i]), y = paste0("Factor",factors[j]), group = "Group", color = "Group")) +
-        scale_fill_brewer(palette = "Set1", guide = FALSE) +
+        scale_fill_brewer(palette = "RdBu", guide = FALSE) +
         theme_bw() +
         theme(legend.key.size = unit(1, 'cm'), legend.position = "top")
       if(any(is.numeric(Uhat$Group))){

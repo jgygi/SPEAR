@@ -21,7 +21,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 # Required Packages for SPEAR:
 library(SPEARcomplete)
 library(glmnet)
-library(parallel)
+library(foreach)
 library(ordinalNet)
 
 # Recommended Packages (for downstream analysis):

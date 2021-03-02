@@ -451,18 +451,17 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     numCores <- parallel::detectCores()
   }
   
+  if(is.null(robust_eps)){
+    robust_eps = 1.0/sqrt(nrow(data$X))
+  }
   # Run cv.spear:
   if(run.debug){
-    cat("robust_eps:\n")
-    if(is.null(robust_eps)){
-      robust_eps = 1.0/sqrt(nrow(data$X))
-    }
     cat("foldids:\n")
     for(k in 1:num.folds){
       print(table(data$Y[foldid==k]))
     }
+    print(foldid)
   }
-  print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 

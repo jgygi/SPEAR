@@ -205,7 +205,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
     post_bxs[,,idx_w] = post_bx
     post_pis[,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
-    print(paste0("######weights#####",ws[idx_w], "###########"))
+    cat(paste0("~~~   Running w = ", round(ws[idx_w], 4), "\t~~~\n"))
   }
   return(list(post_betas = post_betas, post_bys = post_bys, post_bxs =post_bxs,
               post_pis = post_pis, post_selections = post_selections,
@@ -336,16 +336,23 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   if(is.null(numCores)){
     numCores <- detectCores()
   }
-  a <- system.time(
-   results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-   #results <- sapply(fold_ids, run_parallel)
-  )
-  # a <- system.time(
-  #   results <- run_parallel(0)
-  # )
-  print(a)
   if(run.debug){
+    a <- system.time(
+      results <- sapply(fold_ids, run_parallel)
+    )
+    print(a)
     print(results)
+  } else {
+    #cl <- parallel::makeForkCluster(numCores, outfile="")
+    #doParallel::registerDoParallel(cl)
+    a <- system.time(
+      #results <- foreach(i = 1:length(fold_ids)) %dopar% {
+      #  run_parallel(fold_ids[i])
+      #}
+      results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    )
+    #parallel::stopCluster(cl)
+    print(a)
   }
   factors_coefs = array(0, dim = c(ncol(X), num_factors, num_patterns,max(foldid), length(ws)));
   projection_coefs = array(0, dim = c(num_factors, ncol(Y), max(foldid), length(ws)));

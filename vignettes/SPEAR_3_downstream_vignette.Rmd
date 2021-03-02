@@ -315,7 +315,7 @@ Y - colnames(SPEARobj\$data\$Y)
 
 If a testing dataset has been set aside from the data SPEAR was trained on, you can use a trained SPEAR model to predict responses for the new data. This testing data is required to have the same number of features (columns) in X as the training dataset.
 
-```{r fig.width = 7, eval=FALSE}
+```{r fig.width = 7}
 # Below uses simulated data generated in the SPEAR_simulate_data.Rmd
 path_to_sim_data <- getwd() # Replace with the path to the 'simulated_gaussian_data.rds' file
 sim.data <- readRDS(paste0(path_to_sim_data, "/simulated_gaussian_data.rds"))

@@ -511,6 +511,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                            pattern_samples = data$pattern_samples, 
                            pattern_features = data$pattern_features,
                            factor_contribution = calculate.factor.contribution,
+                           weights = weights,
                            nlambda = cv.nlambda)
   
   # Return a SPEARobject:
@@ -567,9 +568,10 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@param Y Response array.
 #'@param rule Rule to use for picking cross validation model: "min" or "1se".
 #'@param standardize Whether to standardize the data.
+#'@param weights Values of w used to train SPEAR
 #'@param alpha alpha = 1 corresponds to lasso and alpha = 0 corresponds to ridge.
 #'@export
-cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
+cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, weights, 
                           pattern_samples, pattern_features, nlambda = 100,
                           factor_contribution = F, max_iter = 1e4){
   n = nrow(Y);

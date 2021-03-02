@@ -107,7 +107,7 @@ SPEARobj <- run_cv_spear(X = X,
                          seed = seed, 
                          save.path = save.path, 
                          save.name = save.name,
-                         run.debug = TRUE)
+                         run.debug = FALSE)
 
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)

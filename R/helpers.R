@@ -771,7 +771,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, weights,
   factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
   if(factor_contribution){
     for(l in 1:num_weights){
-      print(paste0("calculated_contribution_weight",weights[l]))
+      cat(paste0("~~~ Calculating factor contribution for w = ", round(weights[l], 3)))
       by = projection_coefs[,,l]
       if(is.null(dim(by))){
         by = matrix(by, ncol = 1)

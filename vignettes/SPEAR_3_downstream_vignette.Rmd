@@ -87,6 +87,7 @@ Variables used to reference results:
     + max_iter
     + thres_elbo
     + thres_count
+    + family
 4. data - the data used by SPEAR
 
 While it isn't necessary to extract these matrices directly from the model, it is useful to understand where the results are coming from. Most typical downstream analyses can be performed using the built-in SPEAR functions described below.

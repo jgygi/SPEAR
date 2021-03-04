@@ -153,24 +153,6 @@ dataGen_ordinal <- function(N = 500, Ntest = 2000, P = 500, levels = 7,
   return(list(data.tr = data.tr, data.te = data.te))
 }
 
-prob_calculation <- function(yhat, intercept){
-  Pmat0 = matrix(0, ncol = length(intercept), nrow = length(yhat))
-  Pmat = matrix(0, ncol = length(intercept)+1, nrow = length(yhat))
-  for(k in 1:ncol(Pmat0)){
-    Pmat0[,k] = 1.0/(1+exp(-yhat - intercept[k]))
-  }
-  for(k in 1:ncol(Pmat)){
-    if(k == 1){
-      Pmat[,k] = 1-Pmat0[,k]
-    }else if(k == ncol(Pmat)){
-      Pmat[,k] = Pmat0[,k-1]
-    }else{
-      Pmat[,k] = Pmat0[,k-1] - Pmat0[,k]
-    }
-  }
-  return(Pmat)
-}
-
 
 loss_calculation <- function(Phat, y, type = "deviance"){
   S = array(0, dim  = dim(Phat))
@@ -558,7 +540,6 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 }
 
 
-
 #cross-validation: select models with high accuracy for predicting Y.
 #' We consider two types the model:
 #' (1) yhat = (U * b) * chat (refit = F)
@@ -568,10 +549,9 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@param Y Response array.
 #'@param rule Rule to use for picking cross validation model: "min" or "1se".
 #'@param standardize Whether to standardize the data.
-#'@param weights Values of w used to train SPEAR
 #'@param alpha alpha = 1 corresponds to lasso and alpha = 0 corresponds to ridge.
 #'@export
-cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, weights, 
+cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
                           factor_contribution = F, max_iter = 1e4){
   n = nrow(Y);
@@ -707,7 +687,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, weights,
             }
             Probs = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a))
             errs[foldid==k, ll] = -2*(y[foldid == k] * log(Probs+1e-10) +
-              (1 - y[foldid == k]) * log(1 - Probs+1e-10));
+                                        (1 - y[foldid == k]) * log(1 - Probs+1e-10));
           }else if(family == 2){
             if(ll == 1){
               tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]))
@@ -771,52 +751,47 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, weights,
   factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
   if(factor_contribution){
     for(l in 1:num_weights){
-      cat(paste0("~~~ Calculating factor contribution for w = ", round(weights[l], 3), "\n"))
+      print(paste0("calculated_contribution_weight",weights[l]))
       by = projection_coefs[,,l]
       if(is.null(dim(by))){
         by = matrix(by, ncol = 1)
       }
       U0 = array(0, dim = c(n, num_factors))
-      for(k in 1:num_patterns){
-        ii = pattern_samples[[k]]
-        jj = pattern_features[[k]]
-        U0[ii,] = Z[ii,jj]%*% fact_coefs[jj,,k,l]
-      }
-      if(family == 0){
-        for(j in 1:py){
-          yhat = Uhat.cv[,k,l]
-          y = Y[,j]
-          tmp = cv.glmnet(cbind(yhat,rep(0,n)), y, foldid = foldid)
-          factor_contributions[,j,l] = (var(y) - min(tmp$cvm))/var(y)
-        }
-      }else if(nclasses[j] == 2){
-        for(j in 1:py){
-          y = Y[,j]
-          y[y<2] = 0
-          y[y>=2] = 1
-          null_model = glm(y~offset(rep(0, length(y))), family = "binomial")
-          Delta0 = null_model$deviance/n
-          for(k in 1:num_factors){
+      for(k in 1:num_factors){
+        if(family == 0){
+          for(j in 1:py){
             yhat = Uhat.cv[,k,l]
-            tmp = cv.glmnet(cbind(yhat,rep(0,n)), y,family = "binomial")
-            Delta1 = min(tmp$cvm)
-            factor_contributions[k,j,l]  =  (Delta0 - Delta1)/Delta0
+            y = Y[,j]
+            tmp = cv.glmnet(cbind(yhat,rep(0,n)), y, foldid = foldid)
+            factor_contributions[k,j,l] = (var(y) - min(tmp$cvm))/var(y)
           }
-        }
-      }else{
-        foldid0 = list()
-        for(k in 1:nfolds){
-          foldid0[[k]] = which(foldid==k)
-        }
-        for(j in 1:py){
-          y = as.factor(Y[,j])
-          null_model =polr(y~offset(rep(0,n)))
-          Delta0 = null_model$deviance/n
-          for(k in 1:num_factors){
-            yhat = Uhat.cv[,k,l]
-            tmp =ordinalNetCV(cbind(yhat,rep(0,n)), y,folds=foldid0, printProgress = F)
-            Delta1 = -sum(tmp$loglik)*2/n
-            factor_contributions[k,j,l]  = (Delta0 - Delta1)/Delta0
+        }else if(nclasses[j] == 2){
+          for(j in 1:py){
+            y = Y[,j]
+            null_model = glm(y~offset(rep(0, length(y))), family = "binomial")
+            Delta0 = null_model$deviance/n
+            for(k in 1:num_factors){
+              yhat = Uhat.cv[,k,l]
+              tmp = cv.glmnet(cbind(yhat,rep(0,n)), y,family = "binomial")
+              Delta1 = min(tmp$cvm)
+              factor_contributions[k,j,l]  =  (Delta0 - Delta1)/Delta0
+            }
+          }
+        }else{
+          foldid0 = list()
+          for(k in 1:nfolds){
+            foldid0[[k]] = which(foldid==k)
+          }
+          for(j in 1:py){
+            y = as.factor(Y[,j])
+            null_model =polr(y~offset(rep(0,n)))
+            Delta0 = null_model$deviance/n
+            for(k in 1:num_factors){
+              yhat = Uhat.cv[,k,l]
+              tmp =ordinalNetCV(cbind(yhat,rep(0,n)), y,folds=foldid0, printProgress = F)
+              Delta1 = -sum(tmp$loglik)*2/n
+              factor_contributions[k,j,l]  = (Delta0 - Delta1)/Delta0
+            }
           }
         }
       }

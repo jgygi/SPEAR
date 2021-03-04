@@ -731,8 +731,144 @@ SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show
 }
   
 
+#' Predict ordinal classes
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param return.probabilities Return ordinal class probabilities? Defaults to TRUE
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@export
+SPEAR.predict_ordinal_classes <- function(SPEARobj, X = NULL, w = "overall", return.probabilities = TRUE, scale.x = FALSE){
+  if(SPEARobj$params$family != "ordinal"){
+    stop(paste0("ERROR: SPEARobject provided is of family '", SPEARobj$params$family, "'. Must be of family 'ordinal' to get probabilities."))
+  }
+  if(w == "best"){
+    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
+  } else if(w == "overall"){
+    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
+  } else {
+    if(!any(SPEARobj$params$weights == w)){
+      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
+    } else {
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    }
+  }
+  # Prepare data:
+  if(is.null(X)){
+    X <- SPEARobj$data$X
+  } else {
+    # Quickly check that the dimensions in X match:
+    if(length(X) != length(SPEARobj$data$xlist)){
+      stop(paste0("ERROR: Object 'X' passed in has ", length(X), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARobj$data$xlist), " datasets. Incompatible dimensions."))
+    }
+    for(d in 1:length(X)){
+      if(ncol(X[[d]]) != ncol(SPEARobj$data$xlist[[d]])){
+        stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(X[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARobj$data$xlist[[d]]), " features. Cannot predict new responses."))
+      }
+    }
+    # Collapse X:
+    X <- do.call("cbind", X)
+    # Scale X by feature:
+    if(scale.x){
+      X <- scale(X)
+    }
+  }
+  # Get probabilities:
+  yhat = X %*% SPEARobj$cv.eval$reg_coefs[,1,,w.idxs]
+  intercept = SPEARobj$cv.eval$intercepts[[1]][w.idxs,]
+  Pmat0 = matrix(0, ncol = length(intercept), nrow = length(yhat))
+  Pmat = matrix(0, ncol = length(intercept) + 1, nrow = length(yhat))
+  for(k in 1:ncol(Pmat0)){
+    Pmat0[,k] = 1.0/(1+exp(-yhat - intercept[k]))
+  }
+  for(k in 1:ncol(Pmat)){
+    if(k == 1){
+      Pmat[,k] = 1-Pmat0[,k]
+    }else if(k == ncol(Pmat)){
+      Pmat[,k] = Pmat0[,k-1]
+    }else{
+      Pmat[,k] = Pmat0[,k-1] - Pmat0[,k]
+    }
+  }
+  # Get predictions (highest probability)
+  predictions <- apply(Pmat, 1, which.max) - 1
+  # Return results:
+  if(return.probabilities){
+    return(list(predictions = predictions, probabilities = Pmat))
+  } else {
+    return(predictions)
+  }
+}
+
+#' Get ordinal misclassification rate
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@export
+SPEAR.get_ordinal_misclassification <- function(SPEARobj, X = NULL, Y = NULL, w = "overall", scale.x = FALSE){
+  if(!is.null(Y)){
+    if(nrow(Y) != nrow(X[[1]])){
+      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
+    }
+  } else {
+    Y <- SPEARobj$data$Y
+  }
+  preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, FALSE, scale.x)
+  misclassification.rate <- 1 - (sum(Y == preds)/length(preds))
+  return(misclassification.rate)
+}
 
 
+
+#' Plot ordinal class probabilities
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@export
+SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "overall", scale.x = FALSE){
+  if(!is.null(Y)){
+    if(nrow(Y) != nrow(X[[1]])){
+      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
+    }
+  } else {
+    Y <- SPEARobj$data$Y
+  }
+  
+  preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
+  levels <- ncol(preds$probabilities)
+  df <- cbind(as.data.frame(preds$probabilities), Y)
+  colnames(df) <- c(paste0("ProbClass", 1:levels), "Y")
+  df$Ychar <- as.character(df$Y)
+  
+  plotlist <- list()
+  
+  for(i in 1:levels){
+    g <- ggplot(df) +
+      geom_boxplot(aes_string(x = "Y", group = "Y", y = paste0("ProbClass", i), fill = "Ychar"), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+      xlab("True Label") +
+      ylab("Probability") +
+      geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+      scale_fill_brewer(palette = "RdBu", guide = FALSE) +
+      scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+      ggtitle(paste0("Probability Class ", i-1)) +
+      theme_bw() +
+      theme(plot.title = element_text(hjust = 0.5))
+    
+    plotlist[[length(plotlist) + 1]] <- g
+  }
+  
+  p <- plot_grid(plotlist = plotlist, nrow = 1)
+  
+  return(p)
+}
+
+  
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 # GET PATHWAY INFO FROM GENES:

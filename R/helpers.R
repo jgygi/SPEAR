@@ -553,7 +553,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@export
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
-                          factor_contribution = F, weights = weights, max_iter = 1e4){
+                          factor_contribution = F, weights = NULL, max_iter = 1e4){
   n = nrow(Y);
   px = ncol(X);
   py = ncol(Y);
@@ -751,7 +751,11 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
   if(factor_contribution){
     for(l in 1:num_weights){
-      print(paste0("calculated_contribution_weight",weights[l]))
+      if(!is.null(weights)){
+        print(paste0("~~~ Calculating contribution for w = ",weights[l], " | ", l, "/", num_weights))
+      } else {
+        print(paste0("~~~ Calculating contribution for weights: ", l, "/", num_weights))
+      }
       by = projection_coefs[,,l]
       if(is.null(dim(by))){
         by = matrix(by, ncol = 1)

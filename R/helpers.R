@@ -553,7 +553,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@export
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
-                          factor_contribution = F, max_iter = 1e4){
+                          factor_contribution = F, weights = weights, max_iter = 1e4){
   n = nrow(Y);
   px = ncol(X);
   py = ncol(Y);

@@ -17,6 +17,7 @@ cv.evaluation(
   pattern_features,
   nlambda = 100,
   factor_contribution = F,
+  weights = weights,
   max_iter = 10000
 )
 }

@@ -12,13 +12,14 @@ run_cv_spear(
   Yobs = NULL,
   foldid = NULL,
   weights = NULL,
-  family = 0,
+  family = "gaussian",
   inits.type = "pca",
   num.factors = NULL,
   seed = NULL,
   scale.x = TRUE,
   scale.y = TRUE,
   num.folds = 5,
+  calculate.factor.contribution = TRUE,
   warmup.iterations = NULL,
   max.iterations = NULL,
   elbo.threshold = NULL,
@@ -60,6 +61,8 @@ run_cv_spear(
 \item{scale.y}{description}
 
 \item{num.folds}{description}
+
+\item{calculate.factor.contribution}{description}
 
 \item{warmup.iterations}{description}
 

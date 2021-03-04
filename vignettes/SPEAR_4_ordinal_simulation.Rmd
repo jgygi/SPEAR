@@ -17,13 +17,6 @@ Follow installation instructions in README (located [here](https://github.com/jg
 ```{r echo=FALSE}
 # Required Packages for SPEAR:
 library(SPEARcomplete)
-path <- "~/Documents/Coding/IMPACC/SPEAR/package/"
-##path <- "~/Dropbox/shared_folder/SPEAR/"
-#Rcpp::sourceCpp(paste0(path, "src/_spear.cpp"))
-#source(paste0(path, "R/helpers.R"))
-##source(paste0(path, "R/RcppExports.R"))
-#source(paste0(path, "R/spear.R"))
-source(paste0(path, "R/SPEARkit.R"))
 library(MASS)
 library(glmnet)
 library(parallel)
@@ -199,15 +192,15 @@ seed <- 2020 # reproducible seed
 family <- "ordinal"
 
 # Running cross-validated SPEAR:
-SPEARobj.ordinal <- run_cv_spear(X = X, 
-                         Y = Y,
-                         num.factors = num.factors, 
-                         seed = seed,
-                         save.path = save.path, 
-                         save.name = save.name,
-                         family = family)
+#SPEARobj.ordinal <- run_cv_spear(X = X, 
+#                         Y = Y,
+#                         num.factors = num.factors, 
+#                         seed = seed,
+#                         save.path = save.path, 
+#                         save.name = save.name,
+#                         family = family)
 
-#SPEARobj.ordinal <- readRDS(paste0(save.path, "/", save.name))
+SPEARobj.ordinal <- readRDS(paste0(save.path, "/", save.name))
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)
 ```
@@ -227,15 +220,15 @@ seed <- 2020 # reproducible seed
 family <- "gaussian" # Use family = 0 for SPEARgaussian
 
 # Running cross-validated SPEAR:
-SPEARobj.gaussian <- run_cv_spear(X = X, 
-                                 Y = Y, 
-                                 scale.y = FALSE,
-                                 num.factors = num.factors, 
-                                 seed = seed,
-                                 save.path = save.path, 
-                                 save.name = save.name,
-                                 family = family)
-#SPEARobj.gaussian <- readRDS(paste0(save.path, "/", save.name))
+#SPEARobj.gaussian <- run_cv_spear(X = X, 
+#                                 Y = Y, 
+#                                 scale.y = FALSE,
+#                                 num.factors = num.factors, 
+#                                 seed = seed,
+#                                 save.path = save.path, 
+#                                 save.name = save.name,
+#                                 family = family)
+SPEARobj.gaussian <- readRDS(paste0(save.path, "/", save.name))
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)
 ```

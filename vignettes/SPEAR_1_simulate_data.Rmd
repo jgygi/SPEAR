@@ -142,7 +142,11 @@ data.total = dataGen(N = N,
                factors.influencing.y = factors.influencing.y,
                pi_reg = N/(P*D*log(P * D) * log(P * D)))
 
+```
 
+Saving the data: Set eval=TRUE to save the data (rds is already generated for vignettes)
+
+```{r eval=FALSE}
 # Save the data to use in the SPEAR vignette:
 file_path <- getwd()
 saveRDS(data.total, file = paste0(file_path, "/simulated_gaussian_data.rds"))

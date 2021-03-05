@@ -355,7 +355,7 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
   }
-  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs]  + SPEARobj$cv.eval$intercepts[w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
+  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs] + SPEARobj$cv.eval$intercepts[[1]][w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
   colnames(pred.mat) <- colnames(SPEARobj$data$Y)
   rownames(pred.mat) <- rownames(SPEARobj$data$X)
   if(w == "best" & ncol(SPEARobj$data$Y) > 1){
@@ -401,13 +401,13 @@ SPEAR.plot_cv_predictions <- function(SPEARobj, w = "best", ncol = NULL, nrow = 
     }
   }
   for(k in 1:ncol(SPEARobj$data$Y)){
-    x <- SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]] + SPEARobj$cv.eval$intercepts[w.idxs[k]]
+    x <- SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]] + SPEARobj$cv.eval$intercepts[[1]][w.idxs[k]]
     y <- SPEARobj$data$Y[,k]
     fit <- lm(y ~ x)
     r2 <- summary(fit)$r.squared
     g <- ggplot() +
-      geom_point(aes(x = SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]], y = SPEARobj$data$Y[,k])) + 
-      geom_smooth(aes(x = SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]], y = SPEARobj$data$Y[,k]), color = "#74149E", method = "lm") +
+      geom_point(aes(x = SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]] + SPEARobj$cv.eval$intercepts[[1]][w.idxs[k]], y = SPEARobj$data$Y[,k])) + 
+      geom_smooth(aes(x = SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]] + SPEARobj$cv.eval$intercepts[[1]][w.idxs[k]], y = SPEARobj$data$Y[,k]), color = "#74149E", method = "lm") +
       xlab("SPEAR Pred.") +
       ylab("Actual") +
       ggtitle(paste0(colnames(SPEARobj$data$Y)[k], " | w=", round(SPEARobj$params$weights[w.idxs[k]], 2), " | r2=", round(r2, 3))) +

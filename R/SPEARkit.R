@@ -888,7 +888,7 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
   preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
   levels <- ncol(preds$probabilities)
 
-  temp <- tibble(pred = preds$predictions, actual = Y)
+  temp <- tibble(pred = preds$predictions, actual = unlist(Y))
   temp$correct <- temp$pred == temp$actual
   p <- ggplot(temp) +
     geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +

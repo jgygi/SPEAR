@@ -355,7 +355,7 @@ SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
   }
-  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
+  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs]  + SPEARobj$cv.eval$intercepts[w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
   colnames(pred.mat) <- colnames(SPEARobj$data$Y)
   rownames(pred.mat) <- rownames(SPEARobj$data$X)
   if(w == "best" & ncol(SPEARobj$data$Y) > 1){
@@ -401,7 +401,7 @@ SPEAR.plot_cv_predictions <- function(SPEARobj, w = "best", ncol = NULL, nrow = 
     }
   }
   for(k in 1:ncol(SPEARobj$data$Y)){
-    x <- SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]]
+    x <- SPEARobj$cv.eval$Yhat.keep[,k,w.idxs[k]] + SPEARobj$cv.eval$intercepts[w.idxs[k]]
     y <- SPEARobj$data$Y[,k]
     fit <- lm(y ~ x)
     r2 <- summary(fit)$r.squared

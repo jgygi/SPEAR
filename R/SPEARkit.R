@@ -910,7 +910,7 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
     xlab("True Label") +
     ylab("Count") +
     geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
-    scale_x_continuous(labels = sort(unique(respiratory.status.baseline$respiratory_status)), breaks = c(0:(levels-1))) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
     scale_fill_brewer(palette = "RdBu", guide = FALSE) +
     ggtitle("SPEARordinal Predictions") +
     ylim(c(NA, ymax)) +

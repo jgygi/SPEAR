@@ -192,13 +192,13 @@ seed <- 2020 # reproducible seed
 family <- "ordinal"
 
 # Running cross-validated SPEAR:
-SPEARobj.ordinal <- run_cv_spear(X = X, 
-                         Y = Y,
-                         num.factors = num.factors, 
-                         seed = seed,
-                         save.path = save.path, 
-                         save.name = save.name,
-                         family = family)
+#SPEARobj.ordinal <- run_cv_spear(X = X, 
+#                         Y = Y,
+#                         num.factors = num.factors, 
+#                         seed = seed,
+#                         save.path = save.path, 
+#                         save.name = save.name,
+#                         family = family)
 
 SPEARobj.ordinal <- readRDS(paste0(save.path, "/", save.name))
 
@@ -220,14 +220,14 @@ seed <- 2020 # reproducible seed
 family <- "gaussian" # Use family = 0 for SPEARgaussian
 
 # Running cross-validated SPEAR:
-SPEARobj.gaussian <- run_cv_spear(X = X, 
-                                 Y = Y, 
-                                 scale.y = FALSE,
-                                 num.factors = num.factors, 
-                                 seed = seed,
-                                 save.path = save.path, 
-                                 save.name = save.name,
-                                 family = family)
+#SPEARobj.gaussian <- run_cv_spear(X = X, 
+#                                 Y = Y, 
+#                                 scale.y = FALSE,
+#                                 num.factors = num.factors, 
+#                                 seed = seed,
+#                                 save.path = save.path, 
+#                                 save.name = save.name,
+#                                 family = family)
 SPEARobj.gaussian <- readRDS(paste0(save.path, "/", save.name))
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)

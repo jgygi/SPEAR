@@ -831,7 +831,7 @@ SPEAR.get_ordinal_misclassification <- function(SPEARobj, X = NULL, Y = NULL, w 
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
 #'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
 #'@export
-SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "overall", scale.x = FALSE){
+SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE){
   if(!is.null(Y)){
     if(nrow(Y) != nrow(X[[1]])){
       stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
@@ -868,6 +868,41 @@ SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL,
   return(p)
 }
 
+
+#' Plot ordinal class predictions
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@export
+SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE){
+  if(!is.null(Y)){
+    if(nrow(Y) != nrow(X[[1]])){
+      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
+    }
+  } else {
+    Y <- SPEARobj$data$Y
+  }
+  
+  preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
+  levels <- ncol(preds$probabilities)
+
+  temp <- tibble(pred = preds$predictions, actual = Y)
+  temp$correct <- temp$pred == temp$actual
+  p <- ggplot(temp) +
+    geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+    xlab("True Label") +
+    ylab("Count") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    scale_fill_brewer(palette = "RdBu", guide = FALSE) +
+    ggtitle("SPEARordinal Predictions") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  return(p)
+}
   
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 

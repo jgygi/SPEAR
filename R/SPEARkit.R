@@ -564,7 +564,7 @@ SPEAR.plot_factor_grid <- function(SPEARobj, w = "overall", groups = NULL, facto
         g <- g + scale_color_distiller(palette = "RdBu") +
           guides(color = guide_colourbar(barheight = 0.5))
       } else {
-        g <- g + scale_color_brewer(palette = "Set1")
+        g <- g + scale_color_brewer(palette = "RdBu")
       }
       legend <- get_legend(g)
     }

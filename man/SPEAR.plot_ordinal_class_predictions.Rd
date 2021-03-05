@@ -9,7 +9,8 @@ SPEAR.plot_ordinal_class_predictions(
   X = NULL,
   Y = NULL,
   w = "best",
-  scale.x = FALSE
+  scale.x = FALSE,
+  show.true.distribution = TRUE
 )
 }
 \arguments{

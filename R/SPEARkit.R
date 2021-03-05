@@ -876,7 +876,7 @@ SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL,
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
 #'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
 #'@export
-SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE){
+SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE, show.true.distribution = TRUE){
   if(!is.null(Y)){
     if(nrow(Y) != nrow(X[[1]])){
       stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
@@ -887,23 +887,45 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
   
   preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
   levels <- ncol(preds$probabilities)
-
+  
   temp <- tibble(pred = preds$predictions, actual = unlist(Y))
   temp$correct <- temp$pred == temp$actual
-  p <- ggplot(temp) +
+  
+  ymax <- max(table(temp$pred), table(temp$actual))
+  
+  p.true <- ggplot(temp) +
+    geom_histogram(aes(x = actual, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+    xlab("True Label") +
+    ylab("Count") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_x_continuous(labels = sort(unique(respiratory.status.baseline$respiratory_status)), breaks = c(0:(levels-1))) +
+    scale_fill_brewer(palette = "RdBu", guide = FALSE) +
+    ggtitle("True Classes") +
+    ylim(c(NA, ymax)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  p.pred <- ggplot(temp) +
     geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
     xlab("True Label") +
     ylab("Count") +
     geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
-    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    scale_x_continuous(labels = sort(unique(respiratory.status.baseline$respiratory_status)), breaks = c(0:(levels-1))) +
     scale_fill_brewer(palette = "RdBu", guide = FALSE) +
     ggtitle("SPEARordinal Predictions") +
+    ylim(c(NA, ymax)) +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
   
+  if(show.true.distribution){
+    p <- cowplot::plot_grid(p.true, p.pred, nrow = 1)
+  } else {
+    p <- p.pred
+  }
+  
   return(p)
 }
-  
+
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 # GET PATHWAY INFO FROM GENES:

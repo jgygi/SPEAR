@@ -133,7 +133,6 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
 SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", threshold = .01, show.labels = TRUE, show.irrelevant = FALSE){
   
   factor.contributions <- SPEAR.get_factor_contributions(SPEARobj, w = w)
-  print(factor.contributions)
   
   if(show.irrelevant){
     factor.contributions$X.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$X.relevant.factors), nrow = nrow(factor.contributions$X.relevant.factors))

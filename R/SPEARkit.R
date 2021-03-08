@@ -63,7 +63,7 @@ SPEAR.get_best_weights <- function(SPEARobj, include.best.overall = FALSE){
 }
 
 
-#' Get factor contributions to Y
+#' Get factor contributions to both X and Y
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
 #'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
@@ -82,23 +82,48 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
   }
-  factor.contributions <- list()
-  relevant.factors = matrix(0,ncol = length(w.idxs), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  for(i in 1:length(w.idxs)){
-    factor.contributions[[i]] <- SPEARobj$cv.eval$factor_contributions[, i, w.idxs[i]]
-    relevant.factors[factor.contributions[[i]] >= threshold, i] <- 1
+  
+  # Explanatory Vars:
+  Xlist <- SPEARobj$data$xlist
+  W <- SPEARobj$fit$results$post_betas[,,,w.idxs]
+  U <- SPEARobj$data$X %*% W
+  Wlist <- list()
+  ind <- 1
+  for(d in 1:length(Xlist)){
+    Wlist[[d]] <- W[ind:(ind - 1 + ncol(Xlist[[d]])),]
+    ind <- ind + ncol(Xlist[[d]])
   }
-  factor.contributions <- matrix(unlist(factor.contributions), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  colnames(factor.contributions) <- colnames(SPEARobj$data$Y)
-  rownames(factor.contributions) <- paste0("Factor", 1:nrow(factor.contributions))
-  colnames(relevant.factors) <- colnames(factor.contributions)
-  rownames(relevant.factors) <- rownames(factor.contributions)
-  return(list(factor.contributions = factor.contributions, relevant.factors = relevant.factors, threshold = threshold))
+  var_explained_X <- matrix(0, nrow = ncol(U), ncol = length(Xlist))
+  for(i in 1:nrow(var_explained_X)){
+    for(j in 1:ncol(var_explained_X)){
+      a <- sum((Xlist[[j]] - U[,i] %*% t(Wlist[[j]][,i]))**2, na.rm = TRUE)
+      b <- sum((Xlist[[j]])**2, na.rm = TRUE)
+      var_explained_X[i,j] <- (1 - a/b)
+    }
+  }
+  colnames(var_explained_X) <- names(Xlist)
+  rownames(var_explained_X) <- paste0("Factor", 1:nrow(var_explained_X))
+  relevant.factors.X = var_explained_X
+  relevant.factors.X[var_explained_X >= threshold] <- 1
+  relevant.factors.X[var_explained_X < threshold] <- 0
+  
+  # Response:
+  var_explained_Y <- list()
+  relevant.factors.Y = matrix(0,ncol = length(w.idxs), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
+  for(i in 1:length(w.idxs)){
+    var_explained_Y[[i]] <- SPEARobj$cv.eval$factor_contributions[, i, w.idxs[i]]
+    relevant.factors.Y[var_explained_Y[[i]] >= threshold, i] <- 1
+  }
+  var_explained_Y <- matrix(unlist(var_explained_Y), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
+  colnames(var_explained_Y) <- colnames(SPEARobj$data$Y)
+  rownames(var_explained_Y) <- paste0("Factor", 1:nrow(var_explained_Y))
+  colnames(relevant.factors.Y) <- colnames(var_explained_Y)
+  rownames(relevant.factors.Y) <- rownames(var_explained_Y)
+  return(list(X.explained = var_explained_X, X.relevant.factors = relevant.factors.X, Y.explained = var_explained_Y, Y.relevant.factors = relevant.factors.Y, threshold = threshold))
 }
 
 
-
-#' Plot factor contributions to Y
+#' Plot factor contributions for X and Y
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
 #'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
@@ -106,44 +131,34 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
 #'@param show.irrelevant Show all contributions, even those below the threshold? Defaults to FALSE
 #'@export
 SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", threshold = .01, show.labels = TRUE, show.irrelevant = FALSE){
-  if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
-  } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
-  } else {
-    if(!any(SPEARobj$params$weights == w)){
-      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
-    } else {
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    }
-  }
-  factor.contributions <- list()
-  relevant.factors = matrix(0,ncol = length(w.idxs), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  for(i in 1:length(w.idxs)){
-    factor.contributions[[i]] <- SPEARobj$cv.eval$factor_contributions[, i, w.idxs[i]]
-    relevant.factors[factor.contributions[[i]] >= threshold, i] <- 1
-  }
-  factor.contributions <- matrix(unlist(factor.contributions), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  colnames(factor.contributions) <- colnames(SPEARobj$data$Y)
-  rownames(factor.contributions) <- paste0("Factor", 1:nrow(factor.contributions))
+  
+  factor.contributions <- SPEAR.get_factor_contributions(SPEARobj, w = w)
+  print(factor.contributions)
   
   if(show.irrelevant){
-    relevant.factors <- matrix(1, ncol = length(w.idxs), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
+    factor.contributions$X.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$X.relevant.factors), nrow = nrow(factor.contributions$X.relevant.factors))
+    factor.contributions$Y.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$Y.relevant.factors), nrow = nrow(factor.contributions$Y.relevant.factors))
   }
-  df <- reshape2::melt(factor.contributions * relevant.factors)
-  g <- ggplot(data = df) +
+  
+  # Combine DFs:
+  df.X <- factor.contributions$X.explained * factor.contributions$X.relevant.factors
+  df.Y <- factor.contributions$Y.explained * factor.contributions$Y.relevant.factors
+  df.comb <- cbind(df.X, df.Y)
+  
+  # Plot
+  df.melt <- reshape2::melt(df.comb)
+  g <- ggplot(data = df.melt) +
     geom_tile(aes(y = Var2, x = Var1, fill = value, alpha = abs(value)), color = "black") +
     geom_text(aes(y = Var2, x = Var1, label = round(ifelse(value==0, NA, value), 2)), color = ifelse(show.labels, "black", NA)) +
     scale_fill_gradient(low = "white", high = "#74149E") +
     scale_alpha_continuous(guide = F) +
-    ggtitle("Factor Contribution") +
+    ggtitle("Factor Contributions") +
     ylab("") +
     xlab("") +
     coord_equal() +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5, size = 12))
+  
   return(g)
 }
 

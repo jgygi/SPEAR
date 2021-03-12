@@ -450,8 +450,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   # Run cv.spear:
   if(run.debug){
     cat("foldids:\n")
-    for(k in 1:num.folds){
-      print(table(data$Y[foldid==k]))
+    for(k in 1:max(foldid)){
+      print(table(data$Y[foldid==k,]))
     }
     print(foldid)
   }

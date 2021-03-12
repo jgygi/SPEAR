@@ -317,9 +317,13 @@ SPEAR.get_factor_features <- function(SPEARobj, w = "best", threshold = .01, cut
     relevant.factors <- SPEARobj$cv.eval$factor_contributions[, k, w.idxs[k]] >= threshold
     names(relevant.factors) <- paste0("Factor", 1:length(relevant.factors))
     w.loadings = SPEARobj$fit$results$post_selections[,,w.idxs[k]]
+    w.coefficients = t(SPEARobj$fit$results$post_bxs[,,w.idxs[k]])
     w.loadings[,!relevant.factors] <- NA
+    w.coefficients[,!relevant.factors] <- NA
     colnames(w.loadings) <- paste0("F", 1:ncol(w.loadings))
     rownames(w.loadings) <- colnames(SPEARobj$data$X)
+    colnames(w.coefficients) <- paste0("F", 1:ncol(w.loadings))
+    rownames(w.coefficients) <- colnames(SPEARobj$data$X)
     # by factor
     if(sum(relevant.factors) > 0){
       factor.features <- list()
@@ -331,12 +335,19 @@ SPEAR.get_factor_features <- function(SPEARobj, w = "best", threshold = .01, cut
         for(o in 1:num.omics){
           omic.features <- list()
           w.loadings.current <- w.loadings[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+          w.coefficients.current <- w.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
           s <- s + ncol(SPEARobj$data$xlist[[o]])
+          w.coefficients.current <- w.coefficients.current[which(w.loadings.current > cutoff)]
           w.loadings.current <- w.loadings.current[which(w.loadings.current > cutoff)]
-          w.loadings.current <- sort(w.loadings.current, decreasing = TRUE)
+          # Round loading probabilities to 7 decimals (to rank 1's):
+          w.loadings.current <- round(w.loadings.current, 7)
+          feat.order <- order(w.loadings.current, abs(w.coefficients.current), decreasing = TRUE)
+          w.coefficients.current <- w.coefficients.current[feat.order]
+          w.loadings.current <- w.loadings.current[feat.order]
           if(length(w.loadings.current) > 0){
             temp[[names(SPEARobj$data$xlist)[o]]]$features <- names(w.loadings.current)
             temp[[names(SPEARobj$data$xlist)[o]]]$probabilities <- w.loadings.current
+            temp[[names(SPEARobj$data$xlist)[o]]]$coefficients <- w.coefficients.current
           }
         }
         factor.features[[names(factor)]] <- temp
@@ -349,7 +360,6 @@ SPEAR.get_factor_features <- function(SPEARobj, w = "best", threshold = .01, cut
   }
   return(feature.list)
 }
-
 
 #' Get CV predictions
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
@@ -753,7 +763,7 @@ SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show
 #'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
 #'@export
 SPEAR.predict_ordinal_classes <- function(SPEARobj, X = NULL, w = "overall", return.probabilities = TRUE, scale.x = FALSE){
-  if(SPEARobj$params$family != "ordinal"){
+  if(SPEARobj$params$family != "ordinal" & SPEARobj$params$family != "binomial"){
     stop(paste0("ERROR: SPEARobject provided is of family '", SPEARobj$params$family, "'. Must be of family 'ordinal' to get probabilities."))
   }
   if(w == "best"){

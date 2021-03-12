@@ -90,17 +90,6 @@ num.factors = 5 # How many factors should SPEAR generate? 5-10 should be suffici
 save.path <- getwd() # path for SPEARobject (rds file) to be saved
 save.name <- "SPEAR_vignette_object.rds" # name for SPEARobject (rds file)
 seed <- 123 # reproducible seed
-
-#path <- "~/Documents/Coding/IMPACC/SPEAR/package/"
-#path <- "~/Dropbox/shared_folder/SPEAR/"
-
-#Rcpp::sourceCpp(paste0(path, "src/_spear.cpp"))
-#source(paste0(path, "R/helpers.R"))
-#source(paste0(path, "R/RcppExports.R"))
-#source(paste0(path, "R/spear.R"))
-#source(paste0(path, "R/SPEARkit.R"))
-
-
 ```
 
 Running SPEAR: Set 'eval=TRUE' to run SPEAR below.

@@ -1,16 +1,66 @@
 ### SPEARkit Functions ###
 
-#' Predict response values for new samples.
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param X A list of matrices of testing data. Needs to match the dimensions of the training data used with the SPEARobj (check SPEARobj$data$xlist)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param scale.x Should parameter 'X' be scaled? Defaults to TRUE.
+#' Get best SPEAR weights per response Y
+#'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})
+#'@param w.method How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).
+#'@param return.overall Should the best overall weight be returned? Defaults to \code{FALSE} (where each response can have a different best weight).
+#'@param return.as.index Return the index (from SPEARobj$params$weights) rather than the weight itself? Defaults to \code{FALSE}.
+#'@return A named vector of weights (or weight indices from \code{SPEARobj$params$weights} if \code{return.as.index} == \code{TRUE}).
+#' @examples
+#' SPEAR.get_best_weights(SPEARobj, w.method = "min", return.overall = TRUE)
+#' SPEAR.get_best_weights(SPEARobj, w.method = "sd")
 #'@export
-SPEAR.predict_new_samples <- function(SPEARobj, X, w = "best", scale.x = TRUE){
+SPEAR.get_best_weights <- function(SPEARobj, w.method = "min", return.overall = FALSE, return.as.index = FALSE){
+  if(w.method == "min"){
+    if(!return.overall){
+      w.idxs = apply(SPEARobj$cv.eval$cvm, 2, which.min)
+      ws <- SPEARobj$params$weights[w.idxs]
+    }
+    else if(return.overall){
+      w.idx = which.min(apply(SPEARobj$cv.eval$cvm,1,sum))
+      w.idxs <- rep(w.idx, ncol(SPEARobj$data$Y))
+      ws <- SPEARobj$params$weights[w.idxs]
+    }
+  } else if(w.method == "sd"){
+    if(!return.overall){
+      w.idxs = apply(SPEARobj$cv.eval$cvm, 2, which.min)
+      ws <- SPEARobj$params$weights[w.idxs]
+    }
+    else if(return.overall){
+      w.idx = which.min(apply(SPEARobj$cv.eval$cvm,1,sum))
+      w.idxs <- rep(w.idx, ncol(SPEARobj$data$Y))
+      ws <- SPEARobj$params$weights[w.idxs]
+    }
+  } else {
+    stop("ERROR: w.method defined incorrectly. Acceptable values are 'min' and 'sd'.")
+  }
+  # Return as index?
+  if(return.as.index){
+    output <- w.idxs
+  } else {
+    output <- ws
+  }
+  names(output) <- colnames(SPEARobj$data$Y)
+  return(output)
+}
+
+#' Predict sample responses using a trained SPEAR model.
+#'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})
+#'@param X List of omics matrices to be used for prediction. Defaults to \code{NULL} (use training data stored within SPEAR)
+#'@param w Weight for SPEAR model. Defaults to \code{"best"}, choosing the best weight per response. Can also be \code{"overall"} (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (\code{SPEARobj$params$weights})
+#'@param w.method How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).
+#'@param scale.x Should \code{X} be scaled (only used if new \code{X} is supplied). Defaults to \code{FALSE}
+#'@return A list of predictions from the SPEAR model. One list for each response predicted, as well as \code{predictions}, \code{probabilites}, and \code{w} used.
+#' @examples
+#' SPEAR.get_predictions(SPEARobj, X = list.of.test.matrices, scale.x = TRUE)
+#' SPEAR.get_predictions(SPEARobj, w = 1)
+#'@export
+SPEAR.get_predictions <- function(SPEARobj, X = NULL, w = "best", w.method = "min", scale.x = FALSE){
+  # Weight ----------------
   if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
   } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
   } else {
     if(!any(SPEARobj$params$weights == w)){
       stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
@@ -19,48 +69,163 @@ SPEAR.predict_new_samples <- function(SPEARobj, X, w = "best", scale.x = TRUE){
       cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
-  }
-
-  # Quickly check that the dimensions in X match:
-  if(length(X) != length(SPEARobj$data$xlist)){
-    stop(paste0("ERROR: Object 'X' passed in has ", length(X), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARobj$data$xlist), " datasets. Incompatible dimensions."))
-  }
-  for(d in 1:length(X)){
-    if(ncol(X[[d]]) != ncol(SPEARobj$data$xlist[[d]])){
-      stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(X[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARobj$data$xlist[[d]]), " features. Cannot predict new responses."))
+  } #----------------------
+  
+  # Check if X is NULL (use training data):
+  if(is.null(X)){
+    X <- SPEARobj$data$X
+  } else {
+    # Quickly check that the dimensions in X match:
+    if(length(X) != length(SPEARobj$data$xlist)){
+      stop(paste0("ERROR: Object 'X' passed in has ", length(X), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARobj$data$xlist), " datasets. Incompatible dimensions."))
+    }
+    for(d in 1:length(X)){
+      if(ncol(X[[d]]) != ncol(SPEARobj$data$xlist[[d]])){
+        stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(X[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARobj$data$xlist[[d]]), " features. Cannot predict new responses."))
+      }
+    }
+    # Collapse X:
+    X <- do.call("cbind", X)
+    # Scale X by feature:
+    if(scale.x){
+      X <- scale(X)
     }
   }
-  # Collapse X:
-  xlist.te <- do.call("cbind", X)
-  # Scale X by feature:
-  if(scale.x){
-    xlist.te <- scale(xlist.te)
+  
+  # Get Predictions:
+  if(SPEARobj$params$family == "gaussian"){
+    output <- list()
+    for(i in 1:length(w.idxs)){
+      response <- colnames(SPEARobj$data$Y)[i]
+      w.idx <- w.idxs[i]
+      ### Group loop? [,g,,]
+      preds <- X %*% SPEARobj$cv.eval$reg_coefs[,,i,w.idx] + SPEARobj$cv.eval$intercepts[[1]][w.idx,]
+      names(preds) <- rownames(X)
+      ### Add to group loop?
+      output[[response]] <- list(predictions = preds, w = SPEARobj$params$weights[w.idx])
+    }
+    
+  } else {
+    output <- list()
+    for(i in 1:length(w.idxs)){
+      response <- colnames(SPEARobj$data$Y)[i]
+      w.idx <- w.idxs[i]
+      ### Group loop? [,g,,]
+      yhat = X %*% SPEARobj$cv.eval$reg_coefs[,,i,w.idx]
+      intercept = SPEARobj$cv.eval$intercepts[[1]][w.idx,]
+      Pmat0 = matrix(0, ncol = length(intercept), nrow = length(yhat))
+      Pmat = matrix(0, ncol = length(intercept) + 1, nrow = length(yhat))
+      for(k in 1:ncol(Pmat0)){
+        Pmat0[,k] = 1.0/(1+exp(-yhat - intercept[k]))
+      }
+      for(k in 1:ncol(Pmat)){
+        if(k == 1){
+          Pmat[,k] = 1-Pmat0[,k]
+        }else if(k == ncol(Pmat)){
+          Pmat[,k] = Pmat0[,k-1]
+        }else{
+          Pmat[,k] = Pmat0[,k-1] - Pmat0[,k]
+        }
+      }
+      # Get predictions (highest probability)
+      predictions <- apply(Pmat, 1, which.max) - 1
+      names(predictions) <- rownames(X)
+      ### Add to group loop?
+      output[[response]] <- list(probabilities = Pmat, predictions = predictions, w = SPEARobj$params$weights[w.idxs])
+    }
   }
-  # Right now, assumes 1 group...
-  g <- 1
-  preds <- xlist.te %*% SPEARobj$cv.eval$reg_coefs[,g,,w.idxs] + SPEARobj$cv.eval$intercepts[[1]][w.idxs,]
-  colnames(preds) <- colnames(SPEARobj$data$Y)
-  rownames(preds) <- rownames(xlist.te)
-  res <- list(predictions = preds, w = SPEARobj$params$weights[w.idxs])
-  return(res)
+  
+  return(output)
 }
 
-
-#' Get best SPEAR weights per response Y
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param include.best.overall Should the best overall weight be returned as well? If only one response is being predicted, overall = best.
+#' Get loss for each value of \code{w} from training a SPEAR model.
+#'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})
+#'@param include.sd Return standard deviation of loss as well? Defaults to \code{FALSE}.
+#'@return A matrix with the first column being each \code{w} trained on and a column for every response. If \code{include.sd == TRUE}, a list of matrices, named \code{mean} and \code{sd}.
+#'@examples
+#' SPEAR.get_cv_loss(SPEARobj)
+#' SPEAR.get_cv_loss(SPEARobj, include.sd = TRUE)
 #'@export
-SPEAR.get_best_weights <- function(SPEARobj, include.best.overall = FALSE){
-  w.idxs = apply(SPEARobj$cv.eval$cvm, 2, which.min)
-  ws <- SPEARobj$params$weights[w.idxs]
-  names(ws) <- colnames(SPEARobj$data$Y)
-  if(include.best.overall){
-    w.idx = which.min(apply(SPEARobj$cv.eval$cvm,1,sum))
-    ws <- c(ws, SPEARobj$params$weights[w.idx])
-    names(ws)[length(ws)] <- "best.overall.weight"
+SPEAR.get_cv_loss <- function(SPEARobj, include.sd = FALSE){
+  cv.errors <- SPEARobj$cv.eval$cvm
+  cv.errors <- cbind(SPEARobj$params$weights, cv.errors)
+  colnames(cv.errors) <- c("w", colnames(SPEARobj$data$Y))
+  if(include.sd){
+    cv.sd <- SPEARobj$cv.eval$cvsd
+    cv.sd <- cbind(SPEARobj$params$weights, cv.sd)
+    colnames(cv.sd) <- c("w", colnames(SPEARobj$data$Y))
+    return(list(mean = cv.errors, sd = cv.sd))
+  } else {
+    return(cv.errors)
   }
-  return(ws)
 }
+
+#' Get factor scores from a trained SPEAR object
+#'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})
+#'@param X List of omics matrices to be used for prediction. Defaults to \code{NULL} (use training data stored within SPEAR)
+#'@param w Weight for SPEAR model. Defaults to \code{"best"}, choosing the best weight per response. Can also be \code{"overall"} (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (\code{SPEARobj$params$weights})
+#'@param w.method How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).
+#'@param scale.x Should \code{X} be scaled (only used if new \code{X} is supplied). Defaults to \code{FALSE}
+#'@return A list of predictions from the SPEAR model. One list for each response predicted, as well as \code{predictions}, \code{probabilites}, and \code{w} used.
+#' @examples
+#' SPEAR.get_factor_scores(SPEARobj)
+#' SPEAR.get_factor_scores(SPEARobj, w = 1)
+#'@export
+SPEAR.get_factor_scores <- function(SPEARobj, w = "best", X = NULL, w.method = "min", scale.x = FALSE){
+  # Weight ----------------
+  if(w == "best"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
+  } else if(w == "overall"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
+  } else {
+    if(!any(SPEARobj$params$weights == w)){
+      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
+    } else {
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    }
+  } #----------------------
+  if(is.null(X)){
+    X <- SPEARobj$data$X
+  } else {
+    # Quickly check that the dimensions in X match:
+    if(length(X) != length(SPEARobj$data$xlist)){
+      stop(paste0("ERROR: Object 'X' passed in has ", length(X), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARobj$data$xlist), " datasets. Incompatible dimensions."))
+    }
+    for(d in 1:length(X)){
+      if(ncol(X[[d]]) != ncol(SPEARobj$data$xlist[[d]])){
+        stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(X[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARobj$data$xlist[[d]]), " features. Cannot predict new responses."))
+      }
+    }
+    # Collapse X:
+    X <- do.call("cbind", X)
+    # Scale X by feature:
+    if(scale.x){
+      X <- scale(X)
+    }
+  }
+  results <- list()
+  for(i in 1:length(w.idxs)){
+    response <- colnames(SPEARobj$data$Y)[i]
+    w.idx <- w.idxs[i]
+    ### Group loop? [,,g,]
+    Uhat <- X %*% SPEARobj$fit$results$post_betas[,,,w.idx]
+    colnames(Uhat) <- paste0("Factor", 1:SPEARobj$params$num_factors)
+    rownames(Uhat) <- rownames(X)
+    temp <- list()
+    temp$factor.scores <- Uhat
+    temp$weight <- SPEARobj$params$weights[w.idx]
+    ### Add to group loop?
+    results[[response]] <- temp
+  }
+  return(results)
+}
+
+
+
+#### OLD ______________________________________________________
+
 
 
 #' Get factor contributions to both X and Y
@@ -159,35 +324,6 @@ SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", threshold = .0
     theme(plot.title = element_text(hjust = 0.5, size = 12))
   
   return(g)
-}
-
-
-#' Get CV prediction errors
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param show.all.w Show mean cross-validated error for all weights (w)? Defaults to FALSE
-#'@param verbose Return a matrix with each response (column in Y) with the best weight and cvm. Defaults to FALSE
-#'@export
-SPEAR.get_cv_prediction_error <- function(SPEARobj, show.all.w = FALSE, verbose = FALSE){
-  if(show.all.w){
-    cv.errors <- SPEARobj$cv.eval$cvm
-    cv.errors <- cbind(cv.errors, SPEARobj$params$weights)
-    colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
-    return(cv.errors)
-  }
-  else if(verbose){
-    cv.errors <- apply(SPEARobj$cv.eval$cvm,2,min)
-    cv.error.mat <- matrix(0, nrow = 2, ncol = length(cv.errors))
-    cv.error.mat[1,] <- SPEARobj$params$weights[apply(SPEARobj$cv.eval$cvm, 2, which.min)]
-    cv.error.mat[2,] <- cv.errors
-    rownames(cv.error.mat) <- c("best.w", "cv.error")
-    colnames(cv.error.mat) <- colnames(SPEARobj$data$Y)
-    return(cv.error.mat)
-  }
-  else{
-    cv.errors <- apply(SPEARobj$cv.eval$cvm,2,min)
-    names(cv.errors) <- colnames(SPEARobj$data$Y)
-    return(cv.errors)
-  }
 }
 
 
@@ -361,46 +497,6 @@ SPEAR.get_factor_features <- function(SPEARobj, w = "best", threshold = .01, cut
   return(feature.list)
 }
 
-#' Get CV predictions
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@export
-SPEAR.get_cv_predictions <- function(SPEARobj, w = "best"){
-  if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
-  } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
-  } else {
-    if(!any(SPEARobj$params$weights == w)){
-      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
-    } else {
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    }
-  }
-  pred.mat <- array(SPEARobj$cv.eval$Yhat.keep[,,w.idxs] + SPEARobj$cv.eval$intercepts[[1]][w.idxs], c(nrow(SPEARobj$data$X), ncol(SPEARobj$data$Y), ncol(SPEARobj$data$Y)))
-  colnames(pred.mat) <- colnames(SPEARobj$data$Y)
-  rownames(pred.mat) <- rownames(SPEARobj$data$X)
-  if(w == "best" & ncol(SPEARobj$data$Y) > 1){
-    temp <- pred.mat[,1,1]
-    for(i in 2:ncol(SPEARobj$data$Y)){
-      temp <- cbind(temp, pred.mat[,i,i])
-    }
-    pred.mat <- temp
-  } else {
-    pred.mat <- pred.mat[,,1]
-  }
-  # Add weights:
-  ws <- SPEARobj$params$weights[w.idxs]
-  names(ws) <- colnames(SPEARobj$data$Y)
-  temp <- list()
-  temp$predictions <- pred.mat
-  temp$weights <- ws
-  results <- temp
-  
-  return(results)
-}
 
 
 #' Plot CV predictions
@@ -443,40 +539,6 @@ SPEAR.plot_cv_predictions <- function(SPEARobj, w = "best", ncol = NULL, nrow = 
   return(pg)
 }
 
-
-#' Get factor scores
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@export
-SPEAR.get_factor_scores <- function(SPEARobj, w = "best"){
-  if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
-  } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
-  } else {
-    if(!any(SPEARobj$params$weights == w)){
-      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
-    } else {
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    }
-  }
-  
-  results <- list()
-  for(i in 1:length(w.idxs)){
-    Uhat <- SPEARobj$data$X %*% SPEARobj$fit$results$post_betas[,,,w.idxs[i]]
-    colnames(Uhat) <- paste0("Factor", 1:SPEARobj$params$num_factors)
-    rownames(Uhat) <- rownames(SPEARobj$data$X)
-    temp <- list()
-    temp$factor.scores <- Uhat
-    temp$weight <- SPEARobj$params$weights[w.idxs[i]]
-    results[[i]] <- temp
-  }
-  names(results) <- colnames(SPEARobj$data$Y)
-
-  return(results)
-}
 
 
 #' Plot grid of factor scores per subject
@@ -701,6 +763,7 @@ SPEAR.plot_factor_scores <- function(SPEARobj, w = "overall", groups = NULL, fac
   
 }
 
+
 #' Plot factor scores per subject
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param show.w.labels Label points with their weights? Defaults to TRUE
@@ -755,77 +818,6 @@ SPEAR.plot_cv_prediction_errors <- function(SPEARobj, show.w.labels = TRUE, show
 }
   
 
-#' Predict ordinal classes
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param return.probabilities Return ordinal class probabilities? Defaults to TRUE
-#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
-#'@export
-SPEAR.predict_ordinal_classes <- function(SPEARobj, X = NULL, w = "overall", return.probabilities = TRUE, scale.x = FALSE){
-  if(SPEARobj$params$family != "ordinal" & SPEARobj$params$family != "binomial"){
-    stop(paste0("ERROR: SPEARobject provided is of family '", SPEARobj$params$family, "'. Must be of family 'ordinal' to get probabilities."))
-  }
-  if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
-  } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
-  } else {
-    if(!any(SPEARobj$params$weights == w)){
-      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
-    } else {
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    }
-  }
-  # Prepare data:
-  if(is.null(X)){
-    X <- SPEARobj$data$X
-  } else {
-    # Quickly check that the dimensions in X match:
-    if(length(X) != length(SPEARobj$data$xlist)){
-      stop(paste0("ERROR: Object 'X' passed in has ", length(X), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARobj$data$xlist), " datasets. Incompatible dimensions."))
-    }
-    for(d in 1:length(X)){
-      if(ncol(X[[d]]) != ncol(SPEARobj$data$xlist[[d]])){
-        stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(X[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARobj$data$xlist[[d]]), " features. Cannot predict new responses."))
-      }
-    }
-    # Collapse X:
-    X <- do.call("cbind", X)
-    # Scale X by feature:
-    if(scale.x){
-      X <- scale(X)
-    }
-  }
-  # Get probabilities:
-  yhat = X %*% SPEARobj$cv.eval$reg_coefs[,1,,w.idxs]
-  intercept = SPEARobj$cv.eval$intercepts[[1]][w.idxs,]
-  Pmat0 = matrix(0, ncol = length(intercept), nrow = length(yhat))
-  Pmat = matrix(0, ncol = length(intercept) + 1, nrow = length(yhat))
-  for(k in 1:ncol(Pmat0)){
-    Pmat0[,k] = 1.0/(1+exp(-yhat - intercept[k]))
-  }
-  for(k in 1:ncol(Pmat)){
-    if(k == 1){
-      Pmat[,k] = 1-Pmat0[,k]
-    }else if(k == ncol(Pmat)){
-      Pmat[,k] = Pmat0[,k-1]
-    }else{
-      Pmat[,k] = Pmat0[,k-1] - Pmat0[,k]
-    }
-  }
-  # Get predictions (highest probability)
-  predictions <- apply(Pmat, 1, which.max) - 1
-  # Return results:
-  if(return.probabilities){
-    return(list(predictions = predictions, probabilities = Pmat))
-  } else {
-    return(predictions)
-  }
-}
-
 #' Get ordinal misclassification rate
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
@@ -845,7 +837,6 @@ SPEAR.get_ordinal_misclassification <- function(SPEARobj, X = NULL, Y = NULL, w 
   misclassification.rate <- 1 - (sum(Y == preds)/length(preds))
   return(misclassification.rate)
 }
-
 
 
 #' Plot ordinal class probabilities
@@ -950,6 +941,7 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
   return(p)
 }
 
+
 #' Plot factor features
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
@@ -1022,7 +1014,6 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
   
   return(p)
 }
-
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 

@@ -1004,7 +1004,7 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
       geom_vline(xintercept=coefficient.cutoff, color = "#464646") +
       geom_vline(xintercept=-coefficient.cutoff, color = "#464646") +
       geom_point(aes(x = coefficients, y = probabilities, fill = direction, color = direction), shape = 21, size = 2) +
-      coord_cartesian(xlim = c(min(df$coefficients), max(df$coefficients)), ylim = c(probability.cutoff,1)) +
+      coord_cartesian(xlim = c(-max(abs(df$coefficients)), max(abs(df$coefficients))), ylim = c(probability.cutoff,1)) +
       scale_fill_manual(values = c("negative" = "red", "positive" = "green", "insignificant" = "#F3F3F3"), guide = FALSE) +
       scale_color_manual(values = c("negative" = "black", "positive" = "black", "insignificant" = "#464646"), guide = FALSE) +
       xlab("Coefficient") +

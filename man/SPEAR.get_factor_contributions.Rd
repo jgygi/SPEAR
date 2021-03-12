@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit.R
 \name{SPEAR.get_factor_contributions}
 \alias{SPEAR.get_factor_contributions}
-\title{Get factor contributions to Y}
+\title{Get factor contributions to both X and Y}
 \usage{
 SPEAR.get_factor_contributions(SPEARobj, w = "best", threshold = 0.01)
 }
@@ -14,5 +14,5 @@ SPEAR.get_factor_contributions(SPEARobj, w = "best", threshold = 0.01)
 \item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
 }
 \description{
-Get factor contributions to Y
+Get factor contributions to both X and Y
 }

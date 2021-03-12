@@ -950,6 +950,80 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
   return(p)
 }
 
+#' Plot factor features
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
+#'@param probability.cutoff Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5
+#'@param coefficient.cutoff Coefficient cutoff (positive) for a feature to be selected. Will use +/-. Defaults to .01
+#'@export
+SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = .01){
+  # response.name:
+  if(is.null(response.name)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  
+  features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
+  
+  # For each factor...
+  if(is.null(factor)){
+    factor <- names(features[[response.name]])
+  } else {
+    factor <- paste0("Factor", factor)
+    if(any(!factor %in% names(features[[response.name]]))){
+      stop(paste0("ERROR: one or more factors requested not relevant or are missing for Y = '", response.name, "'.\nRequested:\t'", paste(factor, collapse = "', '"), "'\nAvailable:\t'", paste(names(features[[response.name]]), collapse = "', '"), "'"))
+    }
+  }
+  
+  # Generate Plots:
+  plotlist <- list()
+  for(f in 1:length(factor)){
+    factor.feat <- features[[response.name]][[factor[f]]]
+    df <- dplyr::bind_rows(factor.feat, .id = "omic")
+    df <- dplyr::mutate(df, direction = sapply(df$coefficients, function(coeff){
+      if(coeff >= coefficient.cutoff){
+        return("positive")
+      } else if(coeff <= -coefficient.cutoff){
+        return("negative")
+      } else {
+        return("insignificant")
+      }
+    }))
+    print(df)
+    # Plot:
+    g <- ggplot(df) +
+      annotate("rect", xmin = coefficient.cutoff, xmax = 100, ymin = -100, ymax = 100, alpha=0.4, fill="#CEFFD3") +
+      annotate("rect", xmin = -100, xmax = -coefficient.cutoff, ymin = -100, ymax = 100, alpha=0.4, fill="#FFE3E3") +
+      geom_vline(xintercept=coefficient.cutoff, color = "#464646") +
+      geom_vline(xintercept=-coefficient.cutoff, color = "#464646") +
+      geom_point(aes(x = coefficients, y = probabilities, fill = direction, color = direction), shape = 21, size = 2) +
+      coord_cartesian(xlim = c(min(df$coefficients), max(df$coefficients)), ylim = c(probability.cutoff,1)) +
+      scale_fill_manual(values = c("negative" = "red", "positive" = "green", "insignificant" = "#F3F3F3"), guide = FALSE) +
+      scale_color_manual(values = c("negative" = "black", "positive" = "black", "insignificant" = "#464646"), guide = FALSE) +
+      xlab("Coefficient") +
+      ylab("Probability") +
+      ggtitle(paste0(response.name, " | w = ", w, " | ", factor[f])) +
+      theme_bw() +
+      theme(title = element_text(size = 6),
+            axis.title.x = element_text(size = 10),
+            axis.title.y = element_text(size = 10))
+    
+    plotlist[[f]] <- g
+  }
+  
+  p <- cowplot::plot_grid(plotlist = plotlist, nrow = 1)
+  
+  return(p)
+}
+
+
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 # GET PATHWAY INFO FROM GENES:

@@ -996,7 +996,7 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
         return("insignificant")
       }
     }))
-    print(df)
+
     # Plot:
     g <- ggplot(df) +
       annotate("rect", xmin = coefficient.cutoff, xmax = 100, ymin = -100, ymax = 100, alpha=0.4, fill="#CEFFD3") +

@@ -17,7 +17,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 
 ##### Required Libraries:
 
-```{r}
+```{r message = FALSE, warning = FALSE}
 # Required Packages for SPEAR:
 library(SPEARcomplete)
 library(glmnet)
@@ -112,9 +112,7 @@ SPEARobj$params$weights
 SPEAR uses the mean cross-validation error to determine which is the best $w$ to use.
 ```{r}
 # Get best weights (w):
-#      Parameters: 
-# include.best.overall (only useful with more than one response... if two responses perform best with different values of w, select the single w with minimized cvm for all responses)
-SPEAR.get_best_weights(SPEARobj, include.best.overall = TRUE)
+SPEAR.get_best_weights(SPEARobj)
 ```
 
 We can plot the mean cross-validation errors to visualize the impact of $w$ on the data.
@@ -162,10 +160,7 @@ Here, we can analyze the results from running the cross-validated version of SPE
 
 First, we check the prediction error:
 ```{r}
-# Get cross-validated prediction error
-#    show.all.w - show cvm for all weights? Best weight is found by lowest cvm
-#  (similar to SPEARobj$cv.eval$cvm)
-SPEAR.get_cv_prediction_error(SPEARobj, show.all.w = TRUE)
+SPEAR.get_cv_loss(SPEARobj)
 ```
 
 Plotting the cross-validation predictions:
@@ -176,20 +171,16 @@ SPEAR.plot_cv_predictions(SPEARobj)
 
 Finally, if we want to extract the SPEAR predictions, we use the functions below. Note that there are options for which weight to use (as a different value of 'w' means different factors, and different predictions). The SPEAR predictons to be used per response should be the weight with the lowest cvm (i.e. 'best' or 'overall')
 ```{r}
-# Get actual predictions:
-#  w - which weight to use? 
-#  'best' will return lowest cvm per response. 
-#  'overall' returns the lowest cvm overall. When only measuring one response, 'best' is the same as 'overall'.
-spear.predictions.best <- SPEAR.get_cv_predictions(SPEARobj, w = "best")
-spear.predictions.overall <- SPEAR.get_cv_predictions(SPEARobj, w = "overall")
+spear.predictions.best <- SPEAR.get_predictions(SPEARobj, w = "best")
+spear.predictions.overall <- SPEAR.get_predictions(SPEARobj, w = "overall")
 
 # We can also choose by hand the value of w trained by SPEAR:
-spear.predictions.w2 <- SPEAR.get_cv_predictions(SPEARobj, w = 2)
+spear.predictions.w2 <- SPEAR.get_predictions(SPEARobj, w = 2)
 
 # If we try to use a weight that wasn't used by SPEAR (see SPEARobj$params$weights), it will return an error:
-try(spear.predictions.w2 <- SPEAR.get_cv_predictions(SPEARobj, w = -1))
+try(spear.predictions.w2 <- SPEAR.get_predictions(SPEARobj, w = -1))
 
-print(spear.predictions.best$predictions[1:10])
+print(spear.predictions.best$GausResponse$predictions[1:10])
 ```
 
 ### Using Factor Scores
@@ -244,14 +235,14 @@ Finally, we can look into factor scores vs. the cv-predictions from SPEAR:
 # bottom row - Factor Scores (X axis) vs. True response (SPEARobj$data$Y)
 
 f.scores <- SPEAR.get_factor_scores(SPEARobj)$GausResponse$factor.scores
-spear.preds <- SPEAR.get_cv_predictions(SPEARobj)
+spear.preds <- SPEAR.get_predictions(SPEARobj)
 y <- SPEARobj$data$Y
 df <- data.frame(Factor1 = f.scores[,1],
                  Factor2 = f.scores[,2],
                  Factor3 = f.scores[,3],
                  Factor4 = f.scores[,4],
                  Factor5 = f.scores[,5], # Assuming 5 factors were used
-                 spear.preds = unname(spear.preds$predictions),
+                 spear.preds = unname(spear.preds$GausResponse$predictions),
                  GausResponse = y)
 
 plots <- list()
@@ -329,10 +320,10 @@ sapply(SPEARobj$data$xlist, ncol)
 sapply(Xtest, ncol)
 
 # Get predictions:
-SPEARpreds <- SPEAR.predict_new_samples(SPEARobj, Xtest, scale.x = TRUE)
+SPEARpreds <- SPEAR.get_predictions(SPEARobj, Xtest, scale.x = TRUE)
 # Below is the same thing in case you want to work directly with the matrices:
 #SPEARpreds <- scale(data.total$data.te$X) %*% SPEARobj$cv.eval$reg_coefs[,1,,which.min(SPEARobj$cv.eval$cvm)] + SPEARobj$cv.eval$intercepts[[1]][which.min(SPEARobj$cv.eval$cvm),]
-SPEARpreds <- SPEARpreds$predictions
+SPEARpreds <- SPEARpreds$GausResponse$predictions
 truth <- Ytest
 # Plot predictions:
 g <- ggplot() +

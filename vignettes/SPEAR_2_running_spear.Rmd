@@ -17,7 +17,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 
 ##### Required Libraries:
 
-```{r}
+```{r message = FALSE, warning = FALSE}
 # Required Packages for SPEAR:
 library(SPEARcomplete)
 library(glmnet)

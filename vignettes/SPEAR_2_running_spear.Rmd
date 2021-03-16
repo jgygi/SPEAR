@@ -77,7 +77,7 @@ for(i in 1:length(X)){
 all(rownames(Y) == rownames(X[[1]]))
 ```
 
-##### Running SPEAR:
+### Running SPEARgaussian:
 
 ```{r}
 # Run the cv version of SPEAR
@@ -109,3 +109,112 @@ SPEARobj <- run_cv_spear(X = X,
 # For downstream analysis, continue with SPEAR_downstream_vignette.Rmd (need a SPEARobj)
 ```
 
+You should see something like this (if the package is installed correctly)
+![SPEARgaussian Running](vignette_speargaussianrunning.png)
+
+### Running SPEARordinal, SPEARbinomial, and SPEARcategorical:
+
+SPEAR supports the following options for the `family` parameter:
+
+```{r echo=FALSE, message=FALSE, warnings=FALSE}
+options <- c("gaussian", "binomial", "ordinal", "categorical")
+descriptions <- c("Continuous values (scaled)", 
+                  "0's or 1's", 
+                  "Ranked scale of integers (start at 0)", 
+                  "Multiple binomial (0/1) columns")
+notes <- c("Yes", "No", "No", "No")
+cols <- c("Yes", "Yes (categorical)", "No", "Yes")
+
+df <- data.frame(options, descriptions, notes, cols)
+colnames(df) <- c("Parameter", "Values in Y (Response)", "Should Y be scaled?", "Can Y have >1 cols?")
+knitr::kable(df)
+```
+
+#### Setting up SPEAR with a different family:
+
+Below are examples of what Y should look like to use a different family:
+
+##### Gaussian
+
+```{r}
+# Gaussian, A continuous response
+family = "gaussian"
+Y_gaussian    <- data.frame(GausResponse = rnorm(10))
+```
+
+```{r echo = FALSE}
+df <- Y_gaussian
+rownames(df) <- paste0("Sample", 1:nrow(df))
+print(df)
+```
+
+```{r}
+# Gaussian can have more than one column
+#   One column in Y per response
+family = "gaussian"
+Y_gaussian.multi    <- data.frame(GausResponse1 = rnorm(10), GausResponse2 = rnorm(10))
+```
+
+```{r echo = FALSE}
+df <- Y_gaussian.multi
+rownames(df) <- paste0("Sample", 1:nrow(df))
+print(df)
+```
+
+##### Binomial
+
+```{r}
+# Binomial, A response that is either 1 (TRUE) or 0 (FALSE)
+#   One column in Y per response
+family = "binomial"
+Y_binomial    <- data.frame(BinomResponse = c(0,1,0,1,1,0,1,0,0,1))
+```
+
+```{r echo = FALSE}
+df <- Y_binomial
+rownames(df) <- paste0("Sample", 1:nrow(df))
+print(df)
+```
+
+##### Categorical
+
+```{r}
+# Categorical, multilple groups without an ordinal scale
+# Same as binomial, but with multiple columns
+#   One column in Y per response
+#   Value = 1 if belongs to class, 0 otherwise
+family = "categorical" #or "binomial"
+Y_categorical <- data.frame(Category1 = c(1,0,0,0,0,0,1,0,0,1),
+                            Category2 = c(0,0,1,0,0,0,0,0,1,0),
+                            Category3 = c(0,1,0,1,0,1,0,0,0,0),
+                            Category4 = c(0,0,0,0,1,0,0,1,0,0))
+```
+
+```{r echo = FALSE}
+df <- Y_categorical
+rownames(df) <- paste0("Sample", 1:nrow(df))
+print(df)
+```
+
+##### Ordinal
+
+```{r}
+# Ordinal, multiple groups that can be ranked
+#     Only supports one column
+#     Value is an integer between 0 and the the number of classes minus 1 (-1)
+#     Lowest class starts at 0
+family = "ordinal"
+Y_ordinal     <- data.frame(OrdinalResponse = sample(c(0:4), 10, replace = TRUE))
+```
+
+```{r echo = FALSE}
+df <- Y_ordinal
+rownames(df) <- paste0("Sample", 1:nrow(df))
+print(df)
+```
+
+
+
+Once Y is set up, run SPEAR the same way as above (Gaussian), but change the family parameter (`"binomial"`, `"ordinal"`, `"categorical"`).
+
+Look at 'SPEAR_3_downstream_vignette' for instructions on how to perform downstream analysis with all families of SPEAR.

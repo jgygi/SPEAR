@@ -1,5 +1,5 @@
 ---
-title: "SPEAR: Simulating Data"
+title: "SPEAR: Simulating Gaussian Data"
 author: "Jeremy Gygi"
 date: "1/26/21"
 output: rmarkdown::html_vignette
@@ -26,7 +26,7 @@ library(glmnet)
 library(parallel)
 
 # Seed: (for reproducibility)
-seed <- 123
+seed <- 1234
 ```
 
 ### 2. Preprocessing / Running SPEAR

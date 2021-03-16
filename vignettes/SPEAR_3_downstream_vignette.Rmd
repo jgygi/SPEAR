@@ -48,45 +48,82 @@ The SPEAR object returned has 4 components:
 3. params (the parameters used for this specific SPEAR object)
 4. data (the data used to train the SPEAR models in the object)
 
-Variables used to reference results:
-+ N - number of subjects [nrow(X)]
-+ P - number of total features (across all omics) [ncol(X)]
-+ D - number of omics datasets [length(X)]
-+ G - number of groups of subjects (typically 1)
-+ Y - number of response vars [ncol(Y)]
-+ K - number of factors SPEAR constructed
-+ W - number of weights used in CV
-+ F - number of folds used in CV
+*Variables used to reference results:*
+
++ $N$ - number of subjects [nrow($X$)]
+
++ $P$ - number of total features (across all omics) [ncol($X$)]
+
++ $D$ - number of omics datasets [length($X$)]
+
++ $G$ - number of groups of subjects (typically 1)
+
++ $Y$ - number of response vars [ncol($Y$)]
+
++ $K$ - number of factors SPEAR constructed
+
++ $W$ - number of weights used in CV
+
++ $F$ - number of folds used in CV
+
+
 
 1. fit - the cross-validated SPEAR object
+
     + results
-        + post_betas (P x K x G x W)
-        + post_bys (K x Y x W)
-        + post_bxs (K x P x W)
-        + post_pis (P x K x W)
-        + post_selections (P x K x W)
-        + interceptsX (P)
-        + interceptsY (Y)
-    + factors_coefs (P x K x G x F x W)
-    + projection_coefs (K x Y x F x W)
-    + foldid (N)
+    
+        + post_betas ($P$ x $K$ x $G$ x $W$)
+        
+        + post_bys ($K$ x $Y$ x $W$)
+        
+        + post_bxs ($K$ x $P$ x $W$)
+        
+        + post_pis ($P$ x $K$ x $W$)
+        
+        + post_selections ($P$ x $K$ x $W$)
+        
+        + interceptsX ($P$)
+        
+        + interceptsY ($Y$)
+        
+    + factors_coefs ($P$ x $K$ x $G$ x $F$ x $W$)
+    
+    + projection_coefs ($K$ x $Y$ x $F$ x $W$)
+    
+    + foldid ($N$)
+    
 2. cv.eval - results from evaluating 'fit'
-    + projection_coefs (K x Y x W)
-    + reg_coefs (P x G x Y x W)
-    + intercepts (Y)
-    + cvm (W x Y)
-    + cvsd (W x Y)
-    + factor_contributions (K x Y x W)
-    + Yhat.keep (N x Y x W)
+
+    + projection_coefs ($K$ x $Y$ x $W$)
+    
+    + reg_coefs ($P$ x $G$ x $Y$ x $W$)
+    
+    + intercepts ($Y$)
+    
+    + cvm ($W$ x $Y$)
+    
+    + cvsd ($W$ x $Y$)
+    
+    + factor_contributions ($K$ x $Y$ x $W$)
+    
+    + Yhat.keep ($N$ x $Y$ x $W$)
+    
 3. params - the parameters used to generate 'fit' by SPEAR
-    + weights (W) - values of 'w' used in SPEAR
-    + foldid (N) - integer of 1:F
+
+    + weights ($W$) - values of '$w$' used in SPEAR
+    
+    + foldid ($N$) - integer of 1:$F$
+    
     + seed
+    
     + num_factors
+    
     + max_iter
+    
     + thres_elbo
+    
     + thres_count
-    + family
+    
 4. data - the data used by SPEAR
 
 While it isn't necessary to extract these matrices directly from the model, it is useful to understand where the results are coming from. Most typical downstream analyses can be performed using the built-in SPEAR functions described below.

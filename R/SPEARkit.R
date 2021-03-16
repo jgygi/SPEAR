@@ -394,6 +394,207 @@ SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", th
   return(p)
 }
 
+
+#' Plot ordinal class probabilities
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@param plot.type Plot type - "boxplot" or "line". Defaults to "boxplot"
+#'@export
+SPEAR.plot_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE, plot.type = "boxplot"){
+  ## Gaussian check: ----------
+  if(SPEARobj$params$family == "gaussian"){
+    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARobj is of type 'gaussian'.")
+  }
+  
+  # response.name: ------------
+  if(is.null(response.name) & is.null(Y)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
+  if(!is.null(Y)){
+    if(nrow(Y) != nrow(X[[1]])){
+      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
+    }
+    if(ncol(Y) > 1){
+      if(is.null(colnames(Y))){
+        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
+      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
+        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+      }
+      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
+      response.name <- colnames(Y)[1]
+      k <- which(response.name %in% colnames(SPEARobj$data$Y))
+      Y <- Y[,k]
+    }
+  } else {
+    k <- which(response.name %in% colnames(SPEARobj$data$Y))
+    Y <- SPEARobj$data$Y[,k]
+  }
+  
+  
+  
+  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
+  levels <- ncol(preds[[response.name]]$probabilities)
+  df <- cbind(as.data.frame(preds[[response.name]]$probabilities), Y)
+  colnames(df) <- c(paste0("ProbClass", 1:levels), "Y")
+  df$Ychar <- as.character(df$Y)
+  
+  if(plot.type == "boxplot")
+  {
+    plotlist <- list()
+    for(i in 1:levels){
+      g <- ggplot(df) +
+        geom_boxplot(aes_string(x = "Y", group = "Y", y = paste0("ProbClass", i), fill = "Ychar"), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
+        xlab("True Label") +
+        ylab("Probability") +
+        geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+        scale_fill_brewer(palette = "Spectral", guide = FALSE) +
+        scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+        ggtitle(paste0("Probability Class ", i-1)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5))
+      
+      plotlist[[length(plotlist) + 1]] <- g
+    }
+    
+    
+    
+    p <- plot_grid(plotlist = plotlist, nrow = 1)
+    return(p)
+  } else if(plot.type == "line"){
+    probabilities <- preds[[response.name]]$probabilities
+    predictions <- preds[[response.name]]$predictions
+    subject.probabilities <- as.data.frame(probabilities)
+    subject.probabilities <- dplyr::mutate(subject.probabilities, 
+                                           PredictedClass = predictions,
+                                           Actual = paste0("Class", SPEARobj$data$Y),
+                                           Subject = rownames(subject.probabilities))
+    df.melt <- reshape2::melt(subject.probabilities, id.vars = c("PredictedClass", "Actual", "Subject"))
+    g <- ggplot(df.melt) +
+      geom_line(aes(x = variable, y = value, group = Subject, color = as.factor(PredictedClass))) +
+      geom_point(aes(x = variable, y = value, group = Subject, color = as.factor(PredictedClass))) +
+      scale_x_discrete(labels = (1:ncol(subject.probabilities)-1)) +
+      xlab(NULL) +
+      ylab("Probabillity of Class Assignment") +
+      scale_color_brewer(palette = "Spectral", direction = 1) +
+      scale_fill_brewer(palette = "Spectral", direction = 1) +
+      theme_classic() +
+      facet_wrap(vars(Actual), nrow = 1) +
+      theme(panel.background = element_rect(fill = "#181818"),
+            panel.grid.major = element_line(size = 0.2, linetype = 'solid', colour = "#656464"))
+    # Return plot:
+    return(g)
+    
+  } else {
+    stop("ERROR: plot.type '", plot.type, "' not recognized. Acceptable choices are 'boxplot' and 'line'.")
+  }
+}
+
+
+#' Plot ordinal class predictions
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
+#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
+#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
+#'@export
+SPEAR.plot_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE, show.true.distribution = TRUE){
+  ## Gaussian check: ----------
+  if(SPEARobj$params$family == "gaussian"){
+    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARobj is of type 'gaussian'.")
+  }
+  
+  # response.name: ------------
+  if(is.null(response.name) & is.null(Y)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
+  if(!is.null(Y)){
+    if(nrow(Y) != nrow(X[[1]])){
+      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
+    }
+    if(ncol(Y) > 1){
+      if(is.null(colnames(Y))){
+        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
+      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
+        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+      }
+      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
+      response.name <- colnames(Y)[1]
+      k <- which(response.name %in% colnames(SPEARobj$data$Y))
+      Y <- Y[,k]
+    }
+  } else {
+    k <- which(response.name %in% colnames(SPEARobj$data$Y))
+    Y <- SPEARobj$data$Y[,k]
+  }
+  
+  
+  
+  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
+  levels <- ncol(preds[[response.name]]$probabilities)
+  temp <- tibble(pred = preds[[response.name]]$predictions, actual = unlist(Y))
+  temp$correct <- temp$pred == temp$actual
+  
+  ymax <- max(table(temp$pred), table(temp$actual))
+  
+  p.true <- ggplot(temp) +
+    geom_histogram(aes(x = actual, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+    xlab("True Label") +
+    ylab("Count") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    scale_fill_brewer(palette = "Spectral", guide = FALSE) +
+    ggtitle("True Classes") +
+    ylim(c(NA, ymax)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  p.pred <- ggplot(temp) +
+    geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
+    xlab("True Label") +
+    ylab("Count") +
+    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
+    scale_fill_brewer(palette = "Spectral", guide = FALSE) +
+    ggtitle("SPEARordinal Predictions") +
+    ylim(c(NA, ymax)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  if(show.true.distribution){
+    p <- cowplot::plot_grid(p.true, p.pred, nrow = 1)
+  } else {
+    p <- p.pred
+  }
+  
+  return(p)
+}
+
+
+
+
 #### OLD ______________________________________________________
 
 
@@ -950,167 +1151,6 @@ SPEAR.get_ordinal_misclassification <- function(SPEARobj, X = NULL, Y = NULL, w 
   return(misclassification.rate)
 }
 
-
-#' Plot ordinal class probabilities
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
-#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
-#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
-#'@export
-SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE){
-  # response.name: ------------
-  if(is.null(response.name) & is.null(Y)){
-    if(ncol(SPEARobj$data$Y) == 1){
-      response.name <- colnames(SPEARobj$data$Y)
-    } else {
-      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
-      response.name <- colnames(SPEARobj$data$Y)[1]
-    }
-  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
-    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-  }
-  # --------------------------
-  
-  if(!is.null(Y)){
-    if(nrow(Y) != nrow(X[[1]])){
-      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
-    }
-    if(ncol(Y) > 1){
-      if(is.null(colnames(Y))){
-        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
-      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
-        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-      }
-      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
-      response.name <- colnames(Y)[1]
-      k <- which(response.name %in% colnames(SPEARobj$data$Y))
-      Y <- Y[,k]
-    }
-  } else {
-    k <- which(response.name %in% colnames(SPEARobj$data$Y))
-    Y <- SPEARobj$data$Y[,k]
-  }
-  
-  
-  
-  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
-  levels <- ncol(preds[[response.name]]$probabilities)
-  df <- cbind(as.data.frame(preds[[response.name]]$probabilities), Y)
-  colnames(df) <- c(paste0("ProbClass", 1:levels), "Y")
-  df$Ychar <- as.character(df$Y)
-
-  plotlist <- list()
-  for(i in 1:levels){
-    g <- ggplot(df) +
-      geom_boxplot(aes_string(x = "Y", group = "Y", y = paste0("ProbClass", i), fill = "Ychar"), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
-      xlab("True Label") +
-      ylab("Probability") +
-      geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
-      scale_fill_brewer(palette = "Spectral", guide = FALSE) +
-      scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
-      ggtitle(paste0("Probability Class ", i-1)) +
-      theme_bw() +
-      theme(plot.title = element_text(hjust = 0.5))
-    
-    plotlist[[length(plotlist) + 1]] <- g
-  }
-  
-  p <- plot_grid(plotlist = plotlist, nrow = 1)
-  
-  return(p)
-}
-
-
-#' Plot ordinal class predictions
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
-#'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
-#'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
-#'@export
-SPEAR.plot_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE, show.true.distribution = TRUE){
-  ## Gaussian check: ----------
-  if(SPEARobj$params$family == "gaussian"){
-    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARobj is of type 'gaussian'.")
-  }
-  
-  # response.name: ------------
-  if(is.null(response.name) & is.null(Y)){
-    if(ncol(SPEARobj$data$Y) == 1){
-      response.name <- colnames(SPEARobj$data$Y)
-    } else {
-      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
-      response.name <- colnames(SPEARobj$data$Y)[1]
-    }
-  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
-    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-  }
-  # --------------------------
-  
-  if(!is.null(Y)){
-    if(nrow(Y) != nrow(X[[1]])){
-      stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
-    }
-    if(ncol(Y) > 1){
-      if(is.null(colnames(Y))){
-        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
-      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
-        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-      }
-      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
-      response.name <- colnames(Y)[1]
-      k <- which(response.name %in% colnames(SPEARobj$data$Y))
-      Y <- Y[,k]
-    }
-  } else {
-    k <- which(response.name %in% colnames(SPEARobj$data$Y))
-    Y <- SPEARobj$data$Y[,k]
-  }
-  
-  
-  
-  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
-  levels <- ncol(preds[[response.name]]$probabilities)
-  temp <- tibble(pred = preds[[response.name]]$predictions, actual = unlist(Y))
-  temp$correct <- temp$pred == temp$actual
-  
-  ymax <- max(table(temp$pred), table(temp$actual))
-  
-  p.true <- ggplot(temp) +
-    geom_histogram(aes(x = actual, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
-    xlab("True Label") +
-    ylab("Count") +
-    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
-    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
-    scale_fill_brewer(palette = "Spectral", guide = FALSE) +
-    ggtitle("True Classes") +
-    ylim(c(NA, ymax)) +
-    theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  p.pred <- ggplot(temp) +
-    geom_histogram(aes(x = pred, fill = as.character(actual)), stat = "count", lwd = .25, color = "black", alpha = .6) +
-    xlab("True Label") +
-    ylab("Count") +
-    geom_segment(aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
-    scale_x_continuous(labels = c(0:(levels-1)), breaks = c(0:(levels-1))) +
-    scale_fill_brewer(palette = "Spectral", guide = FALSE) +
-    ggtitle("SPEARordinal Predictions") +
-    ylim(c(NA, ymax)) +
-    theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  if(show.true.distribution){
-    p <- cowplot::plot_grid(p.true, p.pred, nrow = 1)
-  } else {
-    p <- p.pred
-  }
-  
-  return(p)
-}
 
 
 #' Plot factor features

@@ -428,13 +428,13 @@ For the above subject, the class with the highest probability is **2**, so that 
 
 Let's print the true class of this first subject:
 ```{r}
-print(SPEARobj$data$Y[1,])
+print(SPEARobj.ordinal$data$Y[1,])
 ```
 
 Plot the distribution of class sample probabilities with `SPEAR.plot_ordinal_class_probabilities`
 
 ```{r fig.height = 3, fig.width = 10}
-SPEAR.plot_ordinal_class_probabilities(SPEARobj.ordinal)
+SPEAR.plot_class_probabilities(SPEARobj.ordinal, plot.type = "line")
 ```
 
 
@@ -444,6 +444,7 @@ SPEAR.plot_class_predictions(SPEARobj.ordinal)
 
 
 ```{r fig.height = 2.5, fig.width = 10}
+dark.theme <- TRUE
 k <- 1
 subject_ids <- rownames(SPEARobj.ordinal$data$Y)
 pred.list <- SPEAR.get_predictions(SPEARobj.ordinal)
@@ -455,7 +456,7 @@ subject.probabilities <- dplyr::mutate(subject.probabilities,
                                        Actual = paste0("Class", SPEARobj.ordinal$data$Y[rownames(SPEARobj.ordinal$data$Y) %in% subject_ids,k]),
                                        Subject = rownames(subject.probabilities))
 df.melt <- reshape2::melt(subject.probabilities, id.vars = c("PredictedClass", "Actual", "Subject"))
-ggplot(df.melt) +
+g <- ggplot(df.melt) +
   geom_line(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
   geom_point(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
   scale_x_discrete(labels = (1:ncol(subject.probabilities)-1)) +
@@ -464,7 +465,14 @@ ggplot(df.melt) +
   scale_color_brewer(palette = "Spectral", direction = 1) +
   scale_fill_brewer(palette = "Spectral", direction = 1) +
   theme_classic() +
-  theme(panel.background = element_rect(fill = "black")) +
   facet_wrap(vars(Actual), nrow = 1)
+
+if(dark.theme){
+  g <- g + theme(panel.background = element_rect(fill = "#181818"),
+        panel.grid.major = element_line(size = 0.2, linetype = 'solid',
+                                colour = "#656464"))
+}
+
+g
 ```
 

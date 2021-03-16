@@ -11,6 +11,10 @@
 #' SPEAR.get_best_weights(SPEARobj, w.method = "sd")
 #'@export
 SPEAR.get_best_weights <- function(SPEARobj, w.method = "sd", return.overall = FALSE, return.as.index = FALSE){
+  # If only one column, "return.overall" means "best"
+  if(ncol(SPEARobj$data$Y) == 1){
+    return.overall = FALSE
+  }
   if(w.method == "min"){
     if(!return.overall){
       w.idxs = apply(SPEARobj$cv.eval$cvm, 2, which.min)
@@ -257,6 +261,136 @@ SPEAR.get_factor_scores <- function(SPEARobj, w = "best", X = NULL, w.method = "
 }
 
 
+#' Plot factor loadings
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
+#'@param plot.per.omic Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE
+#'@param scale.per.omic Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE
+#'@param show.feature.names Show row names (features) for factor loadings? Defaults to FALSE
+#'@param plot.irrelevant.factors Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE
+#'@export
+SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, response.name = NULL, plot.per.omic = TRUE, scale.per.omic = TRUE, show.feature.names = FALSE, plot.irrelevant.factors = FALSE){
+  # Weight ----------------
+  if(w == "best"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
+  } else if(w == "overall"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
+  } else {
+    if(!any(SPEARobj$params$weights == w)){
+      cat("*** Warning: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), "). Will use closest SPEAR weight...\n")
+      w = SPEARobj$params$weights[which.min(abs(SPEARobj$params$weights-w))]
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    } else {
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    }
+  } #----------------------
+  
+  # response.name: ------------
+  if(is.null(response.name)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
+  plot.list.total <- list()
+  k <- which(colnames(SPEARobj$data$Y) == response.name)
+  w <- SPEARobj$params$weights[w.idxs[k]]
+  relevant.factors <- SPEARobj$cv.eval$factor_contributions[, k, w.idxs[k]] >= threshold
+  names(relevant.factors) <- paste0("Factor", 1:length(relevant.factors))
+  w.loadings = SPEARobj$fit$results$post_selections[,,w.idxs[k]]
+  if(!plot.irrelevant.factors){
+    w.loadings[,!relevant.factors] <- NA
+  }
+  colnames(w.loadings) <- paste0("Factor", 1:ncol(w.loadings))
+  rownames(w.loadings) <- colnames(SPEARobj$data$X)
+  # Generate plots
+  if(!plot.per.omic){
+    # Plot all together
+    df <- reshape2::melt(w.loadings)
+    colnames(df)[3] <- "Probability"
+    g.temp <- ggplot(df) +
+      geom_tile(aes(x = Var2, y = Var1, fill = Probability)) +
+      scale_fill_distiller(palette = "Reds", direction = 1, na.value="#F8F8F8") +
+      ylab(paste0("Features\n(n = ", ncol(SPEARobj$data$X), ")")) +
+      xlab(NULL) +
+      cowplot::theme_map() +
+      theme(axis.title.y = element_text(size = 10, angle = 90),
+            legend.text = element_text(size = 8),
+            legend.title = element_blank(),
+            plot.margin = unit(c(0, 0, 0, 0), "cm"),
+            axis.text.x = element_text(size = 10))
+    
+    if(!show.feature.names){
+      g.temp <- g.temp + theme(axis.text.y=element_blank(),
+                               axis.ticks.y=element_blank())
+    }
+    
+    # Return g.temp
+    p <- g.temp
+  }
+  else{
+    # Split w.loadings into separate omics
+    num.omics <- length(SPEARobj$data$xlist)
+    colors <- rep(c("Reds", "Blues", "Greens", "Greys"), length.out = num.omics)
+    s <- 1
+    plot.list <- list()
+    for(o in 1:num.omics){
+      w.loadings.current <- w.loadings[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),]
+      s <- s + ncol(SPEARobj$data$xlist[[o]])
+      # Make a separate plot for each:
+      df <- reshape2::melt(w.loadings.current)
+      colnames(df)[3] <- "Probability"
+      g.temp <- ggplot(df) +
+        geom_tile(aes(x = Var2, y = Var1, fill = Probability)) +
+        scale_fill_distiller(palette = colors[o], direction = 1, na.value="#F8F8F8") +
+        ylab(paste0(names(SPEARobj$data$xlist)[o], "\n(n = ", ncol(SPEARobj$data$xlist[[o]]), ")")) +
+        xlab(NULL) +
+        cowplot::theme_map() +
+        theme(axis.title.y = element_text(size = 10, angle = 90),
+              legend.text = element_text(size = 8),
+              legend.title = element_blank(),
+              plot.title = element_text(size = 10, hjust = .5, face = "plain"),
+              plot.margin = unit(c(0, 0, 0, 0), "cm"))
+      
+      if(o == num.omics){
+        g.temp <- g.temp + theme(axis.text.x = element_text(size = 10))
+      }
+      
+      if(!show.feature.names){
+        g.temp <- g.temp + theme(axis.text.y=element_blank(),
+                                 axis.ticks.y=element_blank())
+      }
+      
+      # Save
+      plot.list[[o]] <- g.temp
+    }
+    # return list:
+    if(scale.per.omic){
+      rel.heights <- sapply(SPEARobj$data$xlist, ncol)
+    } else {
+      rel.heights <- rep(1, num.omics)
+    }
+    p <- cowplot::plot_grid(plotlist = plot.list, ncol = 1, rel_heights = rel.heights)
+    title_gg <- ggplot() + 
+      labs(title = paste0(response.name, " | w = ", round(w, 3))) +
+      cowplot::theme_map() +
+      theme(plot.title = element_text(hjust = .5, vjust = .5, face = "plain", size = 14))
+    p <- cowplot::plot_grid(title_gg, p, ncol = 1, rel_heights = c(0.05, 1))
+  }
+  return(p)
+}
 
 #### OLD ______________________________________________________
 
@@ -358,140 +492,6 @@ SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", threshold = .0
     theme(plot.title = element_text(hjust = 0.5, size = 12))
   
   return(g)
-}
-
-
-
-#' Plot factor loadings
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
-#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
-#'@param plot.per.omic Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE
-#'@param scale.per.omic Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE
-#'@param show.feature.names Show row names (features) for factor loadings? Defaults to FALSE
-#'@param plot.irrelevant.factors Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE
-#'@export
-SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, response.name = NULL, plot.per.omic = TRUE, scale.per.omic = TRUE, show.feature.names = FALSE, plot.irrelevant.factors = FALSE){
-  # Weight ----------------
-  if(w == "best"){
-    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
-  } else if(w == "overall"){
-    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
-  } else {
-    if(!any(SPEARobj$params$weights == w)){
-      cat("*** Warning: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), "). Will use closest SPEAR weight...\n")
-      w = SPEARobj$params$weights[which.min(abs(SPEARobj$params$weights-w))]
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    } else {
-      w.idxs <- which(SPEARobj$params$weights == w)
-      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
-      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
-    }
-  } #----------------------
-  
-  # response.name: ------------
-  if(is.null(response.name)){
-    if(ncol(SPEARobj$data$Y) == 1){
-      response.name <- colnames(SPEARobj$data$Y)
-    } else {
-      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
-      response.name <- colnames(SPEARobj$data$Y)[1]
-    }
-  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
-    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-  }
-  # --------------------------
-  
-  plot.list.total <- list()
-  k <- which(colnames(SPEARobj$data$Y) == response.name)
-  w <- SPEARobj$params$weights[w.idxs[k]]
-  relevant.factors <- SPEARobj$cv.eval$factor_contributions[, k, w.idxs[k]] >= threshold
-  names(relevant.factors) <- paste0("Factor", 1:length(relevant.factors))
-  w.loadings = SPEARobj$fit$results$post_selections[,,w.idxs[k]]
-  if(!plot.irrelevant.factors){
-    w.loadings[,!relevant.factors] <- NA
-  }
-  colnames(w.loadings) <- paste0("Factor", 1:ncol(w.loadings))
-  rownames(w.loadings) <- colnames(SPEARobj$data$X)
-  # Generate plots
-  if(!plot.per.omic){
-    # Plot all together
-    df <- reshape2::melt(w.loadings)
-    colnames(df)[3] <- "Probability"
-    g.temp <- ggplot(df) +
-      geom_tile(aes(x = Var2, y = Var1, fill = Probability)) +
-      scale_fill_distiller(palette = "Reds", direction = 1, na.value="#F8F8F8") +
-      ylab(paste0("Features\n(n = ", ncol(SPEARobj$data$X), ")")) +
-      xlab(NULL) +
-      cowplot::theme_map() +
-      theme(axis.title.y = element_text(size = 10, angle = 90),
-            legend.text = element_text(size = 8),
-            legend.title = element_blank(),
-            plot.margin = unit(c(0, 0, 0, 0), "cm"),
-            axis.text.x = element_text(size = 10))
-
-    if(!show.feature.names){
-      g.temp <- g.temp + theme(axis.text.y=element_blank(),
-                               axis.ticks.y=element_blank())
-    }
-
-    # Return g.temp
-    p <- g.temp
-  }
-  else{
-    # Split w.loadings into separate omics
-    num.omics <- length(SPEARobj$data$xlist)
-    colors <- rep(c("Reds", "Blues", "Greens", "Greys"), length.out = num.omics)
-    print(colors)
-    s <- 1
-    plot.list <- list()
-    for(o in 1:num.omics){
-      w.loadings.current <- w.loadings[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),]
-      s <- s + ncol(SPEARobj$data$xlist[[o]])
-      # Make a separate plot for each:
-      df <- reshape2::melt(w.loadings.current)
-      colnames(df)[3] <- "Probability"
-      g.temp <- ggplot(df) +
-        geom_tile(aes(x = Var2, y = Var1, fill = Probability)) +
-        scale_fill_distiller(palette = colors[o], direction = 1, na.value="#F8F8F8") +
-        ylab(paste0(names(SPEARobj$data$xlist)[o], "\n(n = ", ncol(SPEARobj$data$xlist[[o]]), ")")) +
-        xlab(NULL) +
-        cowplot::theme_map() +
-        theme(axis.title.y = element_text(size = 10, angle = 90),
-              legend.text = element_text(size = 8),
-              legend.title = element_blank(),
-              plot.title = element_text(size = 10, hjust = .5, face = "plain"),
-              plot.margin = unit(c(0, 0, 0, 0), "cm"))
-      
-      if(o == num.omics){
-        g.temp <- g.temp + theme(axis.text.x = element_text(size = 10))
-      }
-      
-      if(!show.feature.names){
-        g.temp <- g.temp + theme(axis.text.y=element_blank(),
-                                 axis.ticks.y=element_blank())
-      }
-      
-      # Save
-      plot.list[[o]] <- g.temp
-    }
-    # return list:
-    if(scale.per.omic){
-      rel.heights <- sapply(SPEARobj$data$xlist, ncol)
-    } else {
-      rel.heights <- rep(1, num.omics)
-    }
-    p <- cowplot::plot_grid(plotlist = plot.list, ncol = 1, rel_heights = rel.heights)
-    title_gg <- ggplot() + 
-      labs(title = paste0(response.name, " | w = ", round(w, 3))) +
-      cowplot::theme_map() +
-      theme(plot.title = element_text(hjust = .5, vjust = .5, face = "plain", size = 14))
-    p <- cowplot::plot_grid(title_gg, p, ncol = 1, rel_heights = c(0.05, 1))
-  }
-  return(p)
 }
 
 

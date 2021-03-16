@@ -209,13 +209,13 @@ SPEAR.plot_cv_predictions(SPEARobj)
 Finally, if we want to extract the SPEAR predictions, we use the functions below. Note that there are options for which weight to use (as a different value of 'w' means different factors, and different predictions). The SPEAR predictons to be used per response should be the weight with the lowest cvm (i.e. 'best' or 'overall')
 ```{r}
 spear.predictions.best <- SPEAR.get_predictions(SPEARobj, w = "best")
-spear.predictions.overall <- SPEAR.get_predictions(SPEARobj, w = "overall")
+#spear.predictions.overall <- SPEAR.get_predictions(SPEARobj, w = "overall")
 
 # We can also choose by hand the value of w trained by SPEAR:
-spear.predictions.w2 <- SPEAR.get_predictions(SPEARobj, w = 2)
+spear.predictions_w2 <- SPEAR.get_predictions(SPEARobj, w = 2)
 
-# If we try to use a weight that wasn't used by SPEAR (see SPEARobj$params$weights), it will return an error:
-try(spear.predictions.w2 <- SPEAR.get_predictions(SPEARobj, w = -1))
+# If we try to use a weight that wasn't used by SPEAR (see SPEARobj$params$weights), it will use the closest weight instead:
+spear.predictions_w1.5 <- SPEAR.get_predictions(SPEARobj, w = 1.5)
 
 print(spear.predictions.best$GausResponse$predictions[1:10])
 ```
@@ -311,15 +311,13 @@ Now that we have an idea about the factor scores themselves, we can try to figur
 ```{r fig.width = 5, fig.height = 10}
 # Plot all factor loadings
 #     plot.irrelevant.factors - should factors that aren't relevant to predicting Y be shown?
-SPEAR.plot_factor_loadings(SPEARobj, plot.irrelevant.factors = TRUE)
+SPEAR.plot_factor_loadings(SPEARobj)
 ```
 
-```{r fig.width = 5, fig.height = 3}
-# Can choose to plot per omic as well
-#     plot.per.omic - make a different plot for each omic (matrix in X), rather than returning one plot with all features
-#     return.list - return a list of ggplot2 grob objects instead of a plot.
-SPEAR.plots <- SPEAR.plot_factor_loadings(SPEARobj, plot.per.omic = TRUE, plot.irrelevant.factors = TRUE, return.list = TRUE)
-SPEAR.plots[[2]]
+By default, only the loadings associated with the response (Y) are shown. You can show all loadings with the `plot.irrelevant.factors` parameter:
+
+```{r fig.width = 5, fig.height = 10}
+SPEAR.plot_factor_loadings(SPEARobj, plot.irrelevant.factors = TRUE)
 ```
 
 We can get the names of the features and probabilities for each factor with the function below. Data will be returned as a list:

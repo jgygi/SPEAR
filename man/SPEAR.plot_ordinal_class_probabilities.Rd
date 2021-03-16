@@ -9,6 +9,7 @@ SPEAR.plot_ordinal_class_probabilities(
   X = NULL,
   Y = NULL,
   w = "best",
+  response.name = NULL,
   scale.x = FALSE
 )
 }
@@ -20,6 +21,8 @@ SPEAR.plot_ordinal_class_probabilities(
 \item{Y}{Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)}
 
 \item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
+
+\item{response.name}{Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)}
 
 \item{scale.x}{Should X be scaled (only used if X is supplied). Defaults to FALSE}
 }

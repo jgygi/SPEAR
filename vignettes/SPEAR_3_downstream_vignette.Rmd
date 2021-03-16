@@ -209,7 +209,7 @@ SPEAR.plot_cv_predictions(SPEARobj)
 Finally, if we want to extract the SPEAR predictions, we use the functions below. Note that there are options for which weight to use (as a different value of 'w' means different factors, and different predictions). The SPEAR predictons to be used per response should be the weight with the lowest cvm (i.e. 'best' or 'overall')
 ```{r}
 spear.predictions.best <- SPEAR.get_predictions(SPEARobj, w = "best")
-#spear.predictions.overall <- SPEAR.get_predictions(SPEARobj, w = "overall")
+spear.predictions.overall <- SPEAR.get_predictions(SPEARobj, w = "overall")
 
 # We can also choose by hand the value of w trained by SPEAR:
 spear.predictions_w2 <- SPEAR.get_predictions(SPEARobj, w = 2)
@@ -260,8 +260,8 @@ SPEAR.plot_factor_grid(SPEARobj, groups = groups)
 We can choose to only plot a subset of factors: (i.e. the relevant factors)
 
 ```{r fig.width=9, fig.height = 7}
-#relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$relevant.factors == 1)
-#SPEAR.plot_factor_grid(SPEARobj, groups = groups, factors = relevant.factors.to.Y)
+relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$Y.relevant.factors == 1)
+SPEAR.plot_factor_grid(SPEARobj, groups = groups, factors = relevant.factors.to.Y)
 ```
 
 Finally, we can look into factor scores vs. the cv-predictions from SPEAR:
@@ -327,15 +327,28 @@ Y - colnames(SPEARobj\$data\$Y)
         + X - names of omics datasets that have at least one feature associated with the response
             + features - vector of relevant features (pulled from the column names of X passed into SPEAR)
             + probabilities - named list of posterior selection probabilities of features, names = features
+            + coefficients - named list of factor coefficients for the features, names = features
+            
+The features are sorted by probability and then by coefficient magnitude.
             
 ```{r}
 # Get the names of features contributing to relevant factors
 #   cutoff - posterior probability selection cutoff, features with probabilities higher than 'cutoff' will be added to the list
 #   threshold - minimum factor contribution to be deemed "relevant"
-#feature.list <- SPEAR.get_factor_features(SPEARobj, cutoff = .5, threshold = .01)
-#names(feature.list) # show relevant factors per response
+feature.list <- SPEAR.get_factor_features(SPEARobj, cutoff = .5, threshold = .01)
+feature.list$GausResponse$Factor1$OmicsData1 # show relevant factors per response
 ```
 
+You can see the distribution of probabilities and their associated coefficients with `plot_factor_coefficients`:
+
+```{r}
+SPEAR.plot_factor_coefficients(SPEARobj)
+```
+
+You can also check the number of overlapping features per omic across factors:
+```{r}
+SPEAR.plot_feature_overlap(SPEARobj)
+```
 
 ### SPEAR predicting new (testing) data
 

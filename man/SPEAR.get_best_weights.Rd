@@ -6,7 +6,7 @@
 \usage{
 SPEAR.get_best_weights(
   SPEARobj,
-  w.method = "min",
+  w.method = "sd",
   return.overall = FALSE,
   return.as.index = FALSE
 )

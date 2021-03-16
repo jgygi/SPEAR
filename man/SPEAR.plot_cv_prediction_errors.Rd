@@ -8,7 +8,9 @@ SPEAR.plot_cv_prediction_errors(
   SPEARobj,
   show.w.labels = TRUE,
   show.min.w.line = TRUE,
-  show.overall = FALSE
+  show.sd = TRUE,
+  show.overall = FALSE,
+  plot.per.response = TRUE
 )
 }
 \arguments{
@@ -18,7 +20,11 @@ SPEAR.plot_cv_prediction_errors(
 
 \item{show.min.w.line}{Draw a dashed line at the lowest mean cv error? Defaults to TRUE}
 
+\item{show.sd}{Plot cv error standard deviation? Defaults to TRUE}
+
 \item{show.overall}{Plot the overall mean cv error (only works with more than one response)? Defaults to FALSE}
+
+\item{plot.per.response}{Make a different plot for each response? Defaults to TRUE}
 }
 \description{
 Plot factor scores per subject

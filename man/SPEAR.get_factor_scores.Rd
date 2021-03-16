@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit.R
 \name{SPEAR.get_factor_scores}
 \alias{SPEAR.get_factor_scores}
-\title{Get factor scores from a trained SPEAR object}
+\title{Get factor scores from a trained SPEAR object on training/test data}
 \usage{
 SPEAR.get_factor_scores(
   SPEARobj,
@@ -27,7 +27,7 @@ SPEAR.get_factor_scores(
 A list of predictions from the SPEAR model. One list for each response predicted, as well as \code{predictions}, \code{probabilites}, and \code{w} used.
 }
 \description{
-Get factor scores from a trained SPEAR object
+Get factor scores from a trained SPEAR object on training/test data
 }
 \examples{
 SPEAR.get_factor_scores(SPEARobj)

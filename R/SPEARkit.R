@@ -1061,7 +1061,7 @@ SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w
 #'@param probability.cutoff Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5
 #'@param coefficient.cutoff Coefficient cutoff (positive) for a feature to be selected. Will use +/-. Defaults to .01
 #'@export
-SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = .01){
+SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = 0){
   # response.name: ------------
   if(is.null(response.name)){
     if(ncol(SPEARobj$data$Y) == 1){

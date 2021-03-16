@@ -7,9 +7,11 @@
 SPEAR.plot_factor_loadings(
   SPEARobj,
   w = "best",
+  w.method = "sd",
   threshold = 0.01,
-  plot.per.omic = FALSE,
-  return.list = FALSE,
+  response.name = NULL,
+  plot.per.omic = TRUE,
+  scale.per.omic = TRUE,
   show.feature.names = FALSE,
   plot.irrelevant.factors = FALSE
 )
@@ -21,9 +23,11 @@ SPEAR.plot_factor_loadings(
 
 \item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
 
-\item{plot.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to FALSE}
+\item{response.name}{Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)}
 
-\item{return.list}{Return a list of plots instead of a cowplot object? Defaults to FALSE}
+\item{plot.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE}
+
+\item{scale.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE}
 
 \item{show.feature.names}{Show row names (features) for factor loadings? Defaults to FALSE}
 

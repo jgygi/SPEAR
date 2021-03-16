@@ -8,7 +8,7 @@ SPEAR.get_predictions(
   SPEARobj,
   X = NULL,
   w = "best",
-  w.method = "min",
+  w.method = "sd",
   scale.x = FALSE
 )
 }

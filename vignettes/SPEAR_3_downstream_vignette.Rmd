@@ -11,6 +11,10 @@ vignette: >
 
 ### This vignette will provide insight into downstream analysis using SPEAR:
 
+1. Analyzing all SPEAR models (including SPEARgaussian)
+
+2. Functions specific to SPEARordinal, SPEARbinomial, and SPEARcategorical models
+
 ##### Installing SPEAR:
 
 Follow installation instructions in README (located [here](https://github.com/jgygi/SPEAR))
@@ -33,7 +37,7 @@ library(cowplot)
 ```
 
 
-### Downstream Analysis
+### 1) Analyzing all SPEAR models (including SPEARgaussian)
 
 ```{r}
 # Load in the SPEARobject saved from running SPEAR:
@@ -341,12 +345,12 @@ feature.list$GausResponse$Factor1$OmicsData1 # show relevant factors per respons
 
 You can see the distribution of probabilities and their associated coefficients with `plot_factor_coefficients`:
 
-```{r}
+```{r fig.width = 8}
 SPEAR.plot_factor_coefficients(SPEARobj)
 ```
 
 You can also check the number of overlapping features per omic across factors:
-```{r}
+```{r fig.width = 8}
 SPEAR.plot_feature_overlap(SPEARobj)
 ```
 
@@ -381,5 +385,86 @@ g <- ggplot() +
   ylab("True Response") +
   theme_bw()
 g
+```
+
+### 2) Analyzing SPEARordinal, SPEARbinomial, and SPEARcategorical models
+
+SPEAR will treat responses labeled as `"ordinal"`, `"binomial"`, and `"categorical"` (from the `family` parameter) differently. As such, you can extract more information, such as class probabilities, from these models.
+
+```{r}
+# Load in the SPEARobject saved from running SPEAR:
+file.path <- getwd()
+SPEARobj.ordinal <- readRDS(paste0(file.path, "/SPEAR_vignette_object_ordinal.rds"))
+names(SPEARobj.ordinal)
+print(SPEARobj.ordinal$params$family)
+# For this example dataset, there are 5 classes:
+print(table(SPEARobj.ordinal$data$Y))
+```
+
+##### Class Probabilities:
+
+When using the `get_predictions` function, the probabilities of each class are also returned. This probabilites matrix has dimensions of (N.samples x N.classes).
+
+```{r}
+preds <- SPEAR.get_predictions(SPEARobj.ordinal)
+# $probabilities is added as a nested list
+names(preds$OrdinalResponse)
+# $probabilities has dimensions: (N.samples x N.classes) (rows x cols)
+print(dim(preds$OrdinalResponse$probabilities))
+```
+
+Once the probabilities are extracted, they can be used to see how likely it is that a sample is labeled a certain class:
+```{r}
+subject.probabilities <- preds$OrdinalResponse$probabilities[1,]
+ggplot() +
+  geom_point(aes(x = (1:length(subject.probabilities)-1), y = subject.probabilities)) +
+  geom_line(aes(x = (1:length(subject.probabilities)-1), y = subject.probabilities)) +
+  xlab("Class") +
+  ylab("Probabillity of Class Assignment") +
+  theme_minimal()
+```
+
+For the above subject, the class with the highest probability is **2**, so that is the prediction that SPEARordinal would make. However, there is still a high probability that the subject could be of class **3**. Returning the probabilities helps visualize when the model is uncertain.
+
+Let's print the true class of this first subject:
+```{r}
+print(SPEARobj$data$Y[1,])
+```
+
+Plot the distribution of class sample probabilities with `SPEAR.plot_ordinal_class_probabilities`
+
+```{r fig.height = 3, fig.width = 10}
+SPEAR.plot_ordinal_class_probabilities(SPEARobj.ordinal)
+```
+
+
+```{r fig.height = 3, fig.width = 6}
+SPEAR.plot_class_predictions(SPEARobj.ordinal)
+```
+
+
+```{r fig.height = 2.5, fig.width = 10}
+k <- 1
+subject_ids <- rownames(SPEARobj.ordinal$data$Y)
+pred.list <- SPEAR.get_predictions(SPEARobj.ordinal)
+probabilities <- pred.list$OrdinalResponse$probabilities
+predictions <- pred.list$OrdinalResponse$predictions
+subject.probabilities <- as.data.frame(probabilities[rownames(probabilities) %in% subject_ids,])
+subject.probabilities <- dplyr::mutate(subject.probabilities, 
+                                       PredictedClass = paste0("Class", predictions[names(predictions) %in% subject_ids]),
+                                       Actual = paste0("Class", SPEARobj.ordinal$data$Y[rownames(SPEARobj.ordinal$data$Y) %in% subject_ids,k]),
+                                       Subject = rownames(subject.probabilities))
+df.melt <- reshape2::melt(subject.probabilities, id.vars = c("PredictedClass", "Actual", "Subject"))
+ggplot(df.melt) +
+  geom_line(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
+  geom_point(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
+  scale_x_discrete(labels = (1:ncol(subject.probabilities)-1)) +
+  xlab(NULL) +
+  ylab("Probabillity of Class Assignment") +
+  scale_color_brewer(palette = "Spectral", direction = 1) +
+  scale_fill_brewer(palette = "Spectral", direction = 1) +
+  theme_classic() +
+  theme(panel.background = element_rect(fill = "black")) +
+  facet_wrap(vars(Actual), nrow = 1)
 ```
 

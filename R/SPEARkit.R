@@ -163,6 +163,8 @@ SPEAR.get_predictions <- function(SPEARobj, X = NULL, w = "best", w.method = "sd
       }
       # Get predictions (highest probability)
       predictions <- apply(Pmat, 1, which.max) - 1
+      rownames(Pmat) <- rownames(SPEARobj$data$Y)
+      colnames(Pmat) <- paste0("Class", 0:(ncol(Pmat)-1))
       names(predictions) <- rownames(X)
       ### Add to group loop?
       output[[response]] <- list(probabilities = Pmat, predictions = predictions, w = SPEARobj$params$weights[w.idxs])
@@ -954,25 +956,52 @@ SPEAR.get_ordinal_misclassification <- function(SPEARobj, X = NULL, Y = NULL, w 
 #'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
 #'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
 #'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
 #'@export
-SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE){
+SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE){
+  # response.name: ------------
+  if(is.null(response.name) & is.null(Y)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
   if(!is.null(Y)){
     if(nrow(Y) != nrow(X[[1]])){
       stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
     }
+    if(ncol(Y) > 1){
+      if(is.null(colnames(Y))){
+        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
+      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
+        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+      }
+      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
+      response.name <- colnames(Y)[1]
+      k <- which(response.name %in% colnames(SPEARobj$data$Y))
+      Y <- Y[,k]
+    }
   } else {
-    Y <- SPEARobj$data$Y
+    k <- which(response.name %in% colnames(SPEARobj$data$Y))
+    Y <- SPEARobj$data$Y[,k]
   }
   
-  preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
-  levels <- ncol(preds$probabilities)
-  df <- cbind(as.data.frame(preds$probabilities), Y)
+  
+  
+  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
+  levels <- ncol(preds[[response.name]]$probabilities)
+  df <- cbind(as.data.frame(preds[[response.name]]$probabilities), Y)
   colnames(df) <- c(paste0("ProbClass", 1:levels), "Y")
   df$Ychar <- as.character(df$Y)
-  
+
   plotlist <- list()
-  
   for(i in 1:levels){
     g <- ggplot(df) +
       geom_boxplot(aes_string(x = "Y", group = "Y", y = paste0("ProbClass", i), fill = "Ychar"), lwd = .25, outlier.size = 1.5, outlier.shape = 21, alpha = .6) +
@@ -999,21 +1028,53 @@ SPEAR.plot_ordinal_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL,
 #'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
 #'@param Y Responses for subjects (rows) in X. Defaults to NULL (use training data stored within SPEAR)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
 #'@param scale.x Should X be scaled (only used if X is supplied). Defaults to FALSE
 #'@export
-SPEAR.plot_ordinal_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", scale.x = FALSE, show.true.distribution = TRUE){
+SPEAR.plot_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best", response.name = NULL, scale.x = FALSE, show.true.distribution = TRUE){
+  ## Gaussian check: ----------
+  if(SPEARobj$params$family == "gaussian"){
+    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARobj is of type 'gaussian'.")
+  }
+  
+  # response.name: ------------
+  if(is.null(response.name) & is.null(Y)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
   if(!is.null(Y)){
     if(nrow(Y) != nrow(X[[1]])){
       stop(paste0("ERROR: Y provided has ", nrow(Y), " rows, and X has ", nrow(X[[1]]), " rows (need to match)."))
     }
+    if(ncol(Y) > 1){
+      if(is.null(colnames(Y))){
+        stop(paste0("ERROR: Y provided has no colnames. Columns need to have matching colnames from any of colnames(SPEARobj$data$Y)."))
+      } else if(!any(colnames(Y) %in% colnames(SPEARobj$data$Y))){
+        stop(paste0("ERROR: One or more column names provided in Y are not found among the trained response.names.\ncolnames(Y) provided:\t'", paste(colnames(Y), collapse = "', '"), "'\ncolnames(SPEARobj$data$Y):\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+      }
+      cat("*** Warning: Y provided has more than one response variable... Using first column only (", colnames(Y)[1], ")")
+      response.name <- colnames(Y)[1]
+      k <- which(response.name %in% colnames(SPEARobj$data$Y))
+      Y <- Y[,k]
+    }
   } else {
-    Y <- SPEARobj$data$Y
+    k <- which(response.name %in% colnames(SPEARobj$data$Y))
+    Y <- SPEARobj$data$Y[,k]
   }
   
-  preds <- SPEAR.predict_ordinal_classes(SPEARobj, X, w, TRUE, scale.x)
-  levels <- ncol(preds$probabilities)
   
-  temp <- tibble(pred = preds$predictions, actual = unlist(Y))
+  
+  preds <- SPEAR.get_predictions(SPEARobj = SPEARobj, X = X, w = w, scale.x = scale.x)
+  levels <- ncol(preds[[response.name]]$probabilities)
+  temp <- tibble(pred = preds[[response.name]]$predictions, actual = unlist(Y))
   temp$correct <- temp$pred == temp$actual
   
   ymax <- max(table(temp$pred), table(temp$actual))

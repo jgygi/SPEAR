@@ -403,7 +403,7 @@ print(table(SPEARobj.ordinal$data$Y))
 
 ##### Class Probabilities:
 
-When using the `get_predictions` function, the probabilities of each class are also returned. This probabilites matrix has dimensions of (N.samples x N.classes).
+When using the `SPEAR.get_predictions` function, the probabilities of each class are also returned. This probabilites matrix has dimensions of (N.samples x N.classes).
 
 ```{r}
 preds <- SPEAR.get_predictions(SPEARobj.ordinal)
@@ -432,6 +432,9 @@ print(SPEARobj.ordinal$data$Y[1,])
 ```
 
 Plot the distribution of class sample probabilities with `SPEAR.plot_ordinal_class_probabilities`
+```{r fig.height = 3, fig.width = 10}
+SPEAR.plot_class_probabilities(SPEARobj.ordinal, plot.type = "boxplot")
+```
 
 ```{r fig.height = 3, fig.width = 10}
 SPEAR.plot_class_probabilities(SPEARobj.ordinal, plot.type = "line")

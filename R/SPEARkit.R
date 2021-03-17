@@ -478,13 +478,13 @@ SPEAR.plot_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "be
     predictions <- preds[[response.name]]$predictions
     subject.probabilities <- as.data.frame(probabilities)
     subject.probabilities <- dplyr::mutate(subject.probabilities, 
-                                           PredictedClass = predictions,
-                                           Actual = paste0("Class", SPEARobj$data$Y),
+                                           PredictedClass = as.factor(predictions),
+                                           Actual = paste0("Class", SPEARobj$data$Y[,k]),
                                            Subject = rownames(subject.probabilities))
     df.melt <- reshape2::melt(subject.probabilities, id.vars = c("PredictedClass", "Actual", "Subject"))
     g <- ggplot(df.melt) +
-      geom_line(aes(x = variable, y = value, group = Subject, color = as.factor(PredictedClass))) +
-      geom_point(aes(x = variable, y = value, group = Subject, color = as.factor(PredictedClass))) +
+      geom_line(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
+      geom_point(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
       scale_x_discrete(labels = (1:ncol(subject.probabilities)-1)) +
       xlab(NULL) +
       ylab("Probabillity of Class Assignment") +
@@ -594,68 +594,96 @@ SPEAR.plot_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best
 
 
 
-
-#### OLD ______________________________________________________
-
-
-
 #' Get factor contributions to both X and Y
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param w.method How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).
 #'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
 #'@export
-SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01){
+SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01){
+  # Weight ----------------
   if(w == "best"){
-    w.idxs <- apply(SPEARobj$cv.eval$cvm, 2, which.min)
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
   } else if(w == "overall"){
-    w.idxs <- rep(which.min(apply(SPEARobj$cv.eval$cvm,1,sum)), ncol(SPEARobj$data$Y))
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
   } else {
     if(!any(SPEARobj$params$weights == w)){
-      stop(paste0("ERROR: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), ")."))
+      cat("*** Warning: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), "). Will use closest SPEAR weight...\n")
+      w = SPEARobj$params$weights[which.min(abs(SPEARobj$params$weights-w))]
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     } else {
       w.idxs <- which(SPEARobj$params$weights == w)
       cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
       w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
     }
-  }
-  
-  # Explanatory Vars:
-  Xlist <- SPEARobj$data$xlist
-  W <- SPEARobj$fit$results$post_betas[,,,w.idxs]
-  U <- SPEARobj$data$X %*% W
-  Wlist <- list()
-  ind <- 1
-  for(d in 1:length(Xlist)){
-    Wlist[[d]] <- W[ind:(ind - 1 + ncol(Xlist[[d]])),]
-    ind <- ind + ncol(Xlist[[d]])
-  }
-  var_explained_X <- matrix(0, nrow = ncol(U), ncol = length(Xlist))
-  for(i in 1:nrow(var_explained_X)){
-    for(j in 1:ncol(var_explained_X)){
-      a <- sum((Xlist[[j]] - U[,i] %*% t(Wlist[[j]][,i]))**2, na.rm = TRUE)
-      b <- sum((Xlist[[j]])**2, na.rm = TRUE)
-      var_explained_X[i,j] <- (1 - a/b)
+  } #----------------------
+  res <- list()
+  for(w.idx in unique(w.idxs)){
+    # Explanatory Vars:
+    Xlist <- SPEARobj$data$xlist
+    W <- SPEARobj$fit$results$post_betas[,,,w.idx]
+    U <- SPEARobj$data$X %*% W
+    Wlist <- list()
+    ind <- 1
+    for(d in 1:length(Xlist)){
+      Wlist[[d]] <- W[ind:(ind - 1 + ncol(Xlist[[d]])),]
+      ind <- ind + ncol(Xlist[[d]])
     }
+    var_explained_X <- matrix(0, nrow = ncol(U), ncol = length(Xlist))
+    for(i in 1:nrow(var_explained_X)){
+      for(j in 1:ncol(var_explained_X)){
+        a <- sum((Xlist[[j]] - U[,i] %*% t(Wlist[[j]][,i]))**2, na.rm = TRUE)
+        b <- sum((Xlist[[j]])**2, na.rm = TRUE)
+        var_explained_X[i,j] <- (1 - a/b)
+      }
+    }
+    colnames(var_explained_X) <- names(Xlist)
+    rownames(var_explained_X) <- paste0("Factor", 1:nrow(var_explained_X))
+    relevant.factors.X = var_explained_X
+    relevant.factors.X[var_explained_X >= threshold] <- 1
+    relevant.factors.X[var_explained_X < threshold] <- 0
+    # Response:
+    relevant.factors.Y <- matrix(0,ncol = ncol(SPEARobj$data$Y), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
+    var_explained_Y <- matrix(0,ncol = ncol(SPEARobj$data$Y), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
+    for(i in 1:ncol(var_explained_Y)){
+      var_explained_Y[,i] <- SPEARobj$cv.eval$factor_contributions[,i,w.idx]
+    }
+    relevant.factors.Y[var_explained_Y >= threshold] <- 1
+    colnames(var_explained_Y) <- colnames(SPEARobj$data$Y)
+    rownames(var_explained_Y) <- paste0("Factor", 1:nrow(var_explained_Y))
+    colnames(relevant.factors.Y) <- colnames(var_explained_Y)
+    rownames(relevant.factors.Y) <- rownames(var_explained_Y)
+    res[[paste0("w", round(SPEARobj$params$weights[w.idx], 3))]] <- list(X.explained = var_explained_X, X.relevant.factors = relevant.factors.X, Y.explained = var_explained_Y, Y.relevant.factors = relevant.factors.Y, threshold = threshold)
   }
-  colnames(var_explained_X) <- names(Xlist)
-  rownames(var_explained_X) <- paste0("Factor", 1:nrow(var_explained_X))
-  relevant.factors.X = var_explained_X
-  relevant.factors.X[var_explained_X >= threshold] <- 1
-  relevant.factors.X[var_explained_X < threshold] <- 0
-  
-  # Response:
-  var_explained_Y <- list()
-  relevant.factors.Y = matrix(0,ncol = length(w.idxs), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  for(i in 1:length(w.idxs)){
-    var_explained_Y[[i]] <- SPEARobj$cv.eval$factor_contributions[, i, w.idxs[i]]
-    relevant.factors.Y[var_explained_Y[[i]] >= threshold, i] <- 1
+  return(res)
+}
+
+#' Get a color scheme for a SPEAR plot
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param scale.name A character of "omic", "response", or "combined". Defaults to "combined".
+#'@export
+SPEAR.get_color_scheme <- function(SPEARobj, scale.name = "combined"){
+  if(scale.name == "omic"){
+    colors <- c("#9E0142", "#D53E4F", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2")
+    colorvec <- colors[seq(1, length(colors), length.out = length(SPEARobj$data$xlist))]
+    names(colorvec) <- names(SPEARobj$data$xlist)
+    return(colorvec)
+  } else if(scale.name == "response"){
+    colors <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02", "#A6761D", "#666666")
+    colorvec <- colors[seq(1, length(colors), length.out = ncol(SPEARobj$data$Y))]
+    names(colorvec) <- colnames(SPEARobj$data$Y)
+    return(colorvec)
+  } else if(scale.name == "combined"){
+    colors <- c("#9E0142", "#D53E4F", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2")
+    colorvec.omic <- colors[seq(1, length(colors), length.out = length(SPEARobj$data$xlist))]
+    names(colorvec.omic) <- names(SPEARobj$data$xlist)
+    colors <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02", "#A6761D", "#666666")
+    colorvec.resp <- colors[seq(1, length(colors), length.out = ncol(SPEARobj$data$Y))]
+    names(colorvec.resp) <- colnames(SPEARobj$data$Y)
+    return(c(colorvec.omic, colorvec.resp))
   }
-  var_explained_Y <- matrix(unlist(var_explained_Y), nrow = dim(SPEARobj$cv.eval$factor_contributions)[1])
-  colnames(var_explained_Y) <- colnames(SPEARobj$data$Y)
-  rownames(var_explained_Y) <- paste0("Factor", 1:nrow(var_explained_Y))
-  colnames(relevant.factors.Y) <- colnames(var_explained_Y)
-  rownames(relevant.factors.Y) <- rownames(var_explained_Y)
-  return(list(X.explained = var_explained_X, X.relevant.factors = relevant.factors.X, Y.explained = var_explained_Y, Y.relevant.factors = relevant.factors.Y, threshold = threshold))
 }
 
 
@@ -666,37 +694,272 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", threshold = .01
 #'@param show.labels Show the contributions as geom_text on the plot? Defaults to TRUE
 #'@param show.irrelevant Show all contributions, even those below the threshold? Defaults to FALSE
 #'@export
-SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", threshold = .01, show.labels = TRUE, show.irrelevant = FALSE){
+SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, show.labels = TRUE, show.irrelevant = FALSE){
   
-  factor.contributions <- SPEAR.get_factor_contributions(SPEARobj, w = w)
+  factor.contributions.total <- SPEAR.get_factor_contributions(SPEARobj = SPEARobj, w = w, w.method = w.method, threshold = threshold)
+  plotlist <- list()
+  for(idx in 1:length(factor.contributions.total)){
+    w <- names(factor.contributions.total)[idx]
+    factor.contributions <- factor.contributions.total[[w]]
+    
+    if(show.irrelevant){
+      title <- paste0("Factor Contributions | ", w)
+      factor.contributions$X.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$X.relevant.factors), nrow = nrow(factor.contributions$X.relevant.factors))
+      factor.contributions$Y.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$Y.relevant.factors), nrow = nrow(factor.contributions$Y.relevant.factors))
+    } else {
+      title <- paste0("Factor Contributions > ", threshold, " | ", w)
+    }
+    
+    # Combine DFs:
+    df.X <- factor.contributions$X.explained * factor.contributions$X.relevant.factors
+    df.Y <- factor.contributions$Y.explained * factor.contributions$Y.relevant.factors
+    df.comb <- cbind(df.X, df.Y)
+    # Var explained:
+    df.var <- data.frame(omic = colnames(df.comb), var = colSums(df.comb), omic.num = 1:ncol(df.comb), label = round(ifelse(colSums(df.comb) < threshold, NA, colSums(df.comb)), 2))
+    # Plot
+    df.melt <- reshape2::melt(df.comb)
+    df.melt$value.adj <- ifelse(df.melt$value < 0, 0, df.melt$value)
+    df.melt$label <- ifelse(df.melt$value==0, NA, round(df.melt$value, 2))
+    
+    g <- ggplot(data = df.melt) +
+      geom_tile(aes(y = Var2, x = Var1, alpha = value.adj, fill = Var2), color = "black") +
+      geom_text(aes(y = Var2, x = Var1, label = label), color = ifelse(show.labels, "black", NA)) +
+      geom_rect(data = df.var, aes(xmin = nrow(df.comb) + .5, xmax = nrow(df.comb) + 1.5, ymin = .5, ymax = nrow(df.var) + .5), color = "white", fill = "white") +
+      geom_rect(data = df.var, aes(xmin = nrow(df.comb) + .5, xmax = nrow(df.comb) + .5 + var, ymin = omic.num - .5, ymax = omic.num + .5, fill = omic), color = "black") +
+      geom_text(data = df.var, aes(y = omic, x = nrow(df.comb) + 1, label = label), color = "black", angle = 270) +
+      geom_hline(yintercept = length(SPEARobj$data$xlist) + .5, size = 1) +
+      scale_alpha_continuous(range = c(0, 1), guide = F) +
+      scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj, "combined"), guide = FALSE) +
+      ggtitle(title) +
+      ylab("") +
+      xlab("") +
+      coord_equal() +
+      theme_classic() +
+      theme(plot.title = element_text(hjust = 0.5, size = 12))
+    
+    plotlist[[idx]] <- g
+  }
+  print(length(plotlist))
+  return(cowplot::plot_grid(plotlist = plotlist, nrow = 1))
+}
+
+
+#' Plot factor features
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
+#'@param probability.cutoff Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5
+#'@param coefficient.cutoff Coefficient cutoff (positive) for a feature to be selected. Will use +/-. Defaults to .01
+#'@export
+SPEAR.plot_feature_overlap <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = .01){
   
-  if(show.irrelevant){
-    factor.contributions$X.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$X.relevant.factors), nrow = nrow(factor.contributions$X.relevant.factors))
-    factor.contributions$Y.relevant.factors <- matrix(1, ncol = ncol(factor.contributions$Y.relevant.factors), nrow = nrow(factor.contributions$Y.relevant.factors))
+  # response.name:
+  if(is.null(response.name)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
   }
   
-  # Combine DFs:
-  df.X <- factor.contributions$X.explained * factor.contributions$X.relevant.factors
-  df.Y <- factor.contributions$Y.explained * factor.contributions$Y.relevant.factors
-  df.comb <- cbind(df.X, df.Y)
+  features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
   
-  # Plot
-  df.melt <- reshape2::melt(df.comb)
-  g <- ggplot(data = df.melt) +
-    geom_tile(aes(y = Var2, x = Var1, fill = value, alpha = abs(value)), color = "black") +
-    geom_text(aes(y = Var2, x = Var1, label = round(ifelse(value==0, NA, value), 2)), color = ifelse(show.labels, "black", NA)) +
-    scale_fill_gradient(low = "white", high = "#74149E") +
-    scale_alpha_continuous(guide = F) +
-    ggtitle("Factor Contributions") +
-    ylab("") +
-    xlab("") +
-    coord_equal() +
-    theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5, size = 12))
+  if(is.null(factor)){
+    factor <- names(features[[response.name]])
+  } else {
+    factor <- paste0("Factor", factor)
+    if(any(!factor %in% names(features[[response.name]]))){
+      stop(paste0("ERROR: one or more factors requested not relevant or are missing for Y = '", response.name, "'.\nRequested:\t'", paste(factor, collapse = "', '"), "'\nAvailable:\t'", paste(names(features[[response.name]]), collapse = "', '"), "'"))
+    }
+  }
+  # Get all features per Omic:
+  v.list <- list()
+  for(o in 1:length(SPEARobj$data$xlist)){
+    l <- lapply(factor, function(f){
+      return(features[[response.name]][[f]][[names(SPEARobj$data$xlist)[o]]]$features)
+    })
+    groups <- factor
+    names(l) <- factor
+    color_vec <- c("red", "purple", "orange")
+    v.table <- gplots::venn(l, universe = colnames(SPEARobj$data$xlist[[o]]), show.plot = FALSE, intersections = FALSE)
+    # Set the attributes to NULL, make data.frame (otherwise you can't melt it to plot the points underneath)
+    attr(v.table, "class") <- NULL
+    v.table <- as.data.frame(v.table)
+    # I add a "rowSums" column for sorting purposes (i.e. 111, 110, 101, 011, 100, 010, 001...)
+    v.table$rowSums <- rowSums(dplyr::select(v.table, -num))
+    # Filter out the case with 000 (we didn't supply a 'universe' parameter, so '000' can be removed)
+    v.table <- dplyr::filter(v.table, rowSums > 0) %>% arrange(rowSums) %>% select(-rowSums)
+    # Add 'comb' to v.table (rownames are "000"..."111")
+    v.table <- dplyr::mutate(v.table, comb = rownames(v.table))
+    v.table$omic <- names(SPEARobj$data$xlist)[o]
+    v.table$omic_comb <- paste0(v.table$omic, "_", v.table$comb)
+    # Melt so we can plot the individual points (can use pivot_longer if preferred)
+    v.table.melt <- reshape2::melt(v.table, id.vars = c("comb", "omic", "omic_comb"))
+    # Convert group names into indices, remove the 'num' column
+    v.table.melt <- dplyr::filter(v.table.melt, variable != "num")
+    v.table.melt$ypos <- sapply(v.table.melt$variable, function(var){
+      return(-which(groups == var))
+    })
+    # Shift the ypos up .3 (looks better in my opinion)
+    v.table.melt$ypos <- v.table.melt$ypos + .3
+    
+    v.list[[o]] <- list(v.table = v.table, v.table.melt = v.table.melt)
+  }
+  v.table.comb <- do.call(rbind, lapply(v.list, function(v){return(v$v.table)}))
+  v.table.melt.comb <- do.call(rbind, lapply(v.list, function(v){return(v$v.table.melt)}))
+  
+  # Plots:
+  
+  # Generate plot:
+  v.table <- v.table.comb
+  v.table.melt <- v.table.melt.comb
+  
+  text.scale <- max(v.table$num)/20
+  y.scale <- max(v.table$num)/10
+  vlines <- 0:length(unique(v.table$comb))+.5
+  xmin <- min(vlines)
+  xmax <- max(vlines)
+  ymin <- min(v.table.melt$ypos * y.scale) + max(v.table.melt$ypos * y.scale)
+  ymax <- max(v.table$num + 2*text.scale)
+  vlinedf <- data.frame(x = vlines, xend = vlines, y = ymin, yend = ymax)
+  v.table.melt.total <- v.table.melt
+  v.table.melt <- filter(v.table.melt, value > 0)
+  
+  g <- ggplot(v.table) +
+    geom_bar(aes(x = factor(comb, levels = rev(unique(comb))), y = num, fill = omic), color = "black", position=position_dodge(width=.95), stat = "identity") +
+    geom_text(aes(x = factor(comb, levels = rev(unique(comb))), y = num + text.scale, label = num, group = omic), position=position_dodge(width=1)) +
+    annotate("rect", xmin = xmin, xmax = xmax, ymin = ymin, ymax = 0, color = "black", fill="#EDEDED") +
+    geom_line(data = v.table.melt.total, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), size = 2, color = "white") +
+    geom_point(data = v.table.melt.total, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), fill = "white", color = "white", shape = 21, size = 4, stroke = 1) +
+    geom_line(data = v.table.melt, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), size = 2) +
+    geom_point(data = v.table.melt, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), fill = "#58D68D", shape = 21, size = 4, stroke = 1) +
+    geom_segment(data = vlinedf, aes(x = x, xend = xend, y = y, yend = yend), color = "black") +
+    geom_segment(aes(x = xmin, xend = xmax, y = ymax, yend = ymax), color = "black") +
+    scale_y_continuous(breaks = unique(v.table.melt$ypos * y.scale), labels = unique(v.table.melt$variable)) +
+    xlab(NULL) +
+    ylab(NULL) +
+    ggtitle(paste0("Features for Factors Significant for ", response.name, " | w = ", w)) +
+    cowplot::theme_map() +
+    theme(axis.text.y = element_text(size = 10),
+          title = element_text(size = 12, face = "plain")) +
+    scale_fill_brewer(palette = "RdBu") +
+    guides(size = FALSE, color = FALSE)
   
   return(g)
 }
 
+
+#' Plot factor features
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param factor Which factors to plot? Defaults to NULL (all relevant factors).
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
+#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
+#'@param probability.cutoff Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5
+#'@param coefficient.cutoff Coefficient cutoff (positive) for a feature to be selected. Will use +/-. Defaults to .01
+#'@param show.top.cutoff How many features to show? Set to NULL to show all. Defaults to 50.
+#'@param group.by.omic Group features from the same omic together? Defaults to FALSE
+#'@export
+SPEAR.plot_feature_summary <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = 0, show.top.cutoff = 50, group.by.omic = FALSE){
+  # response.name: ------------
+  if(is.null(response.name)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
+  features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
+  # make sure there are factors that contribute:
+  if(length(features[[response.name]]) == 1){
+    stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
+  }
+  
+  # For each factor...
+  if(is.null(factor)){
+    factor <- names(features[[response.name]])
+  } else {
+    factor <- paste0("Factor", factor)
+    if(any(!factor %in% names(features[[response.name]]))){
+      stop(paste0("ERROR: one or more factors requested not relevant or are missing for Y = '", response.name, "'.\nRequested:\t'", paste(factor, collapse = "', '"), "'\nAvailable:\t'", paste(names(features[[response.name]]), collapse = "', '"), "'"))
+    }
+  }
+  
+  # Generate Plots:
+  plotlist <- list()
+  for(f in 1:length(factor)){
+    factor.feat <- features[[response.name]][[factor[f]]]
+    df <- dplyr::bind_rows(factor.feat, .id = "omic")
+    df <- dplyr::mutate(df, direction = sapply(df$coefficients, function(coeff){
+      if(coeff >= coefficient.cutoff){
+        return("positive")
+      } else if(coeff <= -coefficient.cutoff){
+        return("negative")
+      } else {
+        return("insignificant")
+      }
+    }))
+    
+    numpos <- nrow(dplyr::filter(df, direction == "positive"))
+    numneg <- nrow(dplyr::filter(df, direction == "negative"))
+    numinsig <- nrow(dplyr::filter(df, direction == "insignificant"))
+    
+    xmax <- max(abs(df$coefficients))
+    
+    df <- arrange(df, -abs(coefficients))
+    
+    # Coefficient cut-off:
+    if(coefficient.cutoff > 0){
+      before.coeff.cutoff <- nrow(df)
+      df <- filter(df, abs(coefficients) >= coefficient.cutoff)
+      if(nrow(df) == 0){
+        stop("ERROR: no features found above coefficient.cutoff of ", coefficient.cutoff, " for ", factor[f], ".")
+      }
+      cat("*** Using 'coefficient.cutoff' of ", coefficient.cutoff, ". Removed ", before.coeff.cutoff - nrow(df), " features.\n")
+    } else if(!is.null(show.top.cutoff)){
+      if(nrow(df) > show.top.cutoff){
+        df <- df[1:show.top.cutoff,]
+      }
+    }
+    if(group.by.omic){
+      df <- arrange(df, omic, -abs(coefficients))
+    }
+    color_list <- RColorBrewer::brewer.pal(length(SPEARobj$data$xlist), "Spectral")
+    names(color_list) <- names(SPEARobj$data$xlist)
+    # Plot:
+    g <- ggplot(df) +
+      geom_bar(aes(x = coefficients, y = factor(features, levels = rev(features)), fill = omic), stat = "identity", width = 1, color = "black", size = .2) +
+      scale_fill_manual(values = color_list) +
+      ylab(NULL) +
+      xlab("Coefficient") +
+      ggtitle(paste0(factor[f], " | w = ", w)) +
+      theme_classic() +
+      theme(plot.title = element_text(size = 10)) +
+      xlim(c(-xmax, xmax))
+    
+    if(nrow(df) > 100){
+      g <- g + theme(axis.text.y = element_blank())
+    }
+    
+    plotlist[[f]] <- g
+  }
+  
+  p <- cowplot::plot_grid(plotlist = plotlist, nrow = 1)
+  
+  return(p)
+}
+
+
+
+#### OLD ______________________________________________________
 
 
 #' Get factor features
@@ -1179,7 +1442,7 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
   features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
   
   # make sure there are factors that contribute:
-  if(features[[response.name]] == "No contributing factors found."){
+  if(length(features[[response.name]]) == 1){
     stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
   }
   
@@ -1254,113 +1517,3 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
 #res_table
 
 #s <- run_cv_spear(data.total$data.tr$xlist, data.total$data.tr$Y, seed = 123)
-
-
-### Testing:
-#' Plot factor features
-#'@param SPEARobj SPEAR object (returned from run_cv_spear)
-#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
-#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
-#'@param probability.cutoff Posterior selection probability cutoff (0 - 1) for a feature to be selected. Defaults to .5
-#'@param coefficient.cutoff Coefficient cutoff (positive) for a feature to be selected. Will use +/-. Defaults to .01
-#'@export
-SPEAR.plot_feature_overlap <- function(SPEARobj, w = "best", factor = NULL, response.name = NULL, threshold = .01, probability.cutoff = .5, coefficient.cutoff = .01){
-
-  # response.name:
-  if(is.null(response.name)){
-    if(ncol(SPEARobj$data$Y) == 1){
-      response.name <- colnames(SPEARobj$data$Y)
-    } else {
-      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
-      response.name <- colnames(SPEARobj$data$Y)[1]
-    }
-  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
-    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
-  }
-
-  features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
-  
-  if(is.null(factor)){
-    factor <- names(features[[response.name]])
-  } else {
-    factor <- paste0("Factor", factor)
-    if(any(!factor %in% names(features[[response.name]]))){
-      stop(paste0("ERROR: one or more factors requested not relevant or are missing for Y = '", response.name, "'.\nRequested:\t'", paste(factor, collapse = "', '"), "'\nAvailable:\t'", paste(names(features[[response.name]]), collapse = "', '"), "'"))
-    }
-  }
-  # Get all features per Omic:
-  v.list <- list()
-  for(o in 1:length(SPEARobj$data$xlist)){
-    l <- lapply(factor, function(f){
-      return(features[[response.name]][[f]][[names(SPEARobj$data$xlist)[o]]]$features)
-    })
-    groups <- factor
-    names(l) <- factor
-    color_vec <- c("red", "purple", "orange")
-    v.table <- gplots::venn(l, universe = colnames(SPEARobj$data$xlist[[o]]), show.plot = FALSE, intersections = FALSE)
-    # Set the attributes to NULL, make data.frame (otherwise you can't melt it to plot the points underneath)
-    attr(v.table, "class") <- NULL
-    v.table <- as.data.frame(v.table)
-    # I add a "rowSums" column for sorting purposes (i.e. 111, 110, 101, 011, 100, 010, 001...)
-    v.table$rowSums <- rowSums(dplyr::select(v.table, -num))
-    # Filter out the case with 000 (we didn't supply a 'universe' parameter, so '000' can be removed)
-    v.table <- dplyr::filter(v.table, rowSums > 0) %>% arrange(rowSums) %>% select(-rowSums)
-    # Add 'comb' to v.table (rownames are "000"..."111")
-    v.table <- dplyr::mutate(v.table, comb = rownames(v.table))
-    v.table$omic <- names(SPEARobj$data$xlist)[o]
-    v.table$omic_comb <- paste0(v.table$omic, "_", v.table$comb)
-    # Melt so we can plot the individual points (can use pivot_longer if preferred)
-    v.table.melt <- reshape2::melt(v.table, id.vars = c("comb", "omic", "omic_comb"))
-    # Convert group names into indices, remove the 'num' column
-    v.table.melt <- dplyr::filter(v.table.melt, variable != "num")
-    v.table.melt$ypos <- sapply(v.table.melt$variable, function(var){
-      return(-which(groups == var))
-    })
-    # Shift the ypos up .3 (looks better in my opinion)
-    v.table.melt$ypos <- v.table.melt$ypos + .3
-    
-    v.list[[o]] <- list(v.table = v.table, v.table.melt = v.table.melt)
-  }
-  v.table.comb <- do.call(rbind, lapply(v.list, function(v){return(v$v.table)}))
-  v.table.melt.comb <- do.call(rbind, lapply(v.list, function(v){return(v$v.table.melt)}))
-  
-  # Plots:
-
-  # Generate plot:
-  v.table <- v.table.comb
-  v.table.melt <- v.table.melt.comb
-  
-  text.scale <- max(v.table$num)/20
-  y.scale <- max(v.table$num)/10
-  vlines <- 0:length(unique(v.table$comb))+.5
-  xmin <- min(vlines)
-  xmax <- max(vlines)
-  ymin <- min(v.table.melt$ypos * y.scale) + max(v.table.melt$ypos * y.scale)
-  ymax <- max(v.table$num + 2*text.scale)
-  vlinedf <- data.frame(x = vlines, xend = vlines, y = ymin, yend = ymax)
-  v.table.melt.total <- v.table.melt
-  v.table.melt <- filter(v.table.melt, value > 0)
-  
-  g <- ggplot(v.table) +
-    geom_bar(aes(x = factor(comb, levels = rev(unique(comb))), y = num, fill = omic), color = "black", position=position_dodge(width=.95), stat = "identity") +
-    geom_text(aes(x = factor(comb, levels = rev(unique(comb))), y = num + text.scale, label = num, group = omic), position=position_dodge(width=1)) +
-    annotate("rect", xmin = xmin, xmax = xmax, ymin = ymin, ymax = 0, color = "black", fill="#EDEDED") +
-    geom_line(data = v.table.melt.total, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), size = 2, color = "white") +
-    geom_point(data = v.table.melt.total, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), fill = "white", color = "white", shape = 21, size = 4, stroke = 1) +
-    geom_line(data = v.table.melt, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), size = 2) +
-    geom_point(data = v.table.melt, aes(x = factor(comb, levels = rev(unique(comb))), y = ypos * y.scale), fill = "#58D68D", shape = 21, size = 4, stroke = 1) +
-    geom_segment(data = vlinedf, aes(x = x, xend = xend, y = y, yend = yend), color = "black") +
-    geom_segment(aes(x = xmin, xend = xmax, y = ymax, yend = ymax), color = "black") +
-    scale_y_continuous(breaks = unique(v.table.melt$ypos * y.scale), labels = unique(v.table.melt$variable)) +
-    xlab(NULL) +
-    ylab(NULL) +
-    ggtitle(paste0("Features for Factors Significant for ", response.name, " | w = ", w)) +
-    cowplot::theme_map() +
-    theme(axis.text.y = element_text(size = 10),
-          title = element_text(size = 12, face = "plain")) +
-    scale_fill_brewer(palette = "RdBu") +
-    guides(size = FALSE, color = FALSE)
-  
-  return(g)
-}
-

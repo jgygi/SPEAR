@@ -438,37 +438,3 @@ SPEAR.plot_class_probabilities(SPEARobj.ordinal, plot.type = "line")
 SPEAR.plot_class_predictions(SPEARobj.ordinal)
 ```
 
-
-```{r fig.height = 2.5, fig.width = 10}
-dark.theme <- TRUE
-k <- 1
-subject_ids <- rownames(SPEARobj.ordinal$data$Y)
-pred.list <- SPEAR.get_predictions(SPEARobj.ordinal)
-probabilities <- pred.list$OrdinalResponse$probabilities
-predictions <- pred.list$OrdinalResponse$predictions
-subject.probabilities <- as.data.frame(probabilities[rownames(probabilities) %in% subject_ids,])
-subject.probabilities <- dplyr::mutate(subject.probabilities, 
-                                       PredictedClass = paste0("Class", predictions[names(predictions) %in% subject_ids]),
-                                       Actual = paste0("Class", SPEARobj.ordinal$data$Y[rownames(SPEARobj.ordinal$data$Y) %in% subject_ids,k]),
-                                       Subject = rownames(subject.probabilities))
-df.melt <- reshape2::melt(subject.probabilities, id.vars = c("PredictedClass", "Actual", "Subject"))
-g <- ggplot(df.melt) +
-  geom_line(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
-  geom_point(aes(x = variable, y = value, group = Subject, color = PredictedClass)) +
-  scale_x_discrete(labels = (1:ncol(subject.probabilities)-1)) +
-  xlab(NULL) +
-  ylab("Probabillity of Class Assignment") +
-  scale_color_brewer(palette = "Spectral", direction = 1) +
-  scale_fill_brewer(palette = "Spectral", direction = 1) +
-  theme_classic() +
-  facet_wrap(vars(Actual), nrow = 1)
-
-if(dark.theme){
-  g <- g + theme(panel.background = element_rect(fill = "#181818"),
-        panel.grid.major = element_line(size = 0.2, linetype = 'solid',
-                                colour = "#656464"))
-}
-
-g
-```
-

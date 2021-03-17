@@ -187,13 +187,6 @@ We can also plot the factor contributions for visualization:
 SPEAR.plot_factor_contributions(SPEARobj, threshold = .01, show.irrelevant = FALSE, show.labels = TRUE)
 ```
 
-```{r fig.width = 7}
-# As a quick aside, plotting functions all return ggplot grob objects, and can be easily edited as such:
-plot <- SPEAR.plot_factor_contributions(SPEARobj, threshold = .01, show.irrelevant = FALSE, show.labels = TRUE)
-plot + 
-  scale_fill_distiller(palette = "Reds", direction = 1) +
-  ggtitle("Custom Factor Contribution Plot")
-```
 
 ### Cross-validation results:
 
@@ -264,7 +257,7 @@ SPEAR.plot_factor_grid(SPEARobj, groups = groups)
 We can choose to only plot a subset of factors: (i.e. the relevant factors)
 
 ```{r fig.width=9, fig.height = 7}
-relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$Y.relevant.factors == 1)
+relevant.factors.to.Y <- which(SPEAR.get_factor_contributions(SPEARobj)$w2$Y.relevant.factors == 1)
 SPEAR.plot_factor_grid(SPEARobj, groups = groups, factors = relevant.factors.to.Y)
 ```
 

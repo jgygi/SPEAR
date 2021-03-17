@@ -844,7 +844,7 @@ SPEAR.plot_feature_overlap <- function(SPEARobj, w = "best", factor = NULL, resp
     cowplot::theme_map() +
     theme(axis.text.y = element_text(size = 10),
           title = element_text(size = 12, face = "plain")) +
-    scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj, "combined"), guide = FALSE) +
+    scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj, "combined")) +
     guides(size = FALSE, color = FALSE)
   
   return(g)

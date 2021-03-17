@@ -4,12 +4,19 @@
 \alias{SPEAR.get_factor_contributions}
 \title{Get factor contributions to both X and Y}
 \usage{
-SPEAR.get_factor_contributions(SPEARobj, w = "best", threshold = 0.01)
+SPEAR.get_factor_contributions(
+  SPEARobj,
+  w = "best",
+  w.method = "sd",
+  threshold = 0.01
+)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
 
 \item{w}{Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)}
+
+\item{w.method}{How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).}
 
 \item{threshold}{Threshold value of contribution for a factor to be relevant. Defaults to .01.}
 }

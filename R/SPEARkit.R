@@ -666,7 +666,7 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd"
 #'@export
 SPEAR.get_color_scheme <- function(SPEARobj, scale.name = "combined"){
   if(scale.name == "omic"){
-    colors <- c("#9E0142", "#D53E4F", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2")
+    colors <- c("#9E0142", "#D53E4F", "#F46D43", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2")
     colorvec <- colors[seq(1, length(colors), length.out = length(SPEARobj$data$xlist))]
     names(colorvec) <- names(SPEARobj$data$xlist)
     return(colorvec)
@@ -742,7 +742,6 @@ SPEAR.plot_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd
   print(length(plotlist))
   return(cowplot::plot_grid(plotlist = plotlist, nrow = 1))
 }
-
 
 #' Plot factor features
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
@@ -932,12 +931,11 @@ SPEAR.plot_feature_summary <- function(SPEARobj, w = "best", factor = NULL, resp
     if(group.by.omic){
       df <- arrange(df, omic, -abs(coefficients))
     }
-    color_list <- RColorBrewer::brewer.pal(length(SPEARobj$data$xlist), "Spectral")
-    names(color_list) <- names(SPEARobj$data$xlist)
+
     # Plot:
     g <- ggplot(df) +
       geom_bar(aes(x = coefficients, y = factor(features, levels = rev(features)), fill = omic), stat = "identity", width = 1, color = "black", size = .2) +
-      scale_fill_manual(values = color_list) +
+      scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj, scale.name = "omic")) +
       ylab(NULL) +
       xlab("Coefficient") +
       ggtitle(paste0(factor[f], " | w = ", w)) +
@@ -956,8 +954,6 @@ SPEAR.plot_feature_summary <- function(SPEARobj, w = "best", factor = NULL, resp
   
   return(p)
 }
-
-
 
 #### OLD ______________________________________________________
 

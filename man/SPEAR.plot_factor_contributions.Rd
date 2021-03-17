@@ -7,6 +7,7 @@
 SPEAR.plot_factor_contributions(
   SPEARobj,
   w = "best",
+  w.method = "sd",
   threshold = 0.01,
   show.labels = TRUE,
   show.irrelevant = FALSE

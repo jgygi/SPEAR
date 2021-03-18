@@ -10,10 +10,7 @@ SPEAR.plot_factor_loadings(
   w.method = "sd",
   threshold = 0.01,
   response.name = NULL,
-  plot.per.omic = TRUE,
-  scale.per.omic = TRUE,
-  show.feature.names = FALSE,
-  plot.irrelevant.factors = FALSE
+  show.irrelevant = FALSE
 )
 }
 \arguments{
@@ -25,13 +22,9 @@ SPEAR.plot_factor_loadings(
 
 \item{response.name}{Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)}
 
-\item{plot.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE}
-
-\item{scale.per.omic}{Return an individual plot per omic (each dataset in SPEARobj$data$xlist)? Defaults to TRUE}
+\item{show.irrelevant}{Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE}
 
 \item{show.feature.names}{Show row names (features) for factor loadings? Defaults to FALSE}
-
-\item{plot.irrelevant.factors}{Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE}
 }
 \description{
 Plot factor loadings

@@ -4,12 +4,10 @@
 \alias{SPEAR.get_color_scheme}
 \title{Get a color scheme for a SPEAR plot}
 \usage{
-SPEAR.get_color_scheme(SPEARobj, scale.name = "combined")
+SPEAR.get_color_scheme(SPEARobj)
 }
 \arguments{
 \item{SPEARobj}{SPEAR object (returned from run_cv_spear)}
-
-\item{scale.name}{A character of "omic", "response", or "combined". Defaults to "combined".}
 }
 \description{
 Get a color scheme for a SPEAR plot

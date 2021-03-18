@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit.R
 \name{SPEAR.plot_cv_prediction_errors}
 \alias{SPEAR.plot_cv_prediction_errors}
-\title{Plot factor scores per subject}
+\title{Plot cv prediction errors}
 \usage{
 SPEAR.plot_cv_prediction_errors(
   SPEARobj,
@@ -27,5 +27,5 @@ SPEAR.plot_cv_prediction_errors(
 \item{plot.per.response}{Make a different plot for each response? Defaults to TRUE}
 }
 \description{
-Plot factor scores per subject
+Plot cv prediction errors
 }

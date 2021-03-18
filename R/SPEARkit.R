@@ -655,7 +655,7 @@ SPEAR.get_color_scheme <- function(SPEARobj){
   names(colorvec.omic) <- names(SPEARobj$data$xlist)
   
   # Response
-  cs <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
+  cs <- c("#FC8D62", "#66C2A5", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
   if(num.responses > length(cs)){
     cat("*** Warning: more than ", length(cs), " responses provided. Repeating colors in colorscale.\n")
     num.index <- length(cs)

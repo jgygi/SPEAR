@@ -263,15 +263,15 @@ SPEAR.get_factor_scores <- function(SPEARobj, w = "best", X = NULL, w.method = "
 }
 
 
-#' Plot factor loadings
+#' Plot factor probabilities
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
 #'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
 #'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
 #'@param show.feature.names Show row names (features) for factor loadings? Defaults to FALSE
-#'@param plot.irrelevant.factors Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE
+#'@param show.irrelevant Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE
 #'@export
-SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, response.name = NULL, plot.irrelevant.factors = FALSE){
+SPEAR.plot_factor_probabilities <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, response.name = NULL, show.irrelevant = FALSE){
   # Weight ----------------
   if(w == "best"){
     w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
@@ -309,7 +309,7 @@ SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", th
   relevant.factors <- SPEARobj$cv.eval$factor_contributions[, k, w.idxs[k]] >= threshold
   names(relevant.factors) <- paste0("Factor", 1:length(relevant.factors))
   w.loadings = SPEARobj$fit$results$post_selections[,,w.idxs[k]]
-  if(!plot.irrelevant.factors){
+  if(!show.irrelevant){
     w.loadings[,!relevant.factors] <- NA
   }
   colnames(w.loadings) <- paste0("Factor", 1:ncol(w.loadings))
@@ -338,7 +338,7 @@ SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", th
     scale_alpha_continuous(range = c(0, 1), name = "Probability") +
     ylab(paste0("Features\n(n = ", ncol(SPEARobj$data$X), ")")) +
     xlab(NULL) +
-    ggtitle(paste0("Factor Loadings for w = ", w)) +
+    ggtitle(paste0("Factor Probabilities for w = ", round(w, 3))) +
     theme_void() +
     theme(axis.title.y = element_text(size = 10, angle = 90),
           axis.text.x = element_text(size = 10),
@@ -349,7 +349,96 @@ SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", th
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 10))
   
-  if(!plot.irrelevant.factors){
+  if(!show.irrelevant){
+    g <- g + xlim(names(relevant.factors)[which(relevant.factors)])
+  }
+  
+  return(g)
+}
+
+#' Plot factor loadings
+#'@param SPEARobj SPEAR object (returned from run_cv_spear)
+#'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
+#'@param threshold Threshold value of contribution for a factor to be relevant. Defaults to .01.
+#'@param response.name Which response variable? Check colnames(SPEARobj$data$Y) for options. Defaults to 1st column (NULL)
+#'@param show.feature.names Show row names (features) for factor loadings? Defaults to FALSE
+#'@param show.irrelevant Plot loadings for factors with a contribution lower than the threshold? Defaults to FALSE
+#'@export
+SPEAR.plot_factor_loadings <- function(SPEARobj, w = "best", w.method = "sd", threshold = .01, response.name = NULL, show.irrelevant = FALSE){
+  # Weight ----------------
+  if(w == "best"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = FALSE, return.as.index = TRUE)
+  } else if(w == "overall"){
+    w.idxs <- SPEAR.get_best_weights(SPEARobj = SPEARobj, w.method = w.method, return.overall = TRUE, return.as.index = TRUE)
+  } else {
+    if(!any(SPEARobj$params$weights == w)){
+      cat("*** Warning: w = ", w, " not found among possible weights (", paste(SPEARobj$params$weights, collapse = ", "), "). Will use closest SPEAR weight...\n")
+      w = SPEARobj$params$weights[which.min(abs(SPEARobj$params$weights-w))]
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    } else {
+      w.idxs <- which(SPEARobj$params$weights == w)
+      cat(paste0("*** Using SPEAR with w = ", round(SPEARobj$params$weights[w.idxs], 3), "\n"))
+      w.idxs <- rep(w.idxs, ncol(SPEARobj$data$Y))
+    }
+  } #----------------------
+  
+  # response.name: ------------
+  if(is.null(response.name)){
+    if(ncol(SPEARobj$data$Y) == 1){
+      response.name <- colnames(SPEARobj$data$Y)
+    } else {
+      cat("\nParameter 'response.name' not provided. Using first response variable ('", colnames(SPEARobj$data$Y)[1], "')\n")
+      response.name <- colnames(SPEARobj$data$Y)[1]
+    }
+  } else if(!any(response.name %in% colnames(SPEARobj$data$Y))){
+    stop(paste0("ERROR: 'response.name' provided ('", response.name, "') is not found among the available response variables.\nRequested:\t'", response.name, "'\nAvailable:\t'", paste(colnames(SPEARobj$data$Y), collapse = "', '"), "'"))
+  }
+  # --------------------------
+  
+  k <- which(colnames(SPEARobj$data$Y) == response.name)
+  w <- SPEARobj$params$weights[w.idxs[k]]
+  relevant.factors <- SPEARobj$cv.eval$factor_contributions[, k, w.idxs[k]] >= threshold
+  names(relevant.factors) <- paste0("Factor", 1:length(relevant.factors))
+  w.coefficients = t(SPEARobj$fit$results$post_bxs[,,w.idxs[k]])
+  if(!show.irrelevant){
+    w.coefficients[,!relevant.factors] <- NA
+  }
+  colnames(w.coefficients) <- paste0("Factor", 1:ncol(w.coefficients))
+  rownames(w.coefficients) <- colnames(SPEARobj$data$X)
+  df <- reshape2::melt(w.coefficients)
+  colnames(df)[3] <- "coefficient"
+  if(length(SPEARobj$data$xlist) > 1){
+    omic.ends <- sapply(SPEARobj$data$xlist, ncol)
+    omic.ends <- omic.ends[1:(length(omic.ends)-1)]
+    if(length(omic.ends > 1)){
+      for(o in 2:length(omic.ends)){
+        omic.ends[o] <- omic.ends[o] + omic.ends[o-1]
+      }
+    }
+  } else {
+    omic.ends <- NA
+  }
+  # Make plot
+  g <- ggplot(df) +
+    geom_tile(aes(x = Var2, y = factor(Var1, levels = rev(unique(Var1))), fill = coefficient)) +
+    ylab(paste0("Features\n(n = ", ncol(SPEARobj$data$X), ")")) +
+    scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b") +
+    geom_hline(yintercept=omic.ends, color = "black", size = .3) +
+    xlab(NULL) +
+    ggtitle(paste0("Factor Loadings for w = ", round(w, 3))) +
+    theme_void() +
+    theme(axis.title.y = element_text(size = 10, angle = 90),
+          axis.text.x = element_text(size = 10),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "cm"),
+          plot.title = element_text(hjust = .02, face = "plain", size = 12),
+          legend.text = element_text(size = 8),
+          legend.title = element_text(size = 10))
+  
+  if(!show.irrelevant){
     g <- g + xlim(names(relevant.factors)[which(relevant.factors)])
   }
   

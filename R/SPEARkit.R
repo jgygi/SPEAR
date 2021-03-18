@@ -584,8 +584,9 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd"
   for(w.idx in unique(w.idxs)){
     # Explanatory Vars:
     Xlist <- SPEARobj$data$xlist
-    W <- SPEARobj$fit$results$post_betas[,,,w.idx]
-    U <- SPEARobj$data$X %*% W
+    W <- t(SPEARobj$fit$results$post_bxs[,,w.idx])
+    W.betas <- SPEARobj$fit$results$post_betas[,,,w.idx]
+    U <- SPEARobj$data$X %*% W.betas
     Wlist <- list()
     ind <- 1
     for(d in 1:length(Xlist)){
@@ -598,6 +599,9 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd"
         a <- sum((Xlist[[j]] - U[,i] %*% t(Wlist[[j]][,i]))**2, na.rm = TRUE)
         b <- sum((Xlist[[j]])**2, na.rm = TRUE)
         var_explained_X[i,j] <- (1 - a/b)
+        #X.tilde <- as.vector(U[,i] %*% t(Wlist[[j]][,i]))
+        #X.reg <- as.vector(Xlist[[j]])
+        #var_explained_X[i,j] <- cor(X.tilde, X.reg)^2
       }
     }
     colnames(var_explained_X) <- names(Xlist)
@@ -663,14 +667,14 @@ SPEAR.get_color_scheme <- function(SPEARobj){
     num.index <- num.responses
   }
   colors.list <- list(
-    cs[c(4)],
-    cs[c(4, 1)],
-    cs[c(4, 1, 2)],
-    cs[c(4, 1, 3, 2)],
-    cs[c(4, 1, 3, 2, 6)],
-    cs[c(4, 1, 3, 2, 6, 5)],
-    cs[c(4, 1, 3, 2, 6, 5, 7)],
-    cs[c(4, 1, 3, 2, 6, 5, 7, 8)]
+    cs[c(2)],
+    cs[c(2, 4)],
+    cs[c(2, 4, 1)],
+    cs[c(2, 4, 3, 1)],
+    cs[c(2, 4, 3, 1, 6)],
+    cs[c(2, 4, 3, 1, 6, 5)],
+    cs[c(2, 4, 3, 1, 6, 5, 7)],
+    cs[c(2, 4, 3, 1, 6, 5, 7, 8)]
   )
   colors <- colors.list[[num.index]]
   colorvec.response <- rep(colors, length.out = num.responses)

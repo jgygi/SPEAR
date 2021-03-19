@@ -12,7 +12,7 @@ run_cv_spear(
   Yobs = NULL,
   foldid = NULL,
   weights = NULL,
-  family = 0,
+  family = "gaussian",
   inits.type = "pca",
   num.factors = NULL,
   seed = NULL,

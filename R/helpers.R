@@ -304,11 +304,12 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.name  description
 #'@param sparsity_upper  sparsity_upper, defaults to .5
 #'@param run.debug debug?
+#'@param calculate.factor.contributions Calculate factor contributions? Can take time for ordinal/binomial... defaults to TRUE.
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
-                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .5){
+                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .5, calculate.factor.contributions = TRUE){
   cat("
           __________________________________________
           |                                        |
@@ -456,10 +457,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   if(is.null(robust_eps)){
     robust_eps = 1.0/sqrt(nrow(data$X))
   }
-  for(k in 1:num.folds){
-    print(table(data$Y[foldid==k]))
+  if(run.debug){
+    for(k in 1:num.folds){
+      print(table(data$Y[foldid==k]))
+    }
+    print(foldid)
   }
-  print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 
@@ -497,7 +500,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                            family = family, 
                            nclasses = data$nclasses, 
                            pattern_samples = data$pattern_samples, 
-                           pattern_features = data$pattern_features, 
+                           pattern_features = data$pattern_features,
+                           factor_contribution = calculate.factor.contributions,
                            nlambda = cv.nlambda)
   
   # Return a SPEARobject:

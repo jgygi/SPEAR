@@ -30,7 +30,8 @@ run_cv_spear(
   save.name = NULL,
   run.debug = FALSE,
   robust_eps = NULL,
-  sparsity_upper = 0.5
+  sparsity_upper = 0.5,
+  calculate.factor.contributions = TRUE
 )
 }
 \arguments{
@@ -83,6 +84,8 @@ run_cv_spear(
 \item{run.debug}{debug?}
 
 \item{sparsity_upper}{sparsity_upper, defaults to .5}
+
+\item{calculate.factor.contributions}{Calculate factor contributions? Can take time for ordinal/binomial... defaults to TRUE.}
 }
 \description{
 Create the data from lists, and create the functional pathway list.

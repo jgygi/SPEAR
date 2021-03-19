@@ -553,6 +553,7 @@ SPEAR.plot_class_probabilities <- function(SPEARobj, X = NULL, Y = NULL, w = "be
   }
 }
 
+
 #' Plot ordinal class predictions
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param X List of omics matrices to be used for prediction. Defaults to NULL (use training data stored within SPEAR)
@@ -643,7 +644,6 @@ SPEAR.plot_class_predictions <- function(SPEARobj, X = NULL, Y = NULL, w = "best
 }
 
 
-
 #' Get factor contributions to both X and Y
 #'@param SPEARobj SPEAR object (returned from run_cv_spear)
 #'@param w Weight for SPEAR. Defaults to "best", choosing the best weight per response. Can also be "overall" (choosing the weight with the best overall mean cross-validated error), or one of the weights used to train SPEAR (SPEARobj$params$weights)
@@ -713,7 +713,6 @@ SPEAR.get_factor_contributions <- function(SPEARobj, w = "best", w.method = "sd"
   }
   return(res)
 }
-
 
 
 #' Get a color scheme for a SPEAR plot

@@ -361,8 +361,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   }
   return(list(results = results[[1]],
               factors_coefs = factors_coefs,
-              projection_coefs = projection_coefs, foldid = foldid,
-              factor_contributions_pvals = factor_contributions_pvals))
+              projection_coefs = projection_coefs, foldid = foldid))
   #return(list(results = results))
   
 }

@@ -963,7 +963,9 @@ SPEAR.plot_feature_summary <- function(SPEARobj, w = "best", factor = NULL, resp
   features <- SPEAR.get_factor_features(SPEARobj, w, threshold, probability.cutoff)
   # make sure there are factors that contribute:
   if(length(features[[response.name]]) == 1){
-    stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
+    if(features[[response.name]] == "No contributing factors found."){
+      stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
+    }
   }
   
   # For each factor...
@@ -1526,7 +1528,9 @@ SPEAR.plot_factor_coefficients <- function(SPEARobj, w = "best", factor = NULL, 
   
   # make sure there are factors that contribute:
   if(length(features[[response.name]]) == 1){
-    stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
+    if(features[[response.name]] == "No contributing factors found."){
+      stop("ERROR: No contributing factors found for 'response.name' ", response.name, ".")
+    }
   }
   
   # For each factor...

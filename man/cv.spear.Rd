@@ -32,6 +32,7 @@ cv.spear(
   a2 = sqrt(nrow(X)),
   b2 = sqrt(nrow(X)),
   robust_eps = 1/(sqrt(nrow(X))),
+  sparsity_upper = 0.5,
   inits_post_mu = NULL,
   seed = 1,
   crossYonly = F,
@@ -77,6 +78,10 @@ cv.spear(
 \item{b2:}{hyper parametr, no need to tune usually.}
 
 \item{seed:}{random seed number.}
+
+\item{sparsity_upper:}{Sparsity parameter}
+
+\item{robust_eps:}{robust_eps}
 
 \item{run.debug:}{debug?}
 }

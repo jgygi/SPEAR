@@ -12,14 +12,13 @@ run_cv_spear(
   Yobs = NULL,
   foldid = NULL,
   weights = NULL,
-  family = "gaussian",
+  family = 0,
   inits.type = "pca",
   num.factors = NULL,
   seed = NULL,
   scale.x = TRUE,
   scale.y = TRUE,
   num.folds = 5,
-  calculate.factor.contribution = TRUE,
   warmup.iterations = NULL,
   max.iterations = NULL,
   elbo.threshold = NULL,
@@ -30,7 +29,8 @@ run_cv_spear(
   save.path = NULL,
   save.name = NULL,
   run.debug = FALSE,
-  robust_eps = NULL
+  robust_eps = NULL,
+  sparsity_upper = 0.5
 )
 }
 \arguments{
@@ -62,8 +62,6 @@ run_cv_spear(
 
 \item{num.folds}{description}
 
-\item{calculate.factor.contribution}{description}
-
 \item{warmup.iterations}{description}
 
 \item{max.iterations}{description}
@@ -83,6 +81,8 @@ run_cv_spear(
 \item{save.name}{description}
 
 \item{run.debug}{debug?}
+
+\item{sparsity_upper}{sparsity_upper, defaults to .5}
 }
 \description{
 Create the data from lists, and create the functional pathway list.

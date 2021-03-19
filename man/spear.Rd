@@ -32,7 +32,8 @@ spear(
   b2 = sqrt(nrow(X)),
   inits_post_mu = NULL,
   seed = 1,
-  robust_eps = 1/(sqrt(nrow(X)))
+  robust_eps = 1/(sqrt(nrow(X))),
+  sparsity_upper = 0.5
 )
 }
 \arguments{
@@ -77,6 +78,10 @@ spear(
 \item{b2:}{hyper parametr, no need to tune usually.}
 
 \item{seed:}{random seed number.}
+
+\item{robust_eps:}{robust_eps}
+
+\item{sparsity_upper:}{Sparsity parameter for feature selection}
 }
 \description{
 SuPervised Bayes fActor for Multi-omics

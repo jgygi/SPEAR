@@ -712,7 +712,7 @@ double pi_update(const int& num_factors, const arma::vec& weights,
                  const double a1, const double b1,
                  arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi,
                  arma::mat& post_tmu, arma::mat& post_tsigma2,arma::mat& post_tpi,
-                 arma::mat& log_pi, arma::mat& log_minus_pi,arma::mat& post_a1, arma::mat& post_b1){
+                 arma::mat& log_pi, arma::mat& log_minus_pi,arma::mat& post_a1, arma::mat& post_b1, const double alpha0){
   //posterior distribution for tau
   int num_path = functional_path.size();
   int num_pattern = pattern_features.size();
@@ -721,8 +721,8 @@ double pi_update(const int& num_factors, const arma::vec& weights,
     arma::uvec path_index = functional_path(l);
     int p0 = path_index.n_elem;
     for(int k = 0; k < num_factors; k++){
-      double post_a = a1;
-      double post_b = b1;
+      double weight_sum = 0.0;
+      double total_sum = 0.0;
       //add up the effects from factors
       for(int q = 0; q < num_pattern; q++){
         arma::uvec jj = pattern_features(q);
@@ -730,29 +730,35 @@ double pi_update(const int& num_factors, const arma::vec& weights,
         int p1 = path_q.n_elem;
         for(int j0 = 0; j0 < p1; j0++){
           int j = path_q(j0);
-          post_a = post_a + post_pi(j,k,q);
-          post_b = post_b + 1.0 - post_pi(j,k,q);
+          total_sum = total_sum + 1.0;
+          weight_sum = weight_sum + post_pi(j,k,q);
         }
       }
       //add up the effects from weights
       for(int j0 = 0; j0 < p0; j0++){
         int j = path_index(j0);
         if(weights(j) < 1.0){
-          post_a = post_a +   post_tpi(j,k) * weights(j);
-          post_b = post_b + (1.0 - post_tpi(j,k))* weights(j);
+          weight_sum = weight_sum +post_tpi(j,k) * weights(j);
+          total_sum = total_sum + weights(j);
         }else{
-          post_a = post_a +   post_tpi(j,k);
-          post_b = post_b + (1.0 - post_tpi(j,k));
+          weight_sum = weight_sum +post_tpi(j,k);
+          total_sum = total_sum + 1.0;
         }
       }
+      double post_a = a1+weight_sum ;
+      double post_b = total_sum+b1 - weight_sum;
+      if(weight_sum>alpha0*total_sum){
+        weight_sum = alpha0*total_sum;
+      }
+      //Rcout <<alpha0<<","<< post_a_use<<"," << post_b_use << '\n';
       double tmp1 = boost::math::digamma(post_a1(l,k)) - boost::math::digamma(post_a1(l,k)+post_b1(l,k));
       double tmp2 = boost::math::digamma(post_b1(l,k)) - boost::math::digamma(post_a1(l,k)+post_b1(l,k));
       double tmp3 = std::lgamma(a1) + std::lgamma(b1) - std::lgamma(a1+b1);
       double tmp4 = std::lgamma(post_a1(l,k)) + std::lgamma(post_b1(l,k)) - std::lgamma(post_a1(l,k)+post_b1(l,k));
       Delta = Delta - ((post_a - post_a1(l,k)) * tmp1 + (post_b- post_b1(l,k)) * tmp2 -
         (post_a+post_b) * tmp3 + tmp4);
-      post_a1(l,k) = post_a;
-      post_b1(l,k) = post_b;
+      post_a1(l,k) = a1+weight_sum ;
+      post_b1(l,k) = total_sum+b1 - weight_sum;
       tmp1 = boost::math::digamma(post_a1(l,k)) - boost::math::digamma(post_a1(l,k)+post_b1(l,k));
       tmp2 = boost::math::digamma(post_b1(l,k)) - boost::math::digamma(post_a1(l,k)+post_b1(l,k));
       tmp3 = std::lgamma(a1) + std::lgamma(b1) - std::lgamma(a1+b1);
@@ -866,7 +872,7 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
             arma::vec& post_a2x, arma::vec& post_b2x, 
             arma::vec& post_a2y, arma::vec& post_b2y,
             arma::mat& meanFactors, const int seed0,
-            const double robust_eps){
+            const double robust_eps, const double alpha0){
   int num_pattern = pattern_samples.size();
   int py = Y.n_cols;
   int px = X.n_cols;
@@ -1016,7 +1022,7 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
     delta4 = pi_update(num_factors, weights, pattern_features ,functional_path,
                        a1, b1, post_mu, post_sigma2, post_pi,
                        post_tmuX, post_tsigma2X, post_tpiX,
-                       log_pi, log_minus_pi, post_a1, post_b1);
+                       log_pi, log_minus_pi, post_a1, post_b1, alpha0);
     //update prior nu
     delta51 = nu_update(X, Xobs, weights, meanFactors, U2, nuXmat, a2, b2, 
                        post_tmuX, post_tsigma2X, post_tpiX,post_a2x, post_b2x, true);
@@ -1048,6 +1054,9 @@ void spear_(const int family, arma::mat& Y,  arma::mat& X,
     if((it > warm_up) & ((it - warm_up)% print_out == 0)){
       Rcout << "###############iteration" << it -warm_up <<
         "############### EBLO increase" << Delta <<  "###############"<< "\n";
+      //Rcout<<alpha0<<','<<post_a1.row(0) <<',' << post_b1.row(0) << '\n';
+      //Rcout<<alpha0<<','<<post_a0.row(0) <<',' << post_b0.row(0) << '\n';
+      //Rcout << log_pi.row(0) << ',' << log_minus_pi.row(0) <<'\n';
     }
   }
   it = 0;

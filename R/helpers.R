@@ -153,6 +153,24 @@ dataGen_ordinal <- function(N = 500, Ntest = 2000, P = 500, levels = 7,
   return(list(data.tr = data.tr, data.te = data.te))
 }
 
+prob_calculation <- function(yhat, intercept){
+  Pmat0 = matrix(0, ncol = length(intercept), nrow = length(yhat))
+  Pmat = matrix(0, ncol = length(intercept)+1, nrow = length(yhat))
+  for(k in 1:ncol(Pmat0)){
+    Pmat0[,k] = 1.0/(1+exp(-yhat - intercept[k]))
+  }
+  for(k in 1:ncol(Pmat)){
+    if(k == 1){
+      Pmat[,k] = 1-Pmat0[,k]
+    }else if(k == ncol(Pmat)){
+      Pmat[,k] = Pmat0[,k-1]
+    }else{
+      Pmat[,k] = Pmat0[,k-1] - Pmat0[,k]
+    }
+  }
+  return(Pmat)
+}
+
 
 loss_calculation <- function(Phat, y, type = "deviance"){
   S = array(0, dim  = dim(Phat))
@@ -284,13 +302,13 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.model  description
 #'@param save.path  description
 #'@param save.name  description
-#'@param calculate.factor.contribution description
+#'@param sparsity_upper  sparsity_upper, defaults to .5
 #'@param run.debug debug?
 #'@export
-run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = "gaussian", inits.type = "pca",
-                         num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, calculate.factor.contribution = TRUE,
+run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
+                         num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
-                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL){
+                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .5){
   cat("
           __________________________________________
           |                                        |
@@ -305,18 +323,6 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   # Prepare SPEAR object
   cat("*****************\n Preparing SPEAR\n*****************\n")
-  
-  if(family == "gaussian"){
-    family.encoded <- 0
-  } else if(family == "binomial"){
-    family.encoded <- 1
-  } else if(family == "ordinal"){
-    family.encoded <- 2
-  } else {
-    cat(paste0("*** 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
-    family.encoded <- 0
-    family <- "gaussian"
-  }
   
   cat("\nPreparing omics data...\n")
   
@@ -341,7 +347,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     cat(paste0(names(X.scaled)[i], "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n"))
   }
   
-  if(scale.y & family.encoded == 0){
+  if(scale.y & family == 0){
     Y.scaled <- scale(Y)
   } else {
     Y.scaled <- Y
@@ -352,14 +358,16 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   }
   cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
   for(i in 1:ncol(Y.scaled)){
-    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n"))
+    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", ifelse(family == 0, "Gaussian", "Ordinal"), "\n"))
   }
+  
+  
   
   
   cat("\n")
   
   # Run Preparation Function:
-  data <- preparation(Y = Y.scaled, X = X.scaled, family = family.encoded)
+  data <- SPEARcomplete::preparation(Y = Y.scaled, X = X.scaled, family = family)
   data$xlist <- X.scaled
   
   # Parameters:
@@ -444,17 +452,14 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     numCores <- parallel::detectCores()
   }
   
+  # Run cv.spear:
   if(is.null(robust_eps)){
     robust_eps = 1.0/sqrt(nrow(data$X))
   }
-  # Run cv.spear:
-  if(run.debug){
-    cat("foldids:\n")
-    for(k in 1:max(foldid)){
-      print(table(data$Y[foldid==k,]))
-    }
-    print(foldid)
+  for(k in 1:num.folds){
+    print(table(data$Y[foldid==k]))
   }
+  print(foldid)
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 
@@ -462,7 +467,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         Z = Z, 
                         pattern_samples = data$pattern_samples,
                         pattern_features = data$pattern_features,
-                        family = family.encoded, 
+                        family = family, 
                         nclasses = data$nclasses,
                         ws = weights,
                         foldid = foldid, 
@@ -473,6 +478,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         warm_up= warm_up, 
                         max_iter = max_iter, 
                         seed = seed,  robust_eps = robust_eps,
+                        sparsity_upper = sparsity_upper,
                         thres_elbo = thres_elbo, 
                         thres_count = thres_count, 
                         crossYonly = F,
@@ -488,12 +494,10 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                            X = data$X, 
                            Y = data$Y, 
                            Z = Z, 
-                           family = family.encoded, 
+                           family = family, 
                            nclasses = data$nclasses, 
                            pattern_samples = data$pattern_samples, 
-                           pattern_features = data$pattern_features,
-                           factor_contribution = calculate.factor.contribution,
-                           weights = weights,
+                           pattern_features = data$pattern_features, 
                            nlambda = cv.nlambda)
   
   # Return a SPEARobject:
@@ -538,6 +542,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   return(SPEARobj)
 }
+
 
 
 #cross-validation: select models with high accuracy for predicting Y.
@@ -730,7 +735,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
       }
       projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
-      if(family != 0){
+      if(family %in% standardize_family){
         projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
       }
       if(family == 0){
@@ -747,8 +752,65 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
     }
   }
-  ###marginal contribution
+  # # ###marginal contribution
+  # factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
+  # if(factor_contribution){
+  #   for(l in 1:num_weights){
+  #     if(!is.null(weights)){
+  #       print(paste0("~~~ Calculating contribution for w = ",weights[l], " | ", l, "/", num_weights))
+  #     } else {
+  #       print(paste0("~~~ Calculating contribution for weights: ", l, "/", num_weights))
+  #     }
+  #     for(k in 1:num_factors){
+  #       if(family == 0){
+  #         for(j in 1:py){
+  #           yhat = Uhat.cv[,k,l] 
+  #           y = Y[,j]
+  #           for(fold_id in 1:nfolds){
+  #             b = cv.projection_coefs[k,j,fold_id,l]
+  #             yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
+  #           }
+  #           
+  #           factor_contributions[k,j,l] = 1-var(y-yhat)/var(y)
+  #           # tmp = cv.glmnet(cbind(yhat,rep(0,n)), y, foldid = foldid)
+  #           # factor_contributions[k,j,l] = 1-min(tmp$cvm)/var(y)
+  #         }
+  #       }else if(nclasses[j] == 2){
+  #         for(j in 1:py){
+  #           y = Y[,j]
+  #           null_model = glm(y~offset(rep(0, length(y))), family = "binomial")
+  #           Delta0 = null_model$deviance/n
+  #           for(k in 1:num_factors){
+  #             yhat = Uhat.cv[,k,l]
+  #             tmp = cv.glmnet(cbind(yhat,rep(0,n)), y,family = "binomial")
+  #             Delta1 = min(tmp$cvm)
+  #             factor_contributions[k,j,l]  =  (Delta0 - Delta1)/Delta0
+  #           }
+  #         }
+  #       }else{
+  #         foldid0 = list()
+  #         for(k in 1:nfolds){
+  #           foldid0[[k]] = which(foldid==k)
+  #         }
+  #         for(j in 1:py){
+  #           y = as.factor(Y[,j])
+  #           null_model =polr(y~offset(rep(0,n)))
+  #           Delta0 = null_model$deviance/n
+  #           for(k in 1:num_factors){
+  #             yhat = Uhat.cv[,k,l]
+  #             tmp =ordinalNetCV(cbind(yhat,rep(0,n)), y,folds=foldid0, printProgress = F)
+  #             Delta1 = -sum(tmp$loglik)*2/n
+  #             factor_contributions[k,j,l]  = (Delta0 - Delta1)/Delta0
+  #           }
+  #         }
+  #       }
+  #     }
+  #   }
+  # 
+  # }
+  #replace deviance contriution to spearman correlation
   factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
+  factor_contributions_pvals = array(NA,dim = c(num_factors, py, num_weights))
   if(factor_contribution){
     for(l in 1:num_weights){
       if(!is.null(weights)){
@@ -756,52 +818,29 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       } else {
         print(paste0("~~~ Calculating contribution for weights: ", l, "/", num_weights))
       }
-      by = projection_coefs[,,l]
-      if(is.null(dim(by))){
-        by = matrix(by, ncol = 1)
-      }
-      U0 = array(0, dim = c(n, num_factors))
       for(k in 1:num_factors){
-        if(family == 0){
           for(j in 1:py){
             yhat = Uhat.cv[,k,l]
             y = Y[,j]
-            tmp = cv.glmnet(cbind(yhat,rep(0,n)), y, foldid = foldid)
-            factor_contributions[k,j,l] = (var(y) - min(tmp$cvm))/var(y)
-          }
-        }else if(nclasses[j] == 2){
-          for(j in 1:py){
-            y = Y[,j]
-            null_model = glm(y~offset(rep(0, length(y))), family = "binomial")
-            Delta0 = null_model$deviance/n
-            for(k in 1:num_factors){
-              yhat = Uhat.cv[,k,l]
-              tmp = cv.glmnet(cbind(yhat,rep(0,n)), y,family = "binomial")
-              Delta1 = min(tmp$cvm)
-              factor_contributions[k,j,l]  =  (Delta0 - Delta1)/Delta0
+            for(fold_id in 1:nfolds){
+              b = cv.projection_coefs[k,j,fold_id,l]
+              yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
             }
-          }
-        }else{
-          foldid0 = list()
-          for(k in 1:nfolds){
-            foldid0[[k]] = which(foldid==k)
-          }
-          for(j in 1:py){
-            y = as.factor(Y[,j])
-            null_model =polr(y~offset(rep(0,n)))
-            Delta0 = null_model$deviance/n
-            for(k in 1:num_factors){
-              yhat = Uhat.cv[,k,l]
-              tmp =ordinalNetCV(cbind(yhat,rep(0,n)), y,folds=foldid0, printProgress = F)
-              Delta1 = -sum(tmp$loglik)*2/n
-              factor_contributions[k,j,l]  = (Delta0 - Delta1)/Delta0
+            yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
+            tmp_pearson = cor(y, yhat)
+            suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') ) 
+            if( tmp_pearson<0){
+              factor_contributions[k,j,l] = 0
+              factor_contributions_pvals[k,j,l] = 1
+            }else{
+              factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
+              factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
             }
           }
         }
-      }
     }
-    
   }
+  
   ##regression coefficients 
   reg_coefs = array(0, dim = c(pz,num_patterns,py,num_weights))
   for(l in 1:num_weights){
@@ -816,5 +855,6 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
               intercepts = intercepts,
               cvm = cvm, cvsd = cvsd, 
               factor_contributions = factor_contributions,
+              factor_contributions_pvals = factor_contributions_pvals,
               Yhat.keep = Yhat.keep))
 }

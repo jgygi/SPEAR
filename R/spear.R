@@ -1,5 +1,4 @@
 #' SuPervised Bayes fActor for Multi-omics
-#'@useDynLib SPEARcomplete, .registration=TRUE
 #'@param Y Response matrix (can be multidimensional for gaussian data).
 #'@param X Assay matrix.
 #'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).
@@ -21,6 +20,8 @@
 #'@param a2: hyper parametr, no need to tune usually.
 #'@param b2: hyper parametr, no need to tune usually.
 #'@param seed: random seed number.
+#'@param robust_eps: robust_eps
+#'@param sparsity_upper: Sparsity parameter for feature selection
 #'@export
 spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functional_path, 
                   pattern_samples = NULL, pattern_features = NULL,
@@ -28,7 +29,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                   a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X)))){
+                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X))), sparsity_upper = 0.5){
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -147,7 +148,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
            post_a1 = post_a1, post_b1 = post_b1,
            post_a2x = post_a2x, post_b2x = post_b2x,
            post_a2y = post_a2y, post_b2y = post_b2y,
-           meanFactors = meanFactors, seed0 = seed,robust_eps =robust_eps)
+           meanFactors = meanFactors, seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper)
     ###return both the factors after re-order and sign-fliping
     post_beta =array(0, dim = dim(post_mu))
     post_bx =  post_tmuX *  post_tpiX
@@ -205,7 +206,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
     post_bxs[,,idx_w] = post_bx
     post_pis[,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
-    cat(paste0("~~~   Running w = ", round(ws[idx_w], 4), "\t~~~\n"))
+    print(paste0("######weights#####",ws[idx_w], "###########"))
   }
   return(list(post_betas = post_betas, post_bys = post_bys, post_bxs =post_bxs,
               post_pis = post_pis, post_selections = post_selections,
@@ -234,6 +235,8 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
 #'@param a2: hyper parametr, no need to tune usually.
 #'@param b2: hyper parametr, no need to tune usually.
 #'@param seed: random seed number.
+#'@param sparsity_upper: Sparsity parameter
+#'@param robust_eps: robust_eps
 #'@param run.debug: debug?
 #'@export
 cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
@@ -243,7 +246,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                      a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1.0/(sqrt(nrow(X))),
-                     inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
+                     sparsity_upper = 0.5, inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)
   px = ncol(X); py = ncol(Y); pz = ncol(Z); n = nrow(Y)
@@ -288,7 +291,8 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                    ws = ws,  num_factors = num_factors, warm_up = warm_up,
                    max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                    thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps)
+                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
+                  robust_eps=robust_eps, sparsity_upper = sparsity_upper)
       
     }else{
       subsets = which(foldid != fold_id)
@@ -324,7 +328,8 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                   ws = ws,  num_factors = num_factors, warm_up = warm_up,
                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                   thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                  a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps))
+                  a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps,
+                  sparsity_upper = sparsity_upper))
       if(class(fit)=="try-error"){
         stop(paste0("fold",fold_id,":C++failure."))
       }
@@ -336,23 +341,16 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   if(is.null(numCores)){
     numCores <- detectCores()
   }
+  a <- system.time(
+   results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
+   #results <- sapply(fold_ids, run_parallel)
+  )
+  # a <- system.time(
+  #   results <- run_parallel(0)
+  # )
+  print(a)
   if(run.debug){
-    a <- system.time(
-      results <- sapply(fold_ids, run_parallel)
-    )
-    print(a)
     print(results)
-  } else {
-    #cl <- parallel::makeForkCluster(numCores, outfile="")
-    #doParallel::registerDoParallel(cl)
-    a <- system.time(
-      #results <- foreach(i = 1:length(fold_ids)) %dopar% {
-      #  run_parallel(fold_ids[i])
-      #}
-      results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-    )
-    #parallel::stopCluster(cl)
-    print(a)
   }
   factors_coefs = array(0, dim = c(ncol(X), num_factors, num_patterns,max(foldid), length(ws)));
   projection_coefs = array(0, dim = c(num_factors, ncol(Y), max(foldid), length(ws)));
@@ -362,7 +360,8 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   }
   return(list(results = results[[1]],
               factors_coefs = factors_coefs,
-              projection_coefs = projection_coefs, foldid = foldid))
+              projection_coefs = projection_coefs, foldid = foldid,
+              factor_contributions_pvals = factor_contributions_pvals))
   #return(list(results = results))
   
 }

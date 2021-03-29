@@ -868,7 +868,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   }
   return(list(projection_coefs = projection_coefs,
               reg_coefs = reg_coefs,
-              intercepts = intercepts,
+              intercepts = intercepts, chats = chats,
               cvm = cvm, cvsd = cvsd, 
               factor_contributions = factor_contributions,
               factor_contributions_pvals = factor_contributions_pvals,

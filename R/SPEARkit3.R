@@ -303,25 +303,28 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   factor_contributions = array(NA,dim = c(SPEARobj$params$num_factors, length(SPEARobj$data$xlist)))
   factor_contributions_pvals = array(NA,dim = c(SPEARobj$params$num_factors, length(SPEARobj$data$xlist)))
   for(k in 1:SPEARobj$params$num_factors){
-    for(j in 1:length(SPEARobj$data$xlist)){
-      X.tilde <- as.vector(U.hat.cv[,k] %*% t(W.to_X.list[[j]][,k]))
-      X <- as.vector(SPEARobj$data$xlist[[j]])
-      X.tilde = X.tilde + rnorm(n = length(X.tilde), mean = 0, sd = sqrt(var(X))*1/nrow(SPEARobj$data$X))
-      tmp_pearson = cor(X, X.tilde)
-      suppressWarnings( tmp_spearman <- cor.test(X, X.tilde, method = 'spearman') ) 
-      if( tmp_pearson<0){
-        factor_contributions[k,j] = 0
-        factor_contributions_pvals[k,j] = 1
-      }else{
-        factor_contributions[k,j] = tmp_spearman$estimate # QUESTION: Why square this?
-        factor_contributions_pvals[k,j] = tmp_spearman$p.value
+    for(o in 1:length(SPEARobj$data$xlist)){
+      factor.contributions <- c()
+      X.tilde <- U.hat.cv[,k] %*% t(W.to_X.list[[o]][,k])
+      # Get var.explained per feature:
+      for(j in 1:ncol(X.tilde)){
+        X.tilde.j <- X.tilde[,j]
+        X.j <- SPEARobj$data$xlist[[o]][,j]
+        X.tilde.j = X.tilde.j + rnorm(n = length(X.tilde.j), mean = 0, sd = sqrt(var(X.j))*1/nrow(SPEARobj$data$X))
+        tmp_pearson = cor(X.j, X.tilde.j)
+        suppressWarnings( tmp_pearson <- cor.test(X.j, X.tilde.j, method = 'pearson') ) 
+        if( tmp_pearson$estimate<0){
+          factor.contributions <- c(factor.contributions, 0)
+        }else{
+          factor.contributions <- c(factor.contributions, tmp_pearson$estimate^2)
+        }
       }
+      # Return mean as factor_contributions:
+      factor_contributions[k,o] <- mean(factor.contributions)
     }
   }
   colnames(factor_contributions) <- names(SPEARobj$data$xlist)
   rownames(factor_contributions) <- paste0("Factor", 1:nrow(factor_contributions))
-  colnames(factor_contributions_pvals) <- names(SPEARobj$data$xlist)
-  rownames(factor_contributions_pvals) <- paste0("Factor", 1:nrow(factor_contributions_pvals))
   # Y:
   var_explained_Y <- matrix(NA, nrow = dim(SPEARobj$cv.eval$factor_contributions)[1], ncol = dim(SPEARobj$cv.eval$factor_contributions)[2])
   var_explained_Y.pvals <- matrix(NA, nrow = dim(SPEARobj$cv.eval$factor_contributions)[1], ncol = dim(SPEARobj$cv.eval$factor_contributions)[2])
@@ -337,7 +340,7 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   rownames(var_explained_Y) <- paste0("Factor", 1:nrow(var_explained_Y))
   colnames(var_explained_Y.pvals) <- colnames(SPEARobj$data$Y)
   rownames(var_explained_Y.pvals) <- paste0("Factor", 1:nrow(var_explained_Y.pvals))
-  factors[['contributions']] <- list(X = factor_contributions, X.pval = factor_contributions_pvals, Y = var_explained_Y)
+  factors[['contributions']] <- list(X = factor_contributions, Y = var_explained_Y, Y.pvals = var_explained_Y.pvals)
   
   
   #     features ----------------------------------------------------------------------
@@ -798,12 +801,12 @@ SPEAR.plot_factor_contributions <- function(SPEARmodel, threshold = .01, show.la
     df.Y <- SPEARmodel$factors$contributions$Y
     df.comb <- cbind(df.X, df.Y)
     # Var explained:
-    df.var <- data.frame(omic = colnames(df.comb), var = colSums(df.comb), omic.num = 1:ncol(df.comb), label = round(ifelse(colSums(df.comb) < threshold, NA, colSums(df.comb)), 2))
+    df.var <- data.frame(omic = colnames(df.comb), var = colSums(df.comb), omic.num = 1:ncol(df.comb), label = format(round(ifelse(colSums(df.comb) < threshold, NA, colSums(df.comb)), 2), nsmall = 2))
     # Plot
     df.melt <- reshape2::melt(df.comb)
     df.melt$value.adj <- ifelse(df.melt$value < 0, 0, df.melt$value)
     if(!show.irrelevant){
-      df.melt$label <- ifelse(df.melt$value==0, NA, round(df.melt$value, 2))
+      df.melt$label <- ifelse(df.melt$value==0, NA, format(round(df.melt$value, 2), nsmall = 2))
     } else {
       df.melt$label <- round(df.melt$value, 2)
     }
@@ -925,9 +928,10 @@ SPEAR.plot_factor_loadings <- function(SPEARmodel, plot.per.omic = TRUE){
                         y.start = omic.ends[1:(length(omic.ends)-1)],
                         y.end = omic.ends[2:length(omic.ends)],
                         omic = names(SPEARmodel$data$xlist))
+
   # Make plot
   g <- ggplot2::ggplot(df) +
-    ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = rev(unique(Var1))), fill = coefficient)) +
+    ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = unique(Var1)), fill = coefficient)) +
     ggplot2::ylab(paste0("Features\n(n = ", ncol(SPEARmodel$data$X), ")")) +
     ggplot2::scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b") +
     ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARmodel)) +
@@ -980,7 +984,7 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, plot.per.omic = TRUE){
                         omic = names(SPEARmodel$data$xlist))
   # Make plot
   g <- ggplot2::ggplot(df) +
-    ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = rev(unique(Var1))), fill = probability)) +
+    ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = unique(Var1)), fill = probability)) +
     ggplot2::ylab(paste0("Features\n(n = ", ncol(SPEARmodel$data$X), ")")) +
     ggplot2::scale_fill_gradient2(mid = "white", high = "#b2182b", limits = c(0, 1)) +
     ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARmodel)) +
@@ -1366,8 +1370,6 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
 #        plot distribution of class predictions
 #        plot feature overlap
 #        quick vignette of how to use new SPEARmodel
-
-
 
 
 # TESTING:

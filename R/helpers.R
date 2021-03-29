@@ -596,6 +596,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   }
   cvm = matrix(NA, nrow = num_weights, ncol = py)
   cvsd =matrix(NA, nrow = num_weights, ncol = py)
+  chats.return = matrix(NA, nrow = num_weights, ncol = py)
   #rescale the overall coefficients
   Yhat = array(NA, dim = c(n, py, num_weights))
   cmin = 0
@@ -754,6 +755,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       if(family %in% standardize_family){
         projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
       }
+      chats.return[l,j] <- chats[which.min(cv_tmp)]
       if(family == 0){
         intercepts[[j]][l,] = mean(y - mean(yhat *chats[which.min(cv_tmp)] ))
       }else if(family==1){
@@ -868,8 +870,8 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   }
   return(list(projection_coefs = projection_coefs,
               reg_coefs = reg_coefs,
-              intercepts = intercepts, chats = chats,
-              cvm = cvm, cvsd = cvsd, 
+              intercepts = intercepts, chats = chats.return,
+              cvm = cvm, cvsd = cvsd,
               factor_contributions = factor_contributions,
               factor_contributions_pvals = factor_contributions_pvals,
               Yhat.keep = Yhat.keep))

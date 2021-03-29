@@ -1345,6 +1345,7 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     # Change Class to the name of the column (for the legend)
     df$Class <- factor(df$Class, levels = 0:(levels-1))
   }
+  df$ClassPrediction <- factor(df$ClassPrediction, levels = 0:(levels-1))
   
   g <- ggplot2::ggplot(df) +
     ggplot2::geom_histogram(ggplot2::aes(x = ClassPrediction, fill = Class), color = "black", stat = "count", lwd = .25) +
@@ -1352,7 +1353,7 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     ggplot2::ylab("Count") +
     ggplot2::geom_segment(ggplot2::aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
     ggplot2::scale_fill_brewer(palette = "RdBu", direction = 1) +
-    ggplot2::scale_x_continuous(labels = labels, breaks = c(0:(levels-1))) +
+    ggplot2::scale_x_discrete(labels = labels, breaks = c(0:(levels-1))) +
     ggplot2::theme_bw() +
     ggplot2::facet_wrap(ggplot2::vars(PlotType))
   

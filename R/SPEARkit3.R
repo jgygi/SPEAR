@@ -1229,6 +1229,8 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
   if(nrow(feature.table) == 0){
     stop("*** ERROR: No features found for requested cutoffs. Try broadening the cutoffs.")
   }
+  # Sort by factor...
+  feature.table <- dplyr::arrange(feature.table, Factor)
   
   if(sort.by == "probability"){
     feature.table <- dplyr::arrange(feature.table, -Probability, -abs(Coefficient))

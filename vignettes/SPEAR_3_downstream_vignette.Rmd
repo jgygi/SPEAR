@@ -339,20 +339,32 @@ feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, probability.cutof
 feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, coefficient.cutoff = .01)
 ```
 
-Let's get another visual representation of the top factors:
-
-## TODO: Finish adding explanations from here on...
+Let's get another visual representation of the top features. We can use the `SPEAR.plot_feature_distribution` function to plot all features (points) by their coefficient (X axis) and posterior selection probability (Y axis). The white bar in the middle represents the `coefficient.cutoff` parameter (defaults to .01), and the Y axis will begin at the `probability.cutoff` (defaults to .5).
 
 ```{r, fig.width = 7, fig.height = 6}
 SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2)
 ```
 
-```{r, fig.width = 7, fig.height = 7}
-SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = 1:2, max.per.factor = 50)
+The same `factors` and `omics` parameters can be used (from the `SPEAR.get_feature_table` function) to limit the features shown...
+
+```{r, fig.width = 7, fig.height = 6}
+SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2, factors = c(1, 2, 5), omics = c("OmicsData1", "OmicsData4"))
 ```
 
-```{r, fig.width = 7, fig.height = 7}
-SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = 1:2, max.per.factor = 50, sort.by = "coefficient")
+If we want to see an overall distribution (rather than faceted per omic, per factor), use `show.facet = FALSE`...
+
+```{r, fig.width = 7, fig.height = 6}
+SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2, show.facet = FALSE)
+```
+
+We use the `SPEAR.plot_feature_summary` function to get the actual names and coefficients of the top `max.per.factor` features. Specify which factors are desired with the `factors` argument (defaults to `NULL`, or all factors), set the `probability.cutoff` and `coefficient.cutoff`, and choose which omics to include (with `omics`)...
+
+```{r, fig.width = 7, fig.height = 3.5}
+SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = 1:2, max.per.factor = 20)
+```
+
+```{r, fig.width = 7, fig.height = 1}
+SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = c(2, 5), omics = c("OmicsData2", "OmicsData3"), max.per.factor = 20)
 ```
 
 ##### Prediction:

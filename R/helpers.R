@@ -661,7 +661,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
     }
     for(j in 1:py){
-      ##note that scaling is only required for Gaussian and logisstic!
+      ##note that scaling is only required for Gaussian and logistic!
       y = Y[,j]
       yhat = Yhat[,j,l]
       if(family == 0){

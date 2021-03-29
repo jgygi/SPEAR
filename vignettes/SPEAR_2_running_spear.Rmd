@@ -19,7 +19,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 
 ```{r message = FALSE, warning = FALSE}
 # Required Packages for SPEAR:
-library(SPEARcomplete)
+library(SPEAR)
 library(glmnet)
 library(parallel)
 library(ordinalNet)
@@ -94,7 +94,7 @@ seed <- 123 # reproducible seed
 
 Running SPEAR: Set 'eval=TRUE' to run SPEAR below.
 
-```{r eval=TRUE}
+```{r eval=FALSE}
 # Running cross-validated SPEAR:
 SPEARobj <- run_cv_spear(X = X, 
                          Y = Y, 

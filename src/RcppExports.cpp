@@ -8,7 +8,7 @@ using namespace Rcpp;
 
 // spear_
 void spear_(const int family, arma::mat& Y, arma::mat& X, const arma::mat& Yobs, const arma::mat& Xobs, const arma::mat& Z, const arma::vec nclasses, const List& functional_path, const List& pattern_samples, const List& pattern_features, const arma::vec weights, const int num_factors, const int warm_up, const int max_iter, const double thres_elbo, const int thres_count, const double thres_factor, const double a0, const double b0, const double a1, const double b1, const double a2, const double b2, const double lower, const int print_out, arma::vec interceptsX, List& interceptsY, arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi, arma::mat& post_tmuX, arma::mat& post_tsigma2X, arma::mat& post_tpiX, arma::mat& post_tmuY, arma::mat& post_tsigma2Y, arma::mat& post_tpiY, arma::mat& tauY, arma::mat& tauZ, arma::mat& log_pi, arma::mat& log_minus_pi, arma::mat& nuXmat, arma::mat& nuYmat, arma::mat& post_a0, arma::mat& post_b0, arma::mat& post_a1, arma::mat& post_b1, arma::vec& post_a2x, arma::vec& post_b2x, arma::vec& post_a2y, arma::vec& post_b2y, arma::mat& meanFactors, const int seed0, const double robust_eps, const double alpha0);
-RcppExport SEXP _SPEARcomplete_spear_(SEXP familySEXP, SEXP YSEXP, SEXP XSEXP, SEXP YobsSEXP, SEXP XobsSEXP, SEXP ZSEXP, SEXP nclassesSEXP, SEXP functional_pathSEXP, SEXP pattern_samplesSEXP, SEXP pattern_featuresSEXP, SEXP weightsSEXP, SEXP num_factorsSEXP, SEXP warm_upSEXP, SEXP max_iterSEXP, SEXP thres_elboSEXP, SEXP thres_countSEXP, SEXP thres_factorSEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP a1SEXP, SEXP b1SEXP, SEXP a2SEXP, SEXP b2SEXP, SEXP lowerSEXP, SEXP print_outSEXP, SEXP interceptsXSEXP, SEXP interceptsYSEXP, SEXP post_muSEXP, SEXP post_sigma2SEXP, SEXP post_piSEXP, SEXP post_tmuXSEXP, SEXP post_tsigma2XSEXP, SEXP post_tpiXSEXP, SEXP post_tmuYSEXP, SEXP post_tsigma2YSEXP, SEXP post_tpiYSEXP, SEXP tauYSEXP, SEXP tauZSEXP, SEXP log_piSEXP, SEXP log_minus_piSEXP, SEXP nuXmatSEXP, SEXP nuYmatSEXP, SEXP post_a0SEXP, SEXP post_b0SEXP, SEXP post_a1SEXP, SEXP post_b1SEXP, SEXP post_a2xSEXP, SEXP post_b2xSEXP, SEXP post_a2ySEXP, SEXP post_b2ySEXP, SEXP meanFactorsSEXP, SEXP seed0SEXP, SEXP robust_epsSEXP, SEXP alpha0SEXP) {
+RcppExport SEXP _SPEAR_spear_(SEXP familySEXP, SEXP YSEXP, SEXP XSEXP, SEXP YobsSEXP, SEXP XobsSEXP, SEXP ZSEXP, SEXP nclassesSEXP, SEXP functional_pathSEXP, SEXP pattern_samplesSEXP, SEXP pattern_featuresSEXP, SEXP weightsSEXP, SEXP num_factorsSEXP, SEXP warm_upSEXP, SEXP max_iterSEXP, SEXP thres_elboSEXP, SEXP thres_countSEXP, SEXP thres_factorSEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP a1SEXP, SEXP b1SEXP, SEXP a2SEXP, SEXP b2SEXP, SEXP lowerSEXP, SEXP print_outSEXP, SEXP interceptsXSEXP, SEXP interceptsYSEXP, SEXP post_muSEXP, SEXP post_sigma2SEXP, SEXP post_piSEXP, SEXP post_tmuXSEXP, SEXP post_tsigma2XSEXP, SEXP post_tpiXSEXP, SEXP post_tmuYSEXP, SEXP post_tsigma2YSEXP, SEXP post_tpiYSEXP, SEXP tauYSEXP, SEXP tauZSEXP, SEXP log_piSEXP, SEXP log_minus_piSEXP, SEXP nuXmatSEXP, SEXP nuYmatSEXP, SEXP post_a0SEXP, SEXP post_b0SEXP, SEXP post_a1SEXP, SEXP post_b1SEXP, SEXP post_a2xSEXP, SEXP post_b2xSEXP, SEXP post_a2ySEXP, SEXP post_b2ySEXP, SEXP meanFactorsSEXP, SEXP seed0SEXP, SEXP robust_epsSEXP, SEXP alpha0SEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const int >::type family(familySEXP);
@@ -71,11 +71,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_SPEARcomplete_spear_", (DL_FUNC) &_SPEARcomplete_spear_, 54},
+    {"_SPEAR_spear_", (DL_FUNC) &_SPEAR_spear_, 54},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_SPEARcomplete(DllInfo *dll) {
+RcppExport void R_init_SPEAR(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

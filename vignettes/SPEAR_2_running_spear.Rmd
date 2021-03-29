@@ -24,14 +24,6 @@ library(glmnet)
 library(parallel)
 library(ordinalNet)
 
-# Recommended Packages (for downstream analysis):
-library(jsonlite)
-library(dplyr)
-library(reshape2)
-library(stringr)
-library(ggplot2)
-library(cowplot)
-
 ```
 
 ### Loading the multi-omic data:
@@ -94,14 +86,14 @@ seed <- 123 # reproducible seed
 
 Running SPEAR: Set 'eval=TRUE' to run SPEAR below.
 
-```{r eval=FALSE}
+```{r eval=TRUE}
 # Running cross-validated SPEAR:
 SPEARobj <- run_cv_spear(X = X, 
                          Y = Y, 
                          num.factors = num.factors, 
                          seed = seed, 
                          save.path = save.path, 
-                         save.name = save.name)
+                         save.name = save.name, run.debug = TRUE)
 
 
 # This SPEARobj (SPEAR object) is already saved to an rds file (see SPEAR printed output for location)

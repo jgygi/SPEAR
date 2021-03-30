@@ -175,6 +175,92 @@ SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj)
 
 The SPEARmodel is similar to a SPEARobject, but it is used for a single $w$ value. Most downstream functions built into the SPEAR package utilize a SPEARmodel as input.
 
+The SPEARmodel can be broken down into the following lists:
+
++ factors
+
+    + factor.scores
+    
+        + in.sample
+        
+        + out.of.sample
+    
+    + contributions
+    
+        + X
+        
+        + Y
+        
+        + Y.pvals
+    
+    + features
+    
+        + [Factor1
+        
+            + OmicsDataset1
+            
+                +  features
+                
+                +  probabilities
+                
+                +  coefficients
+                
+            + ...
+                
+            + [last OmicsDataset]
+            
+        + ...
+        
+        + [last Factor]
+
++ predictions
+
+    +  in.sample
+    
+    +  out.of.sample
+
++ fit
+
+    +  post_bxs
+    
+    +  post_bys
+    
+    +  post_bys_cv
+    
+    +  post_betas
+    
+    +  post_betas_cv
+    
+    +  post_selections
+    
+    +  intercepts
+    
++ params
+
+    +  w
+    
+    +  family
+    
+    +  foldid
+    
+    +  seed
+    
+    +  num_factors
+    
+    +  max_iter
+    
+    +  thres_elbo
+    
+    +  thres_count
+
++ data
+
+    + X
+    
+    + Y
+    
+    + xlist
+
 Let's see what value of $w$ our SPEAR model is using:
 
 ```{r}
@@ -197,8 +283,6 @@ SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w.method = "sd")
 SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 0)
 SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 1)
 ```
-
-(TO ADD: Section on different families, bring back figure from vignette 2)
 
 ### Analyzing SPEARmodels with different `family` arguments: 
 
@@ -530,7 +614,7 @@ You can use the `SPEAR.plot_factor_grid` function to show the factor scores agai
 
 **NOTE** This utilizes the `GGally` package.
 
-```{r, fig.width = 7, fig.align = "center", message = FALSE}
+```{r, fig.width = 10, fig.align = "center", message = FALSE}
 SPEAR::SPEAR.plot_factor_grid(SPEARmodel.w0.8, groups = custom.groups, forecast = "out.of.sample")
 ```
 

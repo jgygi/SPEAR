@@ -9,7 +9,7 @@
 #' @import GGally
 #' @import stringr
 #' @import reshape2
-#' @importFrom Rcpp evalCpp
+#' @import Rcpp
 
 #' Get best SPEAR weights per response Y
 #'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})

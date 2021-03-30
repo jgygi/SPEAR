@@ -2,7 +2,7 @@
 #'@useDynLib SPEAR, .registration=TRUE
 #'@importFrom ordinalNet ordinalNet
 #'@importFrom MASS polr
-#'@importFrom glmnet gomnet
+#'@importFrom glmnet glmnet
 #'@importFrom reshape2 melt
 #'@importFrom GGally ggpairs
 #'@importFrom Rcpp evalCpp

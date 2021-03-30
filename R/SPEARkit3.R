@@ -1,15 +1,3 @@
-#' @import ordinalNet
-#' @import MASS
-#' @import parallel
-#' @import ggplot2
-#' @import cowplot
-#' @import glmnet
-#' @import reshape2
-#' @import dplyr
-#' @import GGally
-#' @import stringr
-#' @import reshape2
-#' @import Rcpp
 
 #' Get best SPEAR weights per response Y
 #'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})

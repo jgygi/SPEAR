@@ -1,5 +1,17 @@
 #' SuPervised Bayes fActor for Multi-omics
 #'@useDynLib SPEAR, .registration=TRUE
+#'@import ordinalNet
+#'@import MASS
+#'@import parallel
+#'@import ggplot2
+#'@import cowplot
+#'@import glmnet
+#'@import reshape2
+#'@import dplyr
+#'@import GGally
+#'@import stringr
+#'@import reshape2
+#'@importFrom Rcpp evalCpp
 #'@param Y Response matrix (can be multidimensional for gaussian data).
 #'@param X Assay matrix.
 #'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).

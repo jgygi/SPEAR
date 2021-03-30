@@ -539,12 +539,14 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
 
 #' Use a SPEARmodel to predict response for new samples (Xlist)
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (returning out-of-sample cv predictions for training data).
 #'@return A matrix of predictions (out.of.sample)
 #' @examples
 #' SPEAR.get_predictions(SPEARmodel)
 #' SPEAR.get_predictions(SPEARmodel, Xlist = Xlist)
 #'@export
 SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
+  ### Xlist (test data) ----------
   if(is.null(Xlist)){
     cat("*** Xlist not provided. Returning out-of-sample CV predictions...\n*** (you can get these more easily with SPEARmodel$predictions$out.of.sample)\n")
     return(SPEARmodel$predictions$out.of.sample)
@@ -564,7 +566,8 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
       warning("*** WARNING: rownames for Xlist not provided. Renaming to sample_1 ...sample_", nrow(X), "\n")
       rownames(X) <- paste0("sample_", 1:nrow(X))
     }
-  }
+  } # ---------------------
+  
   preds.list <- list()
   for(j in 1:ncol(SPEARmodel$data$Y)){
     response <- colnames(SPEARmodel$data$Y)[j]
@@ -598,12 +601,29 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
       colnames(class.predictions) <- c(resp.name)
       rownames(Pmat) <- rownames(SPEARmodel$data$Y)
       colnames(Pmat) <- paste0("Class", 0:(ncol(Pmat)-1))
-      preds.list[[response]] <- list(
-        class.predictions = class.predictions,
-        class.probabilities = Pmat,
-        signal = signal
-      )
-    } else {
+      if(SPEARmodel$params$family == "categorical"){
+        overall.class.predictions <- matrix(0, nrow = nrow(SPEARmodel$data$Y), ncol = ncol(SPEARmodel$data$Y))
+        for(i in 1:nrow(overall.class.predictions)){
+          overall.class.predictions[i, which.max(sapply(1:ncol(SPEARmodel$data$Y), function(ind){
+            return(Pmat[i,2]) # Return the probability of Class1 for each binomial
+          }))] <- 1
+        }
+        colnames(overall.class.predictions) <- colnames(SPEARmodel$data$Y)
+        rownames(overall.class.predictions) <- rownames(SPEARmodel$data$Y)
+        preds.list[[response]] <- list(
+          overall.class.predictions = overall.class.predictions,
+          individual.class.predictions = class.predictions,
+          class.probabilities = Pmat,
+          signal = signal
+        )
+      } else { # ordinal or binomial
+        preds.list[[response]] <- list(
+          class.predictions = class.predictions,
+          class.probabilities = Pmat,
+          signal = signal
+        )
+      }
+    } else { # gaussian
       preds.list[[response]] <- preds
     }
   }
@@ -638,6 +658,47 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
                   signal.predictions = do.call("cbind", lapply(preds.list, function(res){return(res$signal)}))
     )
     return(preds)
+  }
+}
+
+
+
+#' Use a SPEARmodel to get factor scores for new samples (Xlist)
+#'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (returning out-of-sample cv predictions for training data).
+#'@return A matrix of factor scores (out.of.sample)
+#' @examples
+#' SPEAR.get_factor_scores(SPEARmodel)
+#' SPEAR.get_factor_scores(SPEARmodel, Xlist = Xlist)
+#'@export
+SPEAR.get_factor_scores <- function(SPEARmodel, Xlist = NULL){
+  ### Xlist (test data) ----------
+  if(is.null(Xlist)){
+    cat("*** Xlist not provided. Returning out-of-sample CV factor scores...\n*** (you can get these more easily with SPEARmodel$factors$factor.scores$out.of.sample)\n")
+    return(SPEARmodel$factors$factor.scores$out.of.sample)
+  } else {
+    # Quickly check that the dimensions in X match:
+    if(length(Xlist) != length(SPEARmodel$data$xlist)){
+      stop(paste0("ERROR: Object 'X' passed in has ", length(Xlist), " datasets, whereas the training data for this SPEAR object contained ", length(SPEARmodel$data$xlist), " datasets. Incompatible dimensions."))
+    }
+    for(d in 1:length(Xlist)){
+      if(ncol(Xlist[[d]]) != ncol(SPEARmodel$data$xlist[[d]])){
+        stop(paste0("ERROR: Incompatible dimensions. New dataset ", d, " has ", ncol(Xlist[[d]]), " features, whereas training dataset ", d, " has ", ncol(SPEARmodel$data$xlist[[d]]), " features. Cannot predict new responses."))
+      }
+    }
+    # Collapse X:
+    X <- do.call("cbind", Xlist)
+    if(is.null(rownames(X))){
+      warning("*** WARNING: rownames for Xlist not provided. Renaming to sample_1 ...sample_", nrow(X), "\n")
+      rownames(X) <- paste0("sample_", 1:nrow(X))
+    }
+    # factor.scores 
+    # GROUP: Assuming group = 1
+    W.to_U <- SPEARmodel$fit$post_betas[,,1]
+    U.hat <- X %*% W.to_U
+    rownames(U.hat) <- rownames(X)
+    colnames(U.hat) <- paste0("Factor", 1:ncol(U.hat))
+    return(U.hat)
   }
 }
 
@@ -726,6 +787,7 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
 #'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
 #'@return A plot showing in-sample vs. out-of-sample predictions per response
 #' @examples
 #' SPEAR.plot_class_probabilities(SPEARmodel)
@@ -734,16 +796,23 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_class_probabilities(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
-SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample"){
+SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL){
   if(SPEARmodel$params$family == "gaussian"){
     stop('*** ERROR: SPEARmodel must be of type "ordinal", "categorical", or "binomial" to plot class probabilities.')
   } else {
     if(!forecast %in% c("in.sample", "out.of.sample")){
       stop('*** ERROR: unknown forecast parameter "', forecast, '". Can be "in.sample" or "out.of.sample"')
     }
+    ### Xlist (test data) ----------
+    if(is.null(Xlist)){
+      class.probabilities <- SPEARmodel$predictions[[forecast]]
+    } else {
+      class.probabilities <- SPEAR::SPEAR.get_predictions(SPEARmodel, Xlist)
+    } # ------
+    
     df.list <- list()
-    for(j in 1:length(SPEARmodel$predictions[[forecast]]$class.probabilities)){
-      df <- as.data.frame(SPEARmodel$predictions[[forecast]]$class.probabilities[[j]])
+    for(j in 1:length(class.probabilities$class.probabilities)){
+      df <- as.data.frame(class.probabilities$class.probabilities[[j]])
       df$group <- NaN
       df$sample <- rownames(df)
       if(!is.null(groups)){
@@ -838,6 +907,7 @@ SPEAR.plot_factor_contributions <- function(SPEARmodel, threshold = .01, show.la
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
 #'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
 #'@param jitter.points Use geom_jitter vs. geom_point? Defaults to TRUE
 #'@return A plot showing in-sample vs. out-of-sample predictions per response
 #' @examples
@@ -847,11 +917,18 @@ SPEAR.plot_factor_contributions <- function(SPEARmodel, threshold = .01, show.la
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_factor_scores(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
-SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", jitter.points = TRUE){
-  factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, jitter.points = TRUE){
+  ### Xlist (test data) ----------
+  if(is.null(Xlist)){
+    factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+  } else {
+    factor.scores <- as.data.frame(SPEAR.get_factor_scores(SPEARmodel, Xlist))
+  } # ------
+  
   factor.scores$group <- NaN
   show.groups <- FALSE
   factor.scores$sample <- rownames(factor.scores)
+
   if(!is.null(groups)){
     # Check for mapping of metadata to subjects:
     if(is.null(names(groups)) | any(!names(groups) %in% rownames(factor.scores))){
@@ -908,6 +985,7 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
 #'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
 #'@param fit.line Add linear line of best fit? Defaults to TRUE
 #'@return A plot showing in-sample vs. out-of-sample predictions per response
 #' @examples
@@ -917,8 +995,13 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
-SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", fit.line = TRUE){
-  factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, fit.line = TRUE){
+  ### Xlist (test data) ----------
+  if(is.null(Xlist)){
+    factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+  } else {
+    factor.scores <- as.data.frame(SPEAR.get_factor_scores(SPEARmodel, Xlist))
+  } # ------
   factor.scores$group <- NaN
   show.groups <- FALSE
   factor.scores$sample <- rownames(factor.scores)
@@ -942,9 +1025,7 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
 
 
 
-
-
-#' Plot factor scores for a SPEARmodel
+#' Plot factor loadings for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param plot.per.omic Should a bar with colors for each omic be plotted along side the loadings? Defaults to TRUE
 #'@return A plot with the factor loadings of the SPEAR model
@@ -1318,9 +1399,10 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
 #' Plot ordinal class predictions
 #'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
 #'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
 #'@param show.true.distribution Plot the true distribution as well? Defaults to TRUE
 #'@export
-SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample", show.true.distribution = TRUE){
+SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample", Xlist = NULL, show.true.distribution = TRUE){
   ## Gaussian check: ----------
   if(SPEARmodel$params$family == "gaussian"){
     stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARmodel is of type 'gaussian'.")
@@ -1357,9 +1439,15 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     # Change Class to the name of the column (for the legend)
     df$Class <- colnames(SPEARmodel$data$Y)[df$Class + 1]
   } else { # Binomial / Ordinal
+    ### Xlist (test data) ----------
+    if(is.null(Xlist)){
+      class.predictions <- SPEARmodel$predictions[[forecast]]
+    } else {
+      class.predictions <- SPEAR::SPEAR.get_predictions(SPEARmodel, Xlist)
+    } # ------
     # Get class predictions:
-    class.preds <- as.data.frame(SPEARmodel$predictions$in.sample$class.predictions)
-    levels <- ncol(SPEARmodel$predictions$in.sample$class.probabilities[[1]])
+    class.preds <- as.data.frame(class.predictions$class.predictions)
+    levels <- ncol(class.predictions$class.probabilities[[1]])
     colnames(class.preds) <- c("ClassPrediction")
     
     # Get true classes:
@@ -1394,7 +1482,7 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     ggplot2::scale_fill_brewer(palette = "RdBu", direction = 1) +
     ggplot2::scale_x_discrete(labels = labels, c(0:(levels-1))) +
     ggplot2::theme_bw() +
-    ggplot2::theme(axis.title.x = element_blank()) +
+    ggplot2::theme(axis.title.x = ggplot2::element_blank()) +
     ggplot2::facet_wrap(ggplot2::vars(PlotType))
   
   return(g)
@@ -1404,13 +1492,6 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
 
 
 
-
-
-
-# TODO - fix the ordinal class calculations
-#        plot distribution of class predictions
-#        plot feature overlap
-#        quick vignette of how to use new SPEARmodel
 
 
 # TESTING:

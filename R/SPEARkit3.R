@@ -1,3 +1,16 @@
+#' @import ordinalNet
+#' @import MASS
+#' @import parallel
+#' @import ggplot2
+#' @import cowplot
+#' @import glmnet
+#' @import reshape2
+#' @import dplyr
+#' @import GGally
+#' @import stringr
+#' @import reshape2
+#' @importFrom Rcpp evalCpp
+
 #' Get best SPEAR weights per response Y
 #'@param SPEARobj SPEAR object (returned from \code{run_cv_spear})
 #'@param w.method How to choose best weight? Options include \code{"min"} (lowest mean CV error, default) and \code{"sd"} (choose a higher weight within 1 standard deviation of the CV errors).

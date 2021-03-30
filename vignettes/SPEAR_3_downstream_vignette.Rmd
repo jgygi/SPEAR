@@ -614,7 +614,7 @@ You can use the `SPEAR.plot_factor_grid` function to show the factor scores agai
 
 **NOTE** This utilizes the `GGally` package.
 
-```{r, fig.width = 10, fig.align = "center", message = FALSE}
+```{r, fig.width = 10, fig.align = "center", fig.height = 8, message = FALSE}
 SPEAR::SPEAR.plot_factor_grid(SPEARmodel.w0.8, groups = custom.groups, forecast = "out.of.sample")
 ```
 

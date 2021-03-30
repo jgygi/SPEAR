@@ -905,6 +905,46 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 
 #' Plot factor scores for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
+#'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
+#'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param fit.line Add linear line of best fit? Defaults to TRUE
+#'@return A plot showing in-sample vs. out-of-sample predictions per response
+#' @examples
+#' SPEAR.plot_factor_grid(SPEARmodel, jitter.points = FALSE)
+#' 
+#' groups <- SPEARmodel$params$foldid
+#' names(groups) <- rownames(SPEARmodel$data$Y)
+#' SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
+#'@export
+SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", fit.line = TRUE){
+  factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+  factor.scores$group <- NaN
+  show.groups <- FALSE
+  factor.scores$sample <- rownames(factor.scores)
+  if(!is.null(groups)){
+    # Check for mapping of metadata to subjects:
+    if(is.null(names(groups)) | any(!names(groups) %in% rownames(factor.scores))){
+      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+    }
+    else{
+      factor.scores$group <- sapply(rownames(factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
+      show.groups <- TRUE
+    }
+  }
+  if(!show.groups){
+    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group)) + ggplot2::theme_bw()
+  } else {
+    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group), mapping=ggplot2::aes(colour = group)) + ggplot2::theme_bw()
+  }
+  return(g)
+}
+
+
+
+
+
+#' Plot factor scores for a SPEARmodel
+#'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param plot.per.omic Should a bar with colors for each omic be plotted along side the loadings? Defaults to TRUE
 #'@return A plot with the factor loadings of the SPEAR model
 #' @examples
@@ -1229,9 +1269,7 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
   if(nrow(feature.table) == 0){
     stop("*** ERROR: No features found for requested cutoffs. Try broadening the cutoffs.")
   }
-  # Sort by factor...
-  feature.table <- dplyr::arrange(feature.table, Factor)
-  
+
   if(sort.by == "probability"){
     feature.table <- dplyr::arrange(feature.table, -Probability, -abs(Coefficient))
   } else if(sort.by == "coefficient"){
@@ -1240,7 +1278,7 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
   
   # cut down to top max.per.factor:
   final.res <- list()
-  for(f in unique(feature.table$Factor)){
+  for(f in sort(unique(feature.table$Factor))){
     temp <- dplyr::filter(feature.table, Factor == f)
     if(nrow(temp) > 0){
       if(nrow(temp) > max.per.factor){
@@ -1251,7 +1289,7 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
       }
     }
   }
-  
+
   plotlist <- list()
   for(i in 1:length(final.res)){
     final.res[[i]]$Feature <- factor(final.res[[i]]$Feature, levels = rev(final.res[[i]]$Feature))
@@ -1348,15 +1386,14 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     df$Class <- factor(df$Class, levels = 0:(levels-1))
   }
   df$ClassPrediction <- factor(df$ClassPrediction, levels = 0:(levels-1))
-  
   g <- ggplot2::ggplot(df) +
     ggplot2::geom_histogram(ggplot2::aes(x = ClassPrediction, fill = Class), color = "black", stat = "count", lwd = .25) +
-    ggplot2::xlab(NULL) +
     ggplot2::ylab("Count") +
-    ggplot2::geom_segment(ggplot2::aes(x = -0.5, y = 0, xend = (levels-.5), yend = 0), lwd = 0) +
+    ggplot2::geom_segment(ggplot2::aes(x = 0.5, y = 0, xend = (levels+.5), yend = 0), lwd = 0) +
     ggplot2::scale_fill_brewer(palette = "RdBu", direction = 1) +
-    ggplot2::scale_x_discrete(labels = labels, breaks = c(0:(levels-1))) +
+    ggplot2::scale_x_discrete(labels = labels, c(0:(levels-1))) +
     ggplot2::theme_bw() +
+    ggplot2::theme(axis.title.x = element_blank()) +
     ggplot2::facet_wrap(ggplot2::vars(PlotType))
   
   return(g)

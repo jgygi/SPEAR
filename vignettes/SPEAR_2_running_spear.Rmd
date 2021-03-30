@@ -18,12 +18,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 ##### Required Libraries:
 
 ```{r message = FALSE, warning = FALSE}
-# Required Packages for SPEAR:
 library(SPEAR)
-library(glmnet)
-library(parallel)
-library(ordinalNet)
-
 ```
 
 ### Loading the multi-omic data:

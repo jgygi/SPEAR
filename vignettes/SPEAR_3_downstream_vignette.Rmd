@@ -22,15 +22,7 @@ Follow installation instructions in README (located [here](https://github.com/jg
 ##### Required Libraries:
 
 ```{r message = FALSE, warning = FALSE}
-# Required Packages for SPEAR:
 library(SPEAR)
-
-# Recommended Packages (for downstream analysis):
-library(dplyr)
-library(reshape2)
-library(stringr)
-library(ggplot2)
-library(cowplot)
 ```
 
 ### Overview
@@ -163,7 +155,11 @@ Why did SPEAR return a different "best" $w$? Let's plot the mean cross-validatio
 SPEAR::SPEAR.plot_cv_loss(SPEARobj)
 ```
 
-This function will plot the overall minimum cross validation loss for a SPEAR object (mean cross validation error for `family = "gaussian"`). 
+This function will plot the overall minimum cross validation loss for a SPEAR object (mean cross validation error for `family = "gaussian"`).
+
+The thick dashed line shows the **minimum overall** cross validated error (in this plot it extends from $w = 1.8$).
+
+The thin dashed line shows **1 standard deviation** of cross validated error above the **minimum overall** cross validated error (i.e. one error bar above $w = 1.8$ for this example).
 
 It looks like $w = 1.8$ was barely the lowest overall, but because $w = 2.0$ is a higher weight within 1 cross validation standard deviation, we choose $w = 2$ when `w.method = 'sd'`. 
 
@@ -363,11 +359,68 @@ We use the `SPEAR.plot_feature_summary` function to get the actual names and coe
 SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = 1:2, max.per.factor = 20)
 ```
 
-```{r, fig.width = 7, fig.height = 1}
+```{r, fig.width = 7, fig.height = 2}
 SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = c(2, 5), omics = c("OmicsData2", "OmicsData3"), max.per.factor = 20)
 ```
 
+
 ##### Prediction:
+
+Predictions for training samples are generated when calling `get_SPEAR_model`. They are stored under `predictions`:
+
+```{r}
+names(SPEARmodel.w2$predictions)
+head(SPEARmodel.w2$predictions$in.sample)
+head(SPEARmodel.w2$predictions$out.of.sample)
+```
+
+The `"in.sample"` predictions come from factors built on all of the folds of the data, whereas `"out.of.sample"` predictions come from factors built in a leave-one-out cross-validation.
+
+Use `SPEAR.plot_overfit` to compare the in.sample vs. out.of.sample predictions
+
+```{r fig.width = 4, fig.height = 4, fig.align = "center"}
+SPEAR::SPEAR.plot_overfit(SPEARmodel)
+```
+
+We can still use the `groups` argument here... let's try coloring by the assigned `foldid` for cross-validation...
+
+```{r fig.width = 5, fig.height = 4, fig.align = "center"}
+custom.groups <- factor(SPEARmodel.w2$params$foldid)
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+SPEAR::SPEAR.plot_overfit(SPEARmodel, groups = custom.groups)
+```
+
+There don't appear to be any obvious patterns amongst the different folds for this SPEARmodel.
+
+You can then plot the SPEAR predictions against the "true" response for the cross-validation training data:
+
+```{r fig.height = 5, fig.width = 6, fig.align="center"}
+true.response <- SPEARmodel.w2$data$Y
+out.of.sample.preds <- SPEARmodel.w2$predictions$out.of.sample
+in.sample.preds <- SPEARmodel.w2$predictions$in.sample
+
+predictions.data.frame <- as.data.frame(cbind(true.response, out.of.sample.preds, in.sample.preds))
+colnames(predictions.data.frame) <- c("True", "Out.of.Sample", "In.Sample")
+head(predictions.data.frame)
+
+# Out of sample vs. True:
+ggplot2::ggplot(data = predictions.data.frame, ggplot2::aes(x = Out.of.Sample, y = True)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(method = "lm") +
+  ggplot2::theme_bw()
+
+# In sample vs. True
+ggplot2::ggplot(data = predictions.data.frame, ggplot2::aes(x = In.Sample, y = True)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(method = "lm") +
+  ggplot2::theme_bw()
+```
+
+#### SPEARcategorical (SPEARordinal, SPEARbinomial)
+
+All of the above functions can be used with any family of SPEAR (`"binomial"`, `"categorical"`, `"ordinal"`). Below, we will highlight some of the important distinctions when using a SPEAR family other than `"gaussian"`.
+
+We will highlight a `"categorical"` model using TCGA breast cancer data, but these functions apply to `"binomial"` and `"ordinal"` models as well.
 
 ```{r}
 # Load in the SPEARobject saved from running SPEAR:
@@ -375,12 +428,137 @@ file.path <- getwd()
 SPEARobj.categorical <- readRDS(paste0(file.path, "/SPEAR_vignette_object_categorical.rds"))
 ```
 
+Categorical response data should have one column per category, with 0's and 1's populating the column (1 being class assignment):
+
 ```{r}
-SPEARmodel.w2 <- SPEAR::get_SPEAR_model(SPEARobj.categorical, w = 2)
+head(SPEARobj.categorical$data$Y)
 ```
 
-```{r fig.width = 7, fig.height = 4}
-SPEAR::SPEAR.plot_class_predictions(SPEARmodel.w2)
+
+When using `SPEAR.plot_cv_loss` with more than one response column (see above), SPEAR will return one plot for the cross-validated loss per column.
+
+```{r fig.height = 5, fig.width = 7, align = "center"}
+SPEAR::SPEAR.plot_cv_loss(SPEARobj.categorical, show.w.labels = FALSE)
 ```
+
+We also use a deviance loss ($-2 \times $ log-likelihood) when the family is not `"gaussian"`, so a mean cv-error of 1 is not the same as a mean cv-error of 1 for `"gaussian"` models (since empty `"gaussian"` models have variance of 1).
+
+We see that Basal and LumA subtypes prefer $w = 0$, whereas Lumb prefers $w = 0.8$. Basal also seems to perform well at $w = 0.8$, so it could be an interesting SPEARmodel to look at as well.
+
+```{r}
+SPEARmodel.w0 <- SPEAR::get_SPEAR_model(SPEARobj.categorical, w = 0)
+SPEARmodel.w0.8 <- SPEAR::get_SPEAR_model(SPEARobj.categorical, w = 0.8)
+```
+
+##### Response Probabilities
+
+Upon inspecting the `$predictions` list from our SPEARmodels, we see more entries for the `in.sample` and `out.of.sample` forecasts:
+
+```{r}
+names(SPEARmodel.w0$predictions$in.sample)
+```
+
+**class.probabilities**: A list with a probability matrix for each response column (in this example: Basal, Her2, LumA, Lumb). `Class0` represents the probability of not assigning that class label, whereas `Class1` is the probability of assignment. The sum of each row is 1. SPEAR will assign labels based on the `Class1` probability for `"categorical"` models.
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$class.probabilities$Basal)
+```
+
+**signal.predictions**: Continuous variable, used to assign classes from calculated intercepts (see `SPEARmodel$fit$intercepts`). These are used to calculate the class probabilities above.
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$signal.predictions)
+```
+
+**overall.class.predictions**: Given all possible response columns (in this case, the four disease subtypes Basal, Her2, LumA and Lumb), classify each sample with **one** label (each row has all 0's except for the one column with the assigned label). In other words, using the `$class.probabilities` matrix, which subtype has the highest probability of `Class1`?:
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$overall.class.predictions)
+```
+
+**individual.class.predictions**: Treating each column **independently**, classify each sample with either a 0 or a 1 (there can be **multiple** classes assigned to a single sample). This means the probability of assigning a 1 for a subtype was higher than the probability of assigning a 0 for **multiple responses**:
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$individual.class.predictions)
+```
+
+
+```{r fig.width = 7, fig.height = 3, warning = FALSE}
+SPEAR::SPEAR.plot_class_predictions(SPEARmodel.w0, forecast = "out.of.sample")
+SPEAR::SPEAR.plot_class_predictions(SPEARmodel.w0.8, forecast = "out.of.sample")
+```
+
+As seen in the mean cross-validated errors, the $w = 0.8$ model does a better job of predicting Lumb, whereas the $w = 0$ model improves LumA prediction. Let's inspect the factors of these two models.
+
+```{r fig.width = 7, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0$predictions$out.of.sample$overall.class.predictions, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0, groups = custom.groups)
+```
+
+Recall from the plot above that the $w = 0$ SPEARmodel did not label any sample as Lumb. We can see here that this SPEARmodel (for $w = 0$) uses Factor1 to distinguish Basal from Her2 and LumA, and Factor 2 to distinguish Her2/LumA. Typically, $w = 0$ models will only return one factor, analagous to coefficients for a simple linear model (such as lasso). However, in this case, there are more than one response trying to be predicted, so multiple simple linear models (one for Factor1 and one for Factor2) are required.
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0$data$Y, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0, groups = custom.groups)
+```
+
+Now, we are coloring by the **true class label**. We can see that the $w = 0$ SPEARmodel is able to separate Basal and Her2 well using the first two factors, but there is very little separation between LumA and Lumb. Let's look at the $w = 0.8$ model to see if we have improved separation:
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0.8$predictions$out.of.sample$overall.class.predictions, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0.8$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0.8$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0.8, groups = custom.groups)
+```
+
+Based on the **out.of.sample** prediction labels, this SPEARmodel ($w = 0.8$) is able to separate its LumA and Lumb predictions well as well as the Basal subtype. Let's look at how it separates the true classes:
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0.8$data$Y, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0.8$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0.8$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0.8, groups = custom.groups)
+```
+
+We still see that SPEAR is able to separate Basal from the other classes well, as well as LumA and Lumb in Factor 2.
+
+You can use the `SPEAR.plot_factor_grid` function to show the factor scores against one another.
+
+**NOTE** This utilizes the `GGally` package.
+
+```{r, fig.width = 7, fig.align = "center", message = FALSE}
+SPEAR.plot_factor_grid(SPEARmodel.w0.8, groups = custom.groups, forecast = "out.of.sample")
+```
+
+You can always extract the feature scores and plot them as you like.
+
+```{r fig.width = 6, fig.height = 5, fig.align = "center"}
+out.of.sample.factor.scores <- SPEARmodel.w0.8$factors$factor.scores$in.sample
+
+# Convert to a data.frame:
+out.of.sample.factor.scores <- as.data.frame(out.of.sample.factor.scores)
+out.of.sample.factor.scores$Group <- custom.groups
+
+# Out of sample vs. True:
+ggplot2::ggplot(data = out.of.sample.factor.scores, ggplot2::aes(x = Factor1, y = Factor2, color = Group)) +
+  ggplot2::ggtitle("Out-of-Sample Factor Scores") +
+  ggplot2::geom_point() +
+  ggplot2::theme_bw()
+```
+
+
+
+
+
+
+
+
+
+
+
 
 

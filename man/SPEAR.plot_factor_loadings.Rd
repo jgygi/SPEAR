@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit3.R
 \name{SPEAR.plot_factor_loadings}
 \alias{SPEAR.plot_factor_loadings}
-\title{Plot factor scores for a SPEARmodel}
+\title{Plot factor loadings for a SPEARmodel}
 \usage{
 SPEAR.plot_factor_loadings(SPEARmodel, plot.per.omic = TRUE)
 }
@@ -15,7 +15,7 @@ SPEAR.plot_factor_loadings(SPEARmodel, plot.per.omic = TRUE)
 A plot with the factor loadings of the SPEAR model
 }
 \description{
-Plot factor scores for a SPEARmodel
+Plot factor loadings for a SPEARmodel
 }
 \examples{
 SPEAR.plot_factor_loadings(SPEARmodel)

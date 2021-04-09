@@ -3,6 +3,8 @@
 export(SPEAR.get_best_weights)
 export(SPEAR.get_color_scheme)
 export(SPEAR.get_cv_loss)
+export(SPEAR.get_data_summary)
+export(SPEAR.get_factor_scores)
 export(SPEAR.get_feature_table)
 export(SPEAR.get_predictions)
 export(SPEAR.plot_class_predictions)

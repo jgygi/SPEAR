@@ -8,6 +8,7 @@ SPEAR.plot_factor_grid(
   SPEARmodel,
   groups = NULL,
   forecast = "out.of.sample",
+  Xlist = NULL,
   fit.line = TRUE
 )
 }
@@ -17,6 +18,8 @@ SPEAR.plot_factor_grid(
 \item{groups}{A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.}
 
 \item{forecast}{Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".}
+
+\item{Xlist}{A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).}
 
 \item{fit.line}{Add linear line of best fit? Defaults to TRUE}
 }

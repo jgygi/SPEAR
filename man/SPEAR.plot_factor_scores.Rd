@@ -8,6 +8,7 @@ SPEAR.plot_factor_scores(
   SPEARmodel,
   groups = NULL,
   forecast = "out.of.sample",
+  Xlist = NULL,
   jitter.points = TRUE
 )
 }
@@ -17,6 +18,8 @@ SPEAR.plot_factor_scores(
 \item{groups}{A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.}
 
 \item{forecast}{Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".}
+
+\item{Xlist}{A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).}
 
 \item{jitter.points}{Use geom_jitter vs. geom_point? Defaults to TRUE}
 }

@@ -7,6 +7,7 @@
 SPEAR.plot_class_predictions(
   SPEARmodel,
   forecast = "out.of.sample",
+  Xlist = NULL,
   show.true.distribution = TRUE
 )
 }
@@ -14,6 +15,8 @@ SPEAR.plot_class_predictions(
 \item{SPEARmodel}{A SPEAR model (returned from get_SPEAR_model)}
 
 \item{forecast}{Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".}
+
+\item{Xlist}{A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).}
 
 \item{show.true.distribution}{Plot the true distribution as well? Defaults to TRUE}
 }

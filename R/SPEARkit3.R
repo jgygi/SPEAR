@@ -1011,6 +1011,14 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
       stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
     }
     else{
+      # Check if there are at least 3 labels for each group:
+      if(any(table(groups) <= 2)){
+        stop("*** ERROR: 1 or more groups provided in the 'groups' argument have 2 or less entries. Cannot perform correlation analyses. Groups need to have at least 3 members.")
+      }
+      # Make categorical if is.numeric:
+      if(any(is.numeric(groups))){
+        
+      }
       factor.scores$group <- sapply(rownames(factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
       show.groups <- TRUE
     }
@@ -1486,6 +1494,115 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     ggplot2::facet_wrap(ggplot2::vars(PlotType))
   
   return(g)
+}
+
+
+
+#' Check that data are normally distributed and scaled properly for SPEAR
+#'@param Xlist A list of matrices of omics data. Defaults to NULL.
+#'@param Y A data.frame of response variables. Defaults to NULL.
+#'@param plot.xlist.pvalues Should the function return plots of p.values from the shapiro-wilk normality tests? Defaults to TRUE
+#'@return NULL (will print out results)
+#' @examples
+#' SPEAR.get_data_summary(Xlist, Y)
+#' SPEAR.get_data_summary(SPEARmodel$data$xlist, SPEARmodel$data$Y)
+#' SPEAR.get_data_summary(SPEARobject$data$xlist, SPEARobject$data$Y)
+#'@export
+SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = TRUE){
+  cat("******************************************\n")
+  cat("| SPEAR - Checking Data Distributions... |\n")
+  cat("******************************************\n\n")
+  
+  # remove outliers per feature before doing shapiro wilk test
+  
+  # what percentage of data are outliers (3-4 SDs from mean)
+  
+  if(is.null(Xlist) & is.null(Y)){
+    cat("*** Neither Xlist nor Y provided. Nothing to check... exiting...\n")
+  } else {
+    all.pvalues.x <- list()
+    if(!is.null(Xlist)){
+      cat(paste0("*** Xlist provided: Detected ", length(Xlist), " datasets:\n\n"))
+      for(i in 1:length(Xlist)){
+        cat("- - - - - - - - - - - - - - - - - - - - - - - - - -\n")
+        cat(paste0(names(Xlist)[i], "\tSubjects: ", nrow(Xlist[[i]]), "\tFeatures: ", ncol(Xlist[[i]]), "\n"))
+        # Check if mean is centered at 0 for all features (within 10 decimals)
+        cat("~~~ Mean-centered at 0?\t", all(round(apply(Xlist[[i]], 2, mean), 10) == 0), "\n")
+        cat("~~~ Unit Variance?\t", all(round(apply(Xlist[[i]], 2, var), 10) == 1), "\n")
+        cat("~~~ Shapiro-Wilk Normality Test:\n")
+        shapiro.tests <- apply(Xlist[[i]], 2, stats::shapiro.test)
+        pvals <- sapply(shapiro.tests, function(test){return(test$p.value)})
+        summary.pvals <- summary(pvals)
+        cat("Stat\t p.value      Sig.? (<.05)\n----------------------------------\n")
+        cat("Mean:\t", signif(summary.pvals[["Mean"]], 5), ifelse(summary.pvals[["Mean"]] < .05, "\t*", "\t"), "\n")
+        cat("Min:\t", signif(summary.pvals[["Min."]], 5), ifelse(summary.pvals[["Min."]] < .05, "\t*", "\t"), "\n")
+        cat("1stQ:\t", signif(summary.pvals[["1st Qu."]], 5), ifelse(summary.pvals[["1st Qu."]] < .05, "\t*", "\t"), "\n")
+        cat("Median:\t", signif(summary.pvals[["Median"]], 5), ifelse(summary.pvals[["Median"]] < .05, "\t*", "\t"), "\n")
+        cat("3rdQ:\t", signif(summary.pvals[["3rd Qu."]], 5), ifelse(summary.pvals[["3rd Qu."]] < .05, "\t*", "\t"), "\n")
+        cat("Max:\t", signif(summary.pvals[["Max."]], 5), ifelse(summary.pvals[["Max."]] < .05, "\t*", "\t"), "\n")
+        cat("\n")
+        # Save p.values
+        all.pvalues.x[[names(Xlist)[i]]] <- pvals
+      }
+    }
+    if(!is.null(Y)){
+      cat(paste0("*** Y provided: Detected ", ncol(Y), " variables:\n\n"))
+      for(i in 1:ncol(Y)){
+        if(all(Y[,i] %in% 0:1)){
+          if(ncol(Y) > 1){
+            family <- "categorical"
+          } else {
+            family <- "binomial"
+          }
+        } else if(all(Y[,i] %in% 0:max(Y[,i]))) {
+          family <- "ordinal"
+        } else {
+          family <- "gaussian" 
+        }
+        cat("- - - - - - - - - - - - - - - - - - - - - - - - - -\n")
+        cat(paste0(colnames(Y)[i], "\tSubjects: ", nrow(Y), "\tFamily: ", family, "\n"))
+        if(family == "gaussian"){
+          # Check if mean is centered at 0 for all features (within 10 decimals)
+          cat("~~~ Mean-centered at 0?\t", round(mean(Y[,i]), 10) == 0, "\n")
+          cat("~~~ Unit Variance?\t", round(mean(Y[,i]), 10) == 1, "\n")
+          cat("~~~ Shapiro-Wilk Normality Test:\n")
+          shapiro.test <- shapiro.test(Y[,i])
+          pval <- shapiro.test$p.value
+          cat("Stat\t p.value      Sig.? (<.05)\n----------------------------------\n")
+          cat("Pval:\t", signif(pval, 5), ifelse(pval < .05, "\t*", "\t"), "\n")
+          cat("\n")
+        } else {
+          t <- table(Y[,i])
+          t.all <- sapply(0:max(Y[,i]), function(class.temp){
+            if(!class.temp %in% names(t)){
+              return(0)
+            } else {
+              return(t[which(names(t) == class.temp)])
+            }
+          })
+          for(k in 1:length(t.all)){
+            cat("Class ", k-1, ": ", t.all[k], "\n", sep = "") 
+          }
+        }
+      }
+    }
+    
+    if(plot.xlist.pvalues){
+      df.list <- list()
+      for(o in 1:length(all.pvalues.x)){
+        df.temp <- data.frame(pval = all.pvalues.x[[o]], omic = paste0("Xlist[[", o, "]]: ", names(Xlist)[o]))
+        df.list[[o]] <- df.temp
+      }
+      df <- do.call("rbind", df.list)
+
+      g <- ggplot2::ggplot(data = df) +
+        ggplot2::geom_histogram(ggplot2::aes(x = pval), fill = "lightgrey", color = "black", binwidth = .1) +
+        ggplot2::theme_bw() +
+        ggplot2::facet_wrap(ggplot2::vars(omic), scales = "free_y")
+      
+      return(g)
+    }
+  }
 }
 
 

@@ -34,6 +34,7 @@
 #'@param seed: random seed number.
 #'@param robust_eps: robust_eps
 #'@param sparsity_upper: Sparsity parameter for feature selection
+#'@param L: parameter
 #'@export
 spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functional_path, 
                   pattern_samples = NULL, pattern_features = NULL,
@@ -41,7 +42,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                   a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X))), sparsity_upper = 0.5){
+                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X))), sparsity_upper = 0.1, L = nrow(X)/1){
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -160,7 +161,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
            post_a1 = post_a1, post_b1 = post_b1,
            post_a2x = post_a2x, post_b2x = post_b2x,
            post_a2y = post_a2y, post_b2y = post_b2y,
-           meanFactors = meanFactors, seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper)
+           meanFactors = meanFactors, seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L)
     ###return both the factors after re-order and sign-fliping
     post_beta =array(0, dim = dim(post_mu))
     post_bx =  post_tmuX *  post_tpiX
@@ -250,6 +251,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
 #'@param sparsity_upper: Sparsity parameter
 #'@param robust_eps: robust_eps
 #'@param run.debug: debug?
+#'@param L: parameter
 #'@export
 cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
                      functional_path, foldid = foldid,
@@ -258,7 +260,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                      a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1.0/(sqrt(nrow(X))),
-                     sparsity_upper = 0.5, inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
+                     sparsity_upper = 0.1, L = nrow(X)/1,inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)
   px = ncol(X); py = ncol(Y); pz = ncol(Z); n = nrow(Y)
@@ -304,7 +306,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                    max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                    thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
                    a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
-                  robust_eps=robust_eps, sparsity_upper = sparsity_upper)
+                  robust_eps=robust_eps, sparsity_upper = sparsity_upper, L = L)
       
     }else{
       subsets = which(foldid != fold_id)
@@ -341,7 +343,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
                   thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps,
-                  sparsity_upper = sparsity_upper))
+                  sparsity_upper = sparsity_upper, L = L))
       if(class(fit)=="try-error"){
         stop(paste0("fold",fold_id,":C++failure."))
       }
@@ -373,7 +375,6 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   return(list(results = results[[1]],
               factors_coefs = factors_coefs,
               projection_coefs = projection_coefs, foldid = foldid))
-  #return(list(results = results))
   
 }
 

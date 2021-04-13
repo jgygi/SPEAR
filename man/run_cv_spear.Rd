@@ -12,7 +12,7 @@ run_cv_spear(
   Yobs = NULL,
   foldid = NULL,
   weights = NULL,
-  family = "gaussian",
+  family = 0,
   inits.type = "pca",
   num.factors = NULL,
   seed = NULL,
@@ -30,8 +30,9 @@ run_cv_spear(
   save.name = NULL,
   run.debug = FALSE,
   robust_eps = NULL,
-  sparsity_upper = 0.5,
-  calculate.factor.contributions = TRUE
+  sparsity_upper = 0.1,
+  L0 = 1,
+  factor_contribution = TRUE
 )
 }
 \arguments{
@@ -85,7 +86,9 @@ run_cv_spear(
 
 \item{sparsity_upper}{sparsity_upper, defaults to .5}
 
-\item{calculate.factor.contributions}{Calculate factor contributions? Can take time for ordinal/binomial... defaults to TRUE.}
+\item{L0}{parameter}
+
+\item{factor_contribution}{Calculate factor contributions? Defaults to TRUE}
 }
 \description{
 Create the data from lists, and create the functional pathway list.

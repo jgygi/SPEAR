@@ -32,7 +32,8 @@ cv.spear(
   a2 = sqrt(nrow(X)),
   b2 = sqrt(nrow(X)),
   robust_eps = 1/(sqrt(nrow(X))),
-  sparsity_upper = 0.5,
+  sparsity_upper = 0.1,
+  L = nrow(X)/1,
   inits_post_mu = NULL,
   seed = 1,
   crossYonly = F,
@@ -84,6 +85,8 @@ cv.spear(
 \item{robust_eps:}{robust_eps}
 
 \item{run.debug:}{debug?}
+
+\item{L:}{parameter}
 }
 \description{
 Cross-fit of SPEAR

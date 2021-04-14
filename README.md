@@ -2,11 +2,19 @@
 
 ### Package Requirements
 
-The following packages are required for installing SPEAR and the vignettes. Future versions of SPEAR will install these automatically. All of them can be installed via the `install.packages` function.
+The following packages are required for installing SPEAR and the vignettes. They are installed automatically when installing SPEAR (see **Installation** below).
 
-**SPEAR Installation:** `Rcpp`, `RcppArmadillo`, `BH`, `glmnet`, `parallel`
-
-**Vignettes:** `jsonlite`, `dplyr`, `reshape2`, `stringr`, `ggplot2`, `cowplot`, `ggthemes`, `maps`
+`cowplot`
+`dplyr`
+`ggplot2`
+`parallel`
+`stringr`
+`GGally`
+`MASS`
+`Rcpp`
+`glmnet`
+`ordinalNet`
+`reshape2`
 
 ### Installation
 
@@ -20,12 +28,4 @@ To install in R:
 
 Once installed, use this code to see all vignettes:
 
-`browseVignettes("SPEARcomplete")`
-
-If you want to open vignettes directly from RStudio, run:
-
-`vignette("SPEAR_simulate_data")` - used to simulate multi-omic data for use in the other vignettes
-
-`vignette("SPEAR_running_spear")` - instructions on running SPEAR on multi-omic data
-
-`vignette("SPEAR_downstream_vignette")` - an example of a typical downstream analysis of a SPEAR model
+`browseVignettes("SPEAR")`

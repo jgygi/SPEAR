@@ -307,7 +307,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param factor_contribution Calculate factor contributions? Defaults to TRUE
 #'@param run.debug debug?
 #'@export
-run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = 0, inits.type = "pca",
+run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = "gaussian", inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
                          save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
@@ -325,6 +325,20 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   # Prepare SPEAR object
   cat("*****************\n Preparing SPEAR\n*****************\n")
+  
+  if(family == "gaussian"){
+    family.encoded <- 0
+  } else if(family == "binomial"){
+    family.encoded <- 1
+  } else if(family == "categorical"){
+    family.encoded <- 1
+  } else if(family == "ordinal"){
+    family.encoded <- 2
+  }else {
+    cat(paste0("*** 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
+    family.encoded <- 0
+    family <- "gaussian"
+  }
   
   cat("\nPreparing omics data...\n")
   
@@ -349,7 +363,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     cat(paste0(names(X.scaled)[i], "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n"))
   }
   
-  if(scale.y & family == 0){
+  if(scale.y & family.encoded == 0){
     Y.scaled <- scale(Y)
   } else {
     Y.scaled <- Y
@@ -360,16 +374,14 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   }
   cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
   for(i in 1:ncol(Y.scaled)){
-    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", ifelse(family == 0, "Gaussian", "Ordinal"), "\n"))
+    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n"))
   }
-  
-  
   
   
   cat("\n")
   
   # Run Preparation Function:
-  data <- SPEAR::preparation(Y = Y.scaled, X = X.scaled, family = family)
+  data <- preparation(Y = Y.scaled, X = X.scaled, family = family.encoded)
   data$xlist <- X.scaled
   
   # Parameters:
@@ -472,7 +484,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         Z = Z, 
                         pattern_samples = data$pattern_samples,
                         pattern_features = data$pattern_features,
-                        family = family, 
+                        family = family.encoded, 
                         nclasses = data$nclasses,
                         ws = weights,
                         foldid = foldid, 
@@ -519,6 +531,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   params$thres_elbo = thres_elbo
   params$thres_count = thres_count
   params$family <- family
+  params$sparsity_upper <- sparsity_upper
   
   SPEARobj <- list(fit = spear_fit,
                    cv.eval = cv.eval,

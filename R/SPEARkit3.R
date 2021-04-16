@@ -387,13 +387,25 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   fit[['post_betas_cv']] <- array(SPEARobj$fit$factors_coefs[,,,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:4])
   fit[['post_selections']] <- array(SPEARobj$fit$results$post_selections[,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:2])
   fit[['post_bys_cv']] <- array(SPEARobj$fit$projection_coefs[,,,w.idx], dim = dim(SPEARobj$fit$projection_coefs)[1:3])
+  fit[['reg_coefs']] <- array(SPEARobj$cv.eval$reg_coefs[,,,w.idx], dim = dim(SPEARobj$cv.eval$reg_coefs)[1:3])
   fit[['intercepts']] <- lapply(SPEARobj$cv.eval$intercepts, function(temp){return(temp[w.idx,])})
 
   
   ### Predictions ----------------------------------------------------------------------
   cat("*** Getting predictions for training samples...\n")
   predictions <- list()
+  # CURRENT FIX: Use reg_coefs for out of sample:, fix back go post_bys when they are scaled
   in.sample.preds <- U.hat.train %*% fit[['post_bys']]
+  #
+  # Remove: ------------
+  #in.sample.preds <- SPEARobj$data$X %*% fit[['reg_coefs']][,1,]
+  #if(SPEARobj$params$family == "gaussian"){
+  #  for(j in 1:ncol(in.sample.preds)){
+  #    in.sample.preds[,j] <- in.sample.preds[,j] + fit[['intercepts']][[j]]
+  #  }
+  #}
+  # end remove ---------
+  
   colnames(in.sample.preds) <- colnames(SPEARobj$data$Y)
   rownames(in.sample.preds) <- rownames(SPEARobj$data$Y)
   out.of.sample.preds <- matrix(0, ncol = ncol(SPEARobj$data$Y), nrow = nrow(SPEARobj$data$Y))

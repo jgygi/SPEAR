@@ -585,7 +585,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   px = ncol(X);
   py = ncol(Y);
   pz = ncol(Z);
-  standardize_family = c(1,2)
+  standardize_family = c(2)
   foldid = fitted.obj$foldid;
   cv.fact_coefs = fitted.obj$factors_coefs;
   cv.projection_coefs = fitted.obj$projection_coefs;
@@ -646,6 +646,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
       }
     }
+    r2norm_cv = matrix(1, nrow = nfolds, ncol = py)
     for(k in 1:nfolds){
       ucv = array(0, dim = c(n, num_factors))
       for(kk in 1:num_patterns){
@@ -658,16 +659,19 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       if(py == 1){
         Yhat.cv[,1,k,l] =  (ucv %*% b)
         if(family %in%  standardize_family){
+          r2norm_cv[k,1] = sqrt(mean(Yhat.cv[,1,k,l]^2))
           Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
         }
       }else{
         Yhat.cv[,,k,l] =  (ucv %*% b)
         if(family %in%  standardize_family){
+          r2norm_cv[k,j] = sqrt(apply(Yhat.cv[,,k,l]^2,2,function(z) mean(z^2)))
           Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
         }
       }
     }
     chats.return.temp <- list()
+    #find the best scaling factors for each weight and response
     for(j in 1:py){
       ##note that scaling is only required for Gaussian and logisstic!
       y = Y[,j]
@@ -775,8 +779,23 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         a = a[length(a):1]
         intercepts[[j]][l,] = a
       }
+      ###scale the projection coefficients post_by in the original data object
+      for(foldind in 1:nfolds){
+        cv.projection_coefs[,j,foldind,l] =cv.projection_coefs[,j,foldind,l]/r2norm_cv[foldind,j] 
+        cv.projection_coefs[,j,foldind,l]= cv.projection_coefs[,j,foldind,l] *chats[which.min(cv_tmp)]
+      }
     }
     chats.return[[l]] <- chats.return.temp
+  }
+  
+  ##regression coefficients 
+  reg_coefs = array(0, dim = c(pz,num_patterns,py,num_weights))
+  for(l in 1:num_weights){
+    for(j in 1:py){
+      for(k in 1:num_patterns){
+        reg_coefs[,k,j,l] = fact_coefs[,,k,l]%*%projection_coefs[,j,l]
+      }
+    }
   }
  
   #replace deviance contriution to spearman correlation
@@ -812,16 +831,9 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
     }
   }
   
-  ##regression coefficients 
-  reg_coefs = array(0, dim = c(pz,num_patterns,py,num_weights))
-  for(l in 1:num_weights){
-    for(j in 1:py){
-      for(k in 1:num_patterns){
-        reg_coefs[,k,j,l] = fact_coefs[,,k,l]%*%projection_coefs[,j,l]
-      }
-    }
-  }
-  return(list(projection_coefs = projection_coefs,
+
+  return(list(projection_coefs_scaled = projection_coefs,
+              cv.projection_coefs_scaled = cv.projection_coefs,
               reg_coefs = reg_coefs,
               intercepts = intercepts, chats = chats.return,
               cvm = cvm, cvsd = cvsd, 

@@ -387,6 +387,8 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   fit[['post_betas_cv']] <- array(SPEARobj$fit$factors_coefs[,,,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:4])
   fit[['post_selections']] <- array(SPEARobj$fit$results$post_selections[,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:2])
   fit[['post_bys_cv']] <- array(SPEARobj$fit$projection_coefs[,,,w.idx], dim = dim(SPEARobj$fit$projection_coefs)[1:3])
+  fit[['post_bys_scaled']] <- array(SPEARobj$cv.eval$projection_coefs_scaled[,,w.idx], dim = dim(SPEARobj$cv.eval$projection_coefs_scaled)[1:2])
+  fit[['post_bys_cv_scaled']] <- array(SPEARobj$cv.eval$cv.projection_coefs_scaled[,,,w.idx], dim = dim(SPEARobj$cv.eval$cv.projection_coefs_scaled)[1:3])
   fit[['reg_coefs']] <- array(SPEARobj$cv.eval$reg_coefs[,,,w.idx], dim = dim(SPEARobj$cv.eval$reg_coefs)[1:3])
   fit[['intercepts']] <- lapply(SPEARobj$cv.eval$intercepts, function(temp){return(temp[w.idx,])})
 
@@ -395,22 +397,12 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   cat("*** Getting predictions for training samples...\n")
   predictions <- list()
   # CURRENT FIX: Use reg_coefs for out of sample:, fix back go post_bys when they are scaled
-  in.sample.preds <- U.hat.train %*% fit[['post_bys']]
-  #
-  # Remove: ------------
-  #in.sample.preds <- SPEARobj$data$X %*% fit[['reg_coefs']][,1,]
-  #if(SPEARobj$params$family == "gaussian"){
-  #  for(j in 1:ncol(in.sample.preds)){
-  #    in.sample.preds[,j] <- in.sample.preds[,j] + fit[['intercepts']][[j]]
-  #  }
-  #}
-  # end remove ---------
-  
+  in.sample.preds <- U.hat.train %*% fit[['post_bys_scaled']]
   colnames(in.sample.preds) <- colnames(SPEARobj$data$Y)
   rownames(in.sample.preds) <- rownames(SPEARobj$data$Y)
   out.of.sample.preds <- matrix(0, ncol = ncol(SPEARobj$data$Y), nrow = nrow(SPEARobj$data$Y))
   for(i in 1:nrow(out.of.sample.preds)){
-    out.of.sample.preds[i,] <- U.hat.cv[i,] %*% fit[['post_bys_cv']][,,SPEARobj$params$foldid[i]] 
+    out.of.sample.preds[i,] <- U.hat.cv[i,] %*% fit[['post_bys_cv_scaled']][,,SPEARobj$params$foldid[i]] 
   }
   colnames(out.of.sample.preds) <- colnames(SPEARobj$data$Y)
   rownames(out.of.sample.preds) <- rownames(SPEARobj$data$Y)
@@ -585,7 +577,7 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
     response <- colnames(SPEARmodel$data$Y)[j]
     ### Group loop? [,g,]
     U <- X %*% SPEARmodel$fit$post_betas[,,1]
-    preds <- U %*% SPEARmodel$fit$post_bys[,j]
+    preds <- U %*% SPEARmodel$fit$post_bys_scaled[,j]
     ### Add to group loop?
     
     if(SPEARmodel$params$family != "gaussian"){
@@ -732,7 +724,6 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
                        group = NaN,
                        response = colnames(SPEARmodel$data$Y)[j])
       rownames(df) <- rownames(SPEARmodel$data$Y)
-      
       if(!is.null(groups)){
         # Check for mapping of metadata to subjects:
         if(is.null(names(groups)) | any(!names(groups) %in% rownames(df))){
@@ -827,6 +818,7 @@ SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast =
       df <- as.data.frame(class.probabilities$class.probabilities[[j]])
       df$group <- NaN
       df$sample <- rownames(df)
+
       if(!is.null(groups)){
         # Check for mapping of metadata to subjects:
         if(is.null(names(groups)) | any(!names(groups) %in% rownames(df))){

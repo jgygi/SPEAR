@@ -278,6 +278,9 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
               nclasses = nclasses
   ))
 }
+
+
+
 #' Create the data from lists, and create the functional pathway list.
 #'@param X description
 #'@param Y  description
@@ -311,6 +314,14 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                          num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
                          save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
+  
+  success.color <- "light green"
+  update.color <- "green"
+  info.color <- "light green"
+  tilde.color <- "yellow"
+  omic.color <- "light cyan"
+  response.color <- "light red"
+  
   cat("
           __________________________________________
           |                                        |
@@ -318,13 +329,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
           |     ______|  SPEAR  '''''-----______   |
           |     ''''''|  v.1.0  _____-----''''''   |
           |           |__---''''                   |
-          |________________________________________|
-      
- SPEAR version 1.0. Please direct all questions to Jeremy Gygi (jeremy.gygi@yale.edu) or Leying Guan (leying.guan@yale.edu).\n\n")
+          |________________________________________|\n",
+ "\nSPEAR version 1.0.   Please direct all questions to Jeremy Gygi \n(", SPEAR.color_text("jeremy.gygi@yale.edu", "green"), ") or Leying Guan (", SPEAR.color_text("leying.guan@yale.edu", "green"), ")\n\n")
   
   
   # Prepare SPEAR object
-  cat("*****************\n Preparing SPEAR\n*****************\n")
+  cat("******************\n", SPEAR.color_text("Loading Datasets", info.color), "\n******************\n")
   
   if(family == "gaussian"){
     family.encoded <- 0
@@ -335,12 +345,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   } else if(family == "ordinal"){
     family.encoded <- 2
   }else {
-    cat(paste0("*** 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
+    cat("***", paste0(" 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
     family.encoded <- 0
     family <- "gaussian"
   }
   
-  cat("\nPreparing omics data...\n")
+  cat(SPEAR.color_text("\nPreparing omics data...\n", update.color))
   
   # Make sure X is a list:
   if(scale.x){
@@ -349,18 +359,18 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     X.scaled <- X
   }
   if(is.null(names(X.scaled))){
-    cat(paste0("*** Names for datasets in X not provided. Renaming to ", paste(paste0("X", 1:length(X.scaled)), collapse = ", "), "\n"))
+    cat("***", paste0(" Names for datasets in X not provided. Renaming to ", paste(paste0("X", 1:length(X.scaled)), collapse = ", "), "\n"))
     names(X.scaled) <- paste0("X", 1:length(X.scaled))
   }
   for(d in 1:length(X.scaled)){
     if(is.null(colnames(X.scaled[[d]]))){
-      cat(paste0("*** Feature names in ", names(X.scaled)[d], " not provided. Renaming to ", paste0(names(X.scaled)[d], "_feat", 1), " ... ", paste0(names(X.scaled)[d], "_feat", ncol(X.scaled[[d]])), "\n"))
+      cat("***", paste0(" Feature names in ", names(X.scaled)[d], " not provided. Renaming to ", paste0(names(X.scaled)[d], "_feat", 1), " ... ", paste0(names(X.scaled)[d], "_feat", ncol(X.scaled[[d]])), "\n"))
       colnames(X.scaled[[d]]) <- paste0(names(X.scaled)[d], "_feat", 1:ncol(X.scaled[[d]]))
     }
   }
   cat(paste0("Detected ", length(X.scaled), " datasets:\n"))
   for(i in 1:length(X.scaled)){
-    cat(paste0(names(X.scaled)[i], "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n"))
+    cat(SPEAR.color_text(names(X.scaled)[i], omic.color), "\tSubjects: ", nrow(X.scaled[[i]]), "\tFeatures: ", ncol(X.scaled[[i]]), "\n")
   }
   
   if(scale.y & family.encoded == 0){
@@ -369,12 +379,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     Y.scaled <- Y
   }
   if(is.null(colnames(Y.scaled))){
-    cat(paste0("*** Names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
+    cat("***", paste0(" Names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
     colnames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
   }
   cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
   for(i in 1:ncol(Y.scaled)){
-    cat(paste0(colnames(Y.scaled)[i], "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n"))
+    cat(SPEAR.color_text(colnames(Y.scaled)[i], response.color), "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n")
   }
   
   
@@ -385,47 +395,46 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   data$xlist <- X.scaled
   
   # Parameters:
-  cat(paste0("Preparing SPEAR parameters...\n"))
+  cat(SPEAR.color_text("Preparing SPEAR parameters...\n", update.color))
   
   # Seed:
   if(is.null(seed)){
-    cat(paste0("*** seed not provided. Consider using a seed (i.e. 123) for reproducibility.\n"))
+    cat("***", paste0(" seed not provided. Consider using a seed (i.e. 123) for reproducibility.\n"))
   } else {
-    cat(paste0("~~~ seed set to ", seed, ".\n"))
+    cat(SPEAR.color_text("~~~", tilde.color), paste0(" seed set to ", seed, ".\n"))
     set.seed(seed)
   }
   # Set up matrices that indicate which samples are missing (since none are missing, just fill with 1's)
   if(is.null(Xobs)){
-    cat(paste0("*** Xobs not provided. Assuming full observations in X.\n"))
+    cat("***", paste0(" Xobs not provided. Assuming full observations in X.\n"))
     Xobs <- array(1, dim  = dim(data$X))
   }
   if(is.null(Yobs)){
-    cat(paste0("*** Yobs not provided. Assuming full observations in Y.\n"))
+    cat("***", paste0(" Yobs not provided. Assuming full observations in Y.\n"))
     Yobs <- array(1, dim  = dim(data$Y))
   }
   # Assigning fold-id's to each of the N subjects in the training set:
   if(is.null(foldid)){
-    cat(paste0("*** foldid not provided. Assigning folds randomly from 1 to ", num.folds, ".\n"))
+    cat("***", paste0(" foldid not provided. Assigning folds randomly from 1 to ", num.folds, ".\n"))
     foldid = sample(1:num.folds, nrow(data$X), replace = T)
   } else {
     if(length(foldid) == nrow(data$X)){
-      cat(paste0("~~~ foldid provided | passed\n"))
+      cat(SPEAR.color_text("~~~", tilde.color), paste0(" foldid provided | passed\n"))
     } else {
-      cat(paste0("~~~ foldid provided | ERROR: length(foldid) = ", length(foldid), " != Number of Subjects (", nrow(data$X), "). Cannot use provided foldids.\n"))
       stop(paste0("SPEAR preparation ERROR: length(foldid) = ", length(foldid), " != Number of Subjects (", nrow(data$X), "). Cannot use provided foldids.\n"))
     }
   }
   if(is.null(weights)){
-    cat(paste0("*** weights not provided. Using c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)\n"))
+    cat("***", paste0(" weights not provided. Using c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)\n"))
     weights <- c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)
   } else {
-    cat(paste0("~~~ weights - using c(", paste(round(weights, 2), collapse = ", "), ")\n"))
+    cat(SPEAR.color_text("~~~", tilde.color), paste0(" weights - using c(", paste(round(weights, 2), collapse = ", "), ")\n"))
   }
   if(is.null(num.factors)){
-    cat(paste0("*** num.factors not provided. Defaulting to K = 5 factors\n"))
+    cat("***", paste0(" num.factors not provided. Defaulting to K = 5 factors\n"))
     num.factors <- 5
   } else {
-    cat(paste0("~~~ num.factors - using K = ", num.factors, " factors\n"))
+    cat(SPEAR.color_text("~~~", tilde.color), paste0(" num.factors - using K = ", num.factors, " factors\n"))
   }
   
   if(is.null(Z)){
@@ -456,11 +465,11 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   
   
-  cat("\n*****************\n  Running SPEAR\n*****************\n\n")
+  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n\n")
   
   if(.Platform$OS.type == "windows"){
-    cat(paste0("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
-        Consider using SPEAR on a unix operating system for boosted performance.\n"))
+    cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
+        Consider using SPEAR on a unix operating system for boosted performance.\n", "red"))
     numCores <- 1
   } else {
     numCores <- parallel::detectCores()
@@ -507,8 +516,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   # Run cv.eval:
   
-  cat("\nFinished running SPEAR.\n")
-  cat("\n*****************\n  Evaluating CV:\n*****************\n")
+  cat(SPEAR.color_text("\nFinished running SPEAR.\n", success.color))
+  cat("\n*****************\n", SPEAR.color_text("Evaluating CV:", info.color), "\n*****************\n")
   
   cv.eval <- cv.evaluation(fitted.obj = spear_fit, 
                            X = data$X, 
@@ -538,14 +547,14 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                    params = params,
                    data = data)
   
-  cat("\nSPEAR has been run successfully.\n\n")
+  cat(SPEAR.color_text("\nSPEAR has been run successfully.\n\n", success.color))
   
   # Save SPEAR results:
   if(save.model){
     # Check save.path:
     if(is.null(save.path)){
       dir.create(paste0("SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S")))
-      cat(paste0("*** No directory specificied for saving SPEAR results. Generated temporary folder at:\n", getwd(), "/SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), "/\n"))
+      cat("***", paste0(" No directory specificied for saving SPEAR results. Generated temporary folder at:\n", getwd(), "/SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), "/\n"))
       save.path <- paste0(getwd(), "/SPEAR_model_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), "/")
     } else if(save.path == ""){
       save.path <- paste0(getwd(), "/")
@@ -553,7 +562,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       save.path <- paste0(save.path, "/")
     }
     if(is.null(save.name)){
-      cat(paste0("*** No filename specified for saving SPEAR results. Saving as ", paste0(save.path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds"), "\n"))
+      cat("***", paste0(" No filename specified for saving SPEAR results. Saving as ", paste0(save.path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds"), "\n"))
       save.name <- paste0(save.path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds")
     } else if(!endsWith(save.name, ".rds")){
       save.name <- paste0(save.name, ".rds")

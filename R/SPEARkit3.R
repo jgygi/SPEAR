@@ -1248,9 +1248,21 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
         res <- as.data.frame(feature.vec)[passed.coeff.cutoff & passed.prob.cutoff,]
         res$omic <- o
         res$factor <- f
-        colnames(res) <- c("Feature", "Probability", "Coefficient", "Omic", "Factor")
+        res$cor.in.sample <- NA
+        res$cor.out.of.sample <- NA
+        res$pval.in.sample <- NA
+        res$pval.out.of.sample <- NA
+        # Correlations:
+        for(r in 1:nrow(res)){
+          vals <- SPEARmodel$data$xlist[[o]][,which(colnames(SPEARmodel$data$xlist[[o]]) == res$features[r])]
+          res$cor.in.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = "spearman")
+          res$cor.out.of.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = "spearman")
+          res$pval.in.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = "spearman")$p.value
+          res$pval.out.of.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = "spearman")$p.value
+        }
+        colnames(res) <- c("Feature", "Probability", "Coefficient", "Omic", "Factor", "in.sample.cor", "out.of.sample.cor", "in.sample.pval", "out.of.sample.pval")
         rownames(res) <- NULL
-        res <- dplyr::select(res, Feature, Omic, Factor, Coefficient, Probability)
+        res <- dplyr::select(res, Feature, Omic, Factor, Coefficient, Probability, in.sample.cor, out.of.sample.cor, in.sample.pval, out.of.sample.pval)
         results.list[[length(results.list) + 1]] <- res
       }
     }
@@ -1267,6 +1279,7 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
     return(total.results)
   }
 }
+
 
 
 
@@ -1665,14 +1678,70 @@ SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = 
 
 
 
+#' Plot a correlation matrix for the selected features
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param feature.table A table of features from SPEAR.get_feature_table
+#'@param show.feature.names Should the feature names be shown on the axes? Defaults to TRUE
+#'@param show.correlation.values Should the (rounded) correlation values be shown? Defaults to FALSE
+#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
+#'@export
+SPEAR.plot_feature_correlation <- function(SPEARmodel, feature.table, method = "spearman", show.feature.names = TRUE, show.correlation.values = FALSE){
+
+    if(length(unique(feature.table$Omic)) > 1){
+    cat("*** WARNING: More than one Omic present in 'feature.table'. Combining all features...")
+  }
+  
+  # Get matrix of samples x features:
+  mat <- matrix(NA, nrow = nrow(SPEARmodel$data$X), ncol = nrow(feature.table))
+  colnames(mat) <- feature.table$Feature
+  rownames(mat) <- rownames(SPEARmodel$data$X)
+  for(j in 1:ncol(mat)){
+    mat[,j] <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == colnames(mat)[j])]
+  }
+  # Make correlation matrix from features provided:
+  corr.mat <- matrix(NA, nrow = ncol(mat), ncol = ncol(mat))
+  colnames(corr.mat) <- colnames(mat)
+  rownames(corr.mat) <- colnames(mat)
+  for(i in 1:ncol(mat)){
+    for(j in 1:ncol(mat)){
+      corr.mat[i,j] <- cor(mat[,i], mat[,j], method = method)
+    }
+  }
+  
+  hc = hclust(as.dist(1 - corr.mat))
+  corr.mat = corr.mat[hc$order, hc$order]
+  corr.mat[lower.tri(corr.mat)] = NA
+  
+  mat.melt <- reshape2::melt(corr.mat)
+  g <- ggplot2::ggplot(mat.melt) +
+    ggplot2::geom_tile(ggplot2::aes(x = Var1, y = Var2, fill = value)) +
+    ggplot2::scale_fill_gradient2(high = "dark red", low = "dark blue", limits = c(-1, 1), na.value = "white", name = method) +
+    ggplot2::xlab(NULL) +
+    ggplot2::ylab(NULL) +
+    ggplot2::coord_equal() +
+    ggplot2::theme_void() +
+    ggplot2::scale_x_discrete(position = "top") +
+    ggplot2::theme(legend.title = ggplot2::element_text(size = 10),
+                   legend.position = c(.75, .25))
+    
+  if(show.feature.names){
+    g <- g + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, size = 8, hjust = 0),
+                   axis.text.y = ggplot2::element_text(size = 8, hjust = 1))
+  }
+  
+  if(show.correlation.values){
+    g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)), size = 2.5)
+  }
+
+  
+  return(g)
+}
+
+#feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = 2, omics = "mrna", probability.cutoff = .5, coefficient.cutoff = .05)
+#feature.table <- dplyr::arrange(feature.table, -abs(Coefficient))
+#feature.table <- dplyr::arrange(feature.table, -Probability)
+#feature.table <- feature.table[1:20,]
+#SPEAR.plot_feature_correlation(SPEARmodel, feature.table, show.feature.names = TRUE, show.correlation.values = TRUE)
 
 
 
-
-# TESTING:
-#SPEARmodel <- get_SPEAR_model(SPEARobj.categorical, w = 2)
-#groups <- SPEARmodel$data$Y[,1]#as.factor(apply(SPEARmodel$predictions$out.of.sample$overall.class.predictions, 1, which.max))
-#names(groups) <- rownames(SPEARmodel$data$Y)
-#SPEAR.plot_feature_summary(SPEARmodel, sort.by = "coefficient", max.per.factor = 20)
-#SPEAR.plot_feature_grid(SPEARmodel, sort.by = "coefficient", max.per.factor = 20)
-#SPEAR.plot_class_predictions(SPEARmodel)

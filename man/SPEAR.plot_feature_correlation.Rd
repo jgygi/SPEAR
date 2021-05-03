@@ -9,7 +9,8 @@ SPEAR.plot_feature_correlation(
   feature.table,
   method = "spearman",
   show.feature.names = TRUE,
-  show.correlation.values = FALSE
+  show.correlation.values = FALSE,
+  cluster.features = TRUE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ SPEAR.plot_feature_correlation(
 \item{show.feature.names}{Should the feature names be shown on the axes? Defaults to TRUE}
 
 \item{show.correlation.values}{Should the (rounded) correlation values be shown? Defaults to FALSE}
+
+\item{cluster.features}{Cluster the features in the heatmap? Defaults to TRUE}
 }
 \description{
 Plot a correlation matrix for the selected features

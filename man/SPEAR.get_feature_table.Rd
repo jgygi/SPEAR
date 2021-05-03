@@ -9,7 +9,8 @@ SPEAR.get_feature_table(
   factors = NULL,
   omics = NULL,
   coefficient.cutoff = 0.01,
-  probability.cutoff = 0.5
+  probability.cutoff = 0.5,
+  method = "spearman"
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ SPEAR.get_feature_table(
 \item{coefficient.cutoff}{Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01}
 
 \item{probability.cutoff}{Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5}
+
+\item{method}{Which method for correlation? Defaults to "spearman"}
 }
 \value{
 A data.frame with features that passed cutoffs set by the parameters.

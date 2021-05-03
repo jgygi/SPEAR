@@ -1787,7 +1787,7 @@ SPEAR.plot_variance_per_feature <- function(SPEARmodel, factor = 1, num.features
   feature.table = SPEAR::SPEAR.get_feature_table(SPEARmodel, factors = factor, coefficient.cutoff = coefficient.cutoff, probability.cutoff = probability.cutoff)
   
   # Sort by Coefficient (Beta)
-  feature.table = dplyr::arrange(feature.table, Probability, -abs(Coefficient))
+  feature.table = dplyr::arrange(feature.table, -abs(Coefficient))
   
   # Now, iterate step by step...
   var.exp = 0

@@ -1831,11 +1831,11 @@ SPEAR.plot_variance_per_feature <- function(SPEARmodel, factor = 1, num.features
   return(g)
 }
 
-SPEARobj <- readRDS("~/Dropbox/shared_folder/RealData/COVID-19/SPEAR_COVID_RF_Imputed_Ordinal.rds")
-SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 2)
+#SPEARobj <- readRDS("~/Dropbox/shared_folder/RealData/COVID-19/SPEAR_COVID_RF_Imputed_Ordinal.rds")
+#SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 2)
 
 #SPEAR.plot_variance_per_feature(SPEARmodel, factor = 1, num.features = 50)
-SPEAR.get_best_features(SPEARmodel)
+#SPEAR.get_best_features(SPEARmodel)
 #SPEARobj = readRDS("~/Documents/Coding/IMPACC/SPEAR/TCGA_tests/041421/SPEAR_tcga_encode_cat_0417_JG.rds")
 #SPEARmodel = SPEAR::get_SPEAR_model(SPEARobj, w = 2)
 #feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = 2, omics = "mrna", probability.cutoff = .5, coefficient.cutoff = .0001, method = "pearson")

@@ -359,12 +359,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     family.encoded <- 0
   } else if(family == "binomial"){
     family.encoded <- 1
-  } else if(family == "categorical"){
-    family.encoded <- 1
   } else if(family == "ordinal"){
     family.encoded <- 2
+  } else if(family == "multinomial"){
+    family.encoded <- 3
   }else {
-    cat("***", paste0(" 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
+    cat("***", paste0(" 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'multinomial'.\n"))
     family.encoded <- 0
     family <- "gaussian"
   }
@@ -386,6 +386,10 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       cat("***", paste0(" Feature names in ", names(X.scaled)[d], " not provided. Renaming to ", paste0(names(X.scaled)[d], "_feat", 1), " ... ", paste0(names(X.scaled)[d], "_feat", ncol(X.scaled[[d]])), "\n"))
       colnames(X.scaled[[d]]) <- paste0(names(X.scaled)[d], "_feat", 1:ncol(X.scaled[[d]]))
     }
+    if(is.null(rownames(X.scaled[[d]]))){
+      cat("***", paste0(" Sample names in ", names(X.scaled)[d], " not provided. Renaming to sample1... sample", nrow(X.scaled[[d]]), "\n"))
+      rownames(X.scaled[[d]]) <- paste0("sample", 1:nrow(X.scaled[[d]]))
+    }
   }
   cat(paste0("Detected ", length(X.scaled), " datasets:\n"))
   for(i in 1:length(X.scaled)){
@@ -398,12 +402,23 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     Y.scaled <- Y
   }
   if(is.null(colnames(Y.scaled))){
-    cat("***", paste0(" Names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
+    cat("***", paste0(" Column names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
     colnames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
+  }
+  if(is.null(rownames(Y.scaled))){
+    cat("***", paste0(" Row names for response Y not provided. Renaming to sample1... sample", nrow(Y.scaled), "\n"))
+    rownames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
   }
   cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
   for(i in 1:ncol(Y.scaled)){
     cat(SPEAR.color_text(colnames(Y.scaled)[i], response.color), "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n")
+  }
+  
+  # Quickly ensure that each sample is lined up:
+  for(d in 1:length(X.scaled)){
+    if(any(rownames(X.scaled[[d]]) != rownames(Y.scaled))){
+      stop("ERROR: Rownames for ", names(X.scaled)[d], " are not equal to the others (at least to the response Y). Ensure they are all the same and try again.")
+    }
   }
   
   
@@ -560,6 +575,17 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   params$thres_count = thres_count
   params$family <- family
   params$sparsity_upper <- sparsity_upper
+  # Add colors:
+  colorlist <- list()
+  num.omics <- length(data$xlist)
+  num.resp <- ncol(data$Y)
+  cols <- c("#9E0142", "#F46D43", "#ABDDA4", "#3288BD", "#5E4FA2")
+  omic.cols <- grDevices::colorRampPalette(cols)(num.omics)
+  names(omic.cols) <- names(data$xlist)
+  cols <- c("#F8AFA8", "#D0C7E7", "#DBD7AF", "#F1AD75", "#E47A7F", "#85D4E3")
+  resp.cols <- grDevices::colorRampPalette(cols)(num.resp)
+  names(resp.cols) <- colnames(data$Y)
+  params$colors <- list(X = omic.cols, Y = resp.cols)
   
   SPEARobj <- list(fit = spear_fit,
                    cv.eval = cv.eval,

@@ -153,59 +153,52 @@ SPEAR.get_cv_loss <- function(SPEARobj, include.sd = FALSE){
 
 
 
-#' Get a color scheme for a SPEAR plot
-#'@param SPEARmodel SPEAR object (returned from get_SPEAR_model)
+#' Set a color scheme for a SPEAR plot
+#'@param SPEARobject SPEAR object (returned from get_SPEAR_model)
 #'@export
-SPEAR.get_color_scheme <- function(SPEARmodel){
-  num.omics <- length(SPEARmodel$data$xlist)
-  num.responses <- ncol(SPEARmodel$data$Y)
-  # Omic
-  cs <- c("#9E0142", "#D53E4F", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2")
-  if(num.omics > length(cs)){
-    warning("*** Warning: more than ", length(cs), " omics provided. Repeating colors in colorscale.\n")
-    num.index <- length(cs)
-  } else {
-    num.index <- num.omics
-  }
-  colors.list <- list(
-    cs[c(2)],
-    cs[c(2, 10)],
-    cs[c(2, 4, 10)],
-    cs[c(2, 4, 9, 10)],
-    cs[c(2, 4, 7, 9, 10)],
-    cs[c(1, 2, 4, 7, 9, 10)],
-    cs[c(1, 2, 4, 7, 9, 10, 11)],
-    cs[c(1, 2, 3, 4, 7, 9, 10, 11)],
-    cs[c(1, 2, 3, 4, 7, 8, 9, 10, 11)],
-    cs[c(1, 2, 3, 4, 6, 7, 8, 9, 10, 11)],
-    cs[c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)]
-  )
-  colors <- colors.list[[num.index]]
-  colorvec.omic <- rep(colors, length.out = num.omics)
-  names(colorvec.omic) <- names(SPEARmodel$data$xlist)
+SPEAR.set_color_scheme <- function(SPEARobject, X.vector = NULL, Y.vector = NULL){
+  colorlist <- list()
+  num.omics <- length(SPEARobject$data$xlist)
+  num.responses <- ncol(SPEARobject$data$Y)
   
-  # Response
-  cs <- c("#FC8D62", "#66C2A5", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
-  if(num.responses > length(cs)){
-    warning("*** Warning: more than ", length(cs), " responses provided. Repeating colors in colorscale.\n")
-    num.index <- length(cs)
+  if(is.null(X.vector)){
+    cols <- c("#9E0142", "#F46D43", "#ABDDA4", "#3288BD", "#5E4FA2")
+    colorvec.omic <- grDevices::colorRampPalette(cols)(num.omics)
+    names(colorvec.omic) <- names(SPEARobject$data$xlist)
+  } else if(length(X.vector) != num.omics){
+    stop(paste0("ERROR: Length of X.vector must be equal to the number of omics (", num.omics, ")."))
+  } else if(is.null(names(X.vector))){
+    cat("Warning: No names for X provided. Assuming the order is the same as omic names...\n")
+    colorvec.omic <- X.vector
+    names(colorvec.omic) <- names(SPEARobject$data$xlist)
+  } else if(!any(names(X.vector) %in% names(SPEARobject$data$xlist))){
+    stop(paste0("ERROR: One or more names of X.vector do not match the names of the datasets..."))
   } else {
-    num.index <- num.responses
+    colorvec.omic <- X.vector
   }
-  colors.list <- list(
-    cs[c(2)],
-    cs[c(2, 4)],
-    cs[c(2, 4, 1)],
-    cs[c(2, 4, 3, 1)],
-    cs[c(2, 4, 3, 1, 6)],
-    cs[c(2, 4, 3, 1, 6, 5)],
-    cs[c(2, 4, 3, 1, 6, 5, 7)],
-    cs[c(2, 4, 3, 1, 6, 5, 7, 8)]
-  )
-  colors <- colors.list[[num.index]]
-  colorvec.response <- rep(colors, length.out = num.responses)
-  names(colorvec.response) <- colnames(SPEARmodel$data$Y)
-  return(c(colorvec.omic, colorvec.response))
+  
+  if(is.null(Y.vector)){
+    cols <- c("#F8AFA8", "#D0C7E7", "#DBD7AF", "#F1AD75", "#E47A7F", "#85D4E3")
+    colorvec.response <- grDevices::colorRampPalette(cols)(num.responses)
+    names(colorvec.response) <- colnames(SPEARobject$data$Y)
+  } else if(length(Y.vector) != num.responses){
+    stop(paste0("ERROR: Length of Y.vector must be equal to the number of responses (", num.responses, ")."))
+  } else if(is.null(names(Y.vector))){
+    cat("Warning: No names for Y provided. Assuming the order is the same as response names...\n")
+    colorvec.response <- Y.vector
+    names(colorvec.response) <- colnames(SPEARobject$data$Y)
+  }
+  else if(!any(names(X.vector) %in% colnames(SPEARobject$data$Y))){
+    stop(paste0("ERROR: One or more names of Y.vector do not match the names of the responses..."))
+  } else {
+    colorvec.response <- Y.vector
+  }
+
+  colorlist['X'] <- colorvec.omic
+  colorlist['Y'] <- colorvec.response
+  SPEARobject$params$colors <- colorlist
+  
+  return(SPEARobject)
 }
 
 

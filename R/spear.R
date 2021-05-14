@@ -11,6 +11,7 @@
 #'@import cowplot
 #'@import dplyr
 #'@import stringr
+#'@import wesanderson
 #'@param Y Response matrix (can be multidimensional for gaussian data).
 #'@param X Assay matrix.
 #'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).

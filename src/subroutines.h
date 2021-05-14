@@ -47,6 +47,10 @@ double update_projection_constrained(const int num_factors, arma::mat& Y, const 
                                      arma::mat& post_tmu, arma::mat& post_tsigma2,
                                      arma::mat& tau, double lower);
 
+
+double update_marginal_prob(arma::vec& x, arma::vec& nu_vec, arma::vec& meanfac, arma::vec& u2,
+                            double taux, double log_pix, double log_minus_pix);
+        
 double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs,
                      arma::mat& X,  const arma::mat& Xobs,
                      const arma::mat& Z,  const arma::vec& weights,
@@ -131,6 +135,15 @@ void update_ordinal_approximation(arma::mat& Y, const arma::mat& Yobs,
                                   arma::mat& post_tmu, arma::mat& post_tsigma2,
                                   arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat,
                                   const double robust_eps);
+
+void update_multinomial_approximation(arma::mat& Y, const arma::mat& Yobs,
+                                      arma::mat& UPXI,  arma::vec& UPXIjoint,
+                                      const arma::vec nclasses,  arma::mat& Yapprox,
+                                      arma::mat& meanFactors, arma::mat& U2,
+                                      arma::mat& post_tmu, arma::mat& post_tsigma2,
+                                      arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat,
+                                      const double robust_eps);
+
 
 double binary_search(double val_min, double val_max, double bound, arma::vec diags, arma::vec z, int max_it);
 

@@ -15,6 +15,8 @@ spear(
   ws,
   num_factors,
   functional_path,
+  case.weights = NULL,
+  ws_y = NULL,
   pattern_samples = NULL,
   pattern_features = NULL,
   inits_type = "pca",
@@ -32,9 +34,9 @@ spear(
   b2 = sqrt(nrow(X)),
   inits_post_mu = NULL,
   seed = 1,
-  robust_eps = 1/(sqrt(nrow(X))),
-  sparsity_upper = 0.1,
-  L = nrow(X)/1
+  robust_eps = 1/(nrow(X)),
+  sparsity_upper = 0.5,
+  L = nrow(X)/log(ncol(X))
 )
 }
 \arguments{
@@ -43,6 +45,8 @@ spear(
 \item{Y}{Response matrix (can be multidimensional for gaussian data).}
 
 \item{Z}{Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).}
+
+\item{family}{0=gaussian (multiple response); 1 = binary(multiple response); 2 = ordinal (multiple response); 3 = multinomial (single response)}
 
 \item{ws}{A vector of weights that you want to try out, default is ws = c(0).}
 

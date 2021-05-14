@@ -58,6 +58,16 @@ dataGen_gaussian <- function(N = 500, Ntest = 2000, P = 500, D = 4, seed = 123, 
   data.tr$truth = ytruth
   data.tr$xlist = X
   data.tr$U = U0
+  if(Ymodel == "factor"){
+      data.tr$true_bx =Theta0
+      data.tr$true_by =rep(0, num_factors)
+      data.tr$true_by[1:2] = 1
+      data.tr$true_beta = NULL
+  }else{
+      data.tr$true_bx =NULL
+      data.tr$true_by =NULL
+      data.tr$true_beta =beta
+  }
   data.te$truth = ytruth.te
   data.te$U = U0te
   data.te$xlist = Xte
@@ -195,7 +205,7 @@ loss_calculation <- function(Phat, y, type = "deviance"){
 #'@param alpha alpha = 1 corresponds to lasso and alpha = 0 corresponds to ridge.
 #'@export
 preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = NULL,
-                        path.type = "assay", 
+                        path.type = "assay", bx = NULL,
                         other.path = NULL){
   ###check input types
   if(is.null(dim(Y))){
@@ -229,6 +239,16 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
       X_ = cbind(X_, X[[d]])
     }
   }
+  bx_aggregated = NULL
+  if(!is.null(bx)){
+      bx_aggregated = bx[[1]]
+      for(d in 1:length(X)){
+        if(d > 1){
+            bx_aggregated = cbind(bx_aggregated, bx[[d]])
+        }
+      }
+      bx_aggregated = t(bx_aggregated)
+  }
   functional_path = list()
   if(path.type == "assay"){
     for(i in 1:length(p)){
@@ -237,7 +257,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
       }else{
         functional_path[[i]] = (sum(p[1:(i-1)])+1):sum(p[1:(i)])
       }
-      functional_path[[i]]  = functional_path[[i]] -1
+      functional_path[[i]]  = functional_path[[i]]
     }
   }else if(group.type == "other"){
     functional_path= other.grouping;
@@ -275,8 +295,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
   }
   return(list(Y = Y, X = X_, functional_path = functional_path,
               pattern_samples = pattern_samples, pattern_features = pattern_features,
-              nclasses = nclasses
-  ))
+              nclasses = nclasses, bx_aggregated = bx_aggregated))
 }
 
 
@@ -594,7 +613,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   px = ncol(X);
   py = ncol(Y);
   pz = ncol(Z);
-  standardize_family = c(2)
+  standardize_family = c(2,3)
   foldid = fitted.obj$foldid;
   cv.fact_coefs = fitted.obj$factors_coefs;
   cv.projection_coefs = fitted.obj$projection_coefs;
@@ -606,11 +625,18 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
   num_factors = dim(fitted.obj$factors_coefs)[2]
   num_weights = dim(fitted.obj$factors_coefs)[5]
   intercepts = list()
+  scale.factors = array(1, dim  = c(num_factors,nfolds,num_weights))
   for(j in 1:py){
     intercepts[[j]] = matrix(NA, nrow = num_weights,ncol = nclasses[j]-1)
   }
-  cvm = matrix(NA, nrow = num_weights, ncol = py)
-  cvsd =matrix(NA, nrow = num_weights, ncol = py)
+  if(family!=3){
+    cvm = matrix(NA, nrow = num_weights, ncol = py)
+    cvsd =matrix(NA, nrow = num_weights, ncol = py)
+  }else{
+    cvm = matrix(NA, nrow = num_weights, ncol = 1)
+    cvsd =matrix(NA, nrow = num_weights, ncol = 1)
+  }
+
   chats.return = list()
   #rescale the overall coefficients
   Yhat = array(NA, dim = c(n, py, num_weights))
@@ -641,162 +667,215 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       jj = pattern_features[[k]]
       U0[ii,] = Z[ii,jj]%*% fact_coefs[jj,,k,l]
     }
-    r2norm = rep(1, py)
-    if(py == 1){
-      Yhat[,1,l] =  (U0 %*% projection_coefs[,1,l])
-      if(family %in%  standardize_family){
-        r2norm =  sqrt(mean(Yhat[,1,l]^2))
-        Yhat[,1,l] = Yhat[,1,l]/r2norm
-      }
-    }else{
-      Yhat[,,l] =  (U0 %*% projection_coefs[,,l])
-      if(family %in%  standardize_family){
-        r2norm =  sqrt(apply(Yhat[,,l]^2,2,function(z) mean(z^2)))
-        Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
-      }
-    }
-    r2norm_cv = matrix(1, nrow = nfolds, ncol = py)
-    for(k in 1:nfolds){
-      ucv = array(0, dim = c(n, num_factors))
-      for(kk in 1:num_patterns){
-        ii = pattern_samples[[kk]]
-        jj = pattern_features[[kk]]
-        beta = cv.fact_coefs[jj,,kk,k,l]
-        ucv[ii,] = Z[ii,jj]%*%beta
-      }
-      b = cv.projection_coefs[,,k,l]
-      if(py == 1){
-        Yhat.cv[,1,k,l] =  (ucv %*% b)
-        if(family %in%  standardize_family){
-          r2norm_cv[k,1] = sqrt(mean(Yhat.cv[,1,k,l]^2))
-          Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
-        }
-      }else{
-        Yhat.cv[,,k,l] =  (ucv %*% b)
-        if(family %in%  standardize_family){
-          r2norm_cv[k,j] = sqrt(apply(Yhat.cv[,,k,l]^2,2,function(z) mean(z^2)))
-          Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
-        }
-      }
-    }
-    chats.return.temp <- list()
     #find the best scaling factors for each weight and response
-    for(j in 1:py){
-      ##note that scaling is only required for Gaussian and logisstic!
-      y = Y[,j]
-      yhat = Yhat[,j,l]
-      if(family == 0){
-        tmp = lm(y~Yhat[,j,l])
-        cmax = tmp$coefficients[2]
-      }else if(family==1){
-        tmp = glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
-        cmax = tmp$beta[1,ncol(tmp$beta)]
-      }else{
-        reverseY = max(y) - y
-        reverseY = as.factor(reverseY)
-        tmp = ordinalNet(cbind(yhat,rep(0,length(yhat))), reverseY,lambdaVals=1e-4)
-        tmp = tmp$coefs
-        cmax = tmp[length(tmp)-1]
-      }
-      chats = seq(0, cmax, length.out = nlambda)
-      errs = array(NA, dim = c(n,length(chats)))
-      for(k in 1:nfolds){
-        yhat_cv = Yhat.cv[,j,k,l]
-        if(family == 1){
-          tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
-          a0 = tmp0$a0
-          c0 = tmp0$beta[1]
-        }else if(family == 2){
-          tmp0 = ordinalNet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),reverseY[foldid!=k],lambdaVals=1e-4)
-          a0 = tmp0$coefs[1:(nclasses[j]-1)]
-          c0 = tmp0$coefs[nclasses[j]]
+    if(family != 3){
+      r2norm = rep(1, py)
+      if(py == 1){
+        Yhat[,1,l] =  (U0 %*% projection_coefs[,1,l])
+        if(family %in%  standardize_family){
+          r2norm =  sqrt(mean(Yhat[,1,l]^2))
+          Yhat[,1,l] = Yhat[,1,l]/r2norm
         }
-        for(ll in 1:length(chats)){
-          if(family == 0){
-            a = mean(y[foldid!=k] - chats[ll] * yhat_cv[foldid!=k])
-            errs[foldid==k,ll] = (y[foldid == k] - a - chats[ll] * yhat_cv[foldid==k])^2
-          }else if(family == 1){
-            if(ll == 1){
-              tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial")
-              a = tmp$coefficients[1]
-            }else{
-              if(abs(c0) >=abs(chats[ll])){
-                tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial",  start = a)
-                a = tmp$coefficients[1]
-              }else{
-                a = a0
-              }
-            }
-            Probs = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a))
-            errs[foldid==k, ll] = -2*(y[foldid == k] * log(Probs+1e-10) +
-                                        (1 - y[foldid == k]) * log(1 - Probs+1e-10));
-          }else if(family == 2){
-            if(ll == 1){
-              tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]))
-              a = tmp$zeta
-            }else{
-              if(abs(c0) >=abs(chats[ll])){
-                tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]),start = a)
-                a = tmp$zeta
-              }else{
-                a = a0
-              }
-            }
-            a1 = a[(nclasses[j]-1):1]
-            ##deviance loss
-            Pmat0 = matrix(0, ncol = max(y), nrow = sum(foldid == k))
-            Pmat = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
-            y_extended = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
-            for(kk in 1:length(a)){
-              Pmat0[,kk] = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a1[kk]))
-            }
-            for(kk in 1:ncol(Pmat)){
-              y_extended[y[foldid==k]==(kk-1),kk]=1
-              if(kk==1){
-                Pmat[,kk] = 1 - Pmat0[,kk]
-              }else if(kk==ncol(Pmat)){
-                Pmat[,kk] = Pmat0[,kk-1]
-              }else{
-                Pmat[,kk] = Pmat0[,kk-1] - Pmat0[,kk]
-              }
-            }
-            errs[foldid==k,ll] = -2 * apply(log(Pmat+1e-10) * y_extended,1,sum)
+      }else{
+        Yhat[,,l] =  (U0 %*% projection_coefs[,,l])
+        if(family %in%  standardize_family){
+          r2norm =  sqrt(apply(Yhat[,,l]^2,2,function(z) mean(z^2)))
+          Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
+        }
+      }
+      r2norm_cv = matrix(1, nrow = nfolds, ncol = py)
+      for(k in 1:nfolds){
+        ucv = array(0, dim = c(n, num_factors))
+        for(kk in 1:num_patterns){
+          ii = pattern_samples[[kk]]
+          jj = pattern_features[[kk]]
+          beta = cv.fact_coefs[jj,,kk,k,l]
+          ucv[ii,] = Z[ii,jj]%*%beta
+        }
+        b = cv.projection_coefs[,,k,l]
+        if(py == 1){
+          Yhat.cv[,1,k,l] =  (ucv %*% b)
+          if(family %in%  standardize_family){
+            r2norm_cv[k,1] = sqrt(mean(Yhat.cv[,1,k,l]^2))
+            Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
+          }
+        }else{
+          Yhat.cv[,,k,l] =  (ucv %*% b)
+          if(family %in%  standardize_family){
+            r2norm_cv[k,j] = sqrt(apply(Yhat.cv[,,k,l]^2,2,function(z) mean(z^2)))
+            Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
           }
         }
       }
-      cv_tmp = apply(errs,2,mean)
-      cvsd_tmp = apply(errs,2,sd)/sqrt(n-1)
-      cvm[l,j] = min(cv_tmp)
-      cvsd[l,j] = cvsd_tmp[which.min(cv_tmp)]
-      for(foldind in 1:nfolds){
-        Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
+      chats.return.temp <- list()
+      for(j in 1:py){
+        ##note that scaling is only required for Gaussian and logisstic!
+        y = Y[,j]
+        yhat = Yhat[,j,l]
+        if(family == 0){
+          tmp = lm(y~Yhat[,j,l])
+          cmax = tmp$coefficients[2]
+        }else if(family==1){
+          tmp = glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
+          cmax = tmp$beta[1,ncol(tmp$beta)]
+        }else if(family == 2){
+          reverseY = max(y) - y
+          reverseY = as.factor(reverseY)
+          tmp = ordinalNet(cbind(yhat,rep(0,length(yhat))), reverseY,lambdaVals=1e-4)
+          tmp = tmp$coefs
+          cmax = tmp[length(tmp)-1]
+        }
+        chats = seq(0, cmax, length.out = nlambda)
+        errs = array(NA, dim = c(n,length(chats)))
+        for(k in 1:nfolds){
+          yhat_cv = Yhat.cv[,j,k,l]
+          if(family == 1){
+            tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
+            a0 = tmp0$a0
+            c0 = tmp0$beta[1]
+          }else if(family == 2){
+            tmp0 = ordinalNet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),reverseY[foldid!=k],lambdaVals=1e-4)
+            a0 = tmp0$coefs[1:(nclasses[j]-1)]
+            c0 = tmp0$coefs[nclasses[j]]
+          }
+          for(ll in 1:length(chats)){
+            if(family == 0){
+              a = mean(y[foldid!=k] - chats[ll] * yhat_cv[foldid!=k])
+              errs[foldid==k,ll] = (y[foldid == k] - a - chats[ll] * yhat_cv[foldid==k])^2
+            }else if(family == 1){
+              if(ll == 1){
+                tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial")
+                a = tmp$coefficients[1]
+              }else{
+                if(abs(c0) >=abs(chats[ll])){
+                  tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial",  start = a)
+                  a = tmp$coefficients[1]
+                }else{
+                  a = a0
+                }
+              }
+              Probs = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a))
+              errs[foldid==k, ll] = -2*(y[foldid == k] * log(Probs+1e-10) +
+                                          (1 - y[foldid == k]) * log(1 - Probs+1e-10));
+            }else if(family == 2){
+              if(ll == 1){
+                tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]))
+                a = tmp$zeta
+              }else{
+                if(abs(c0) >=abs(chats[ll])){
+                  tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]),start = a)
+                  a = tmp$zeta
+                }else{
+                  a = a0
+                }
+              }
+              a1 = a[(nclasses[j]-1):1]
+              ##deviance loss
+              Pmat0 = matrix(0, ncol = max(y), nrow = sum(foldid == k))
+              Pmat = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
+              y_extended = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
+              for(kk in 1:length(a)){
+                Pmat0[,kk] = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a1[kk]))
+              }
+              for(kk in 1:ncol(Pmat)){
+                y_extended[y[foldid==k]==(kk-1),kk]=1
+                if(kk==1){
+                  Pmat[,kk] = 1 - Pmat0[,kk]
+                }else if(kk==ncol(Pmat)){
+                  Pmat[,kk] = Pmat0[,kk-1]
+                }else{
+                  Pmat[,kk] = Pmat0[,kk-1] - Pmat0[,kk]
+                }
+              }
+              errs[foldid==k,ll] = -2 * apply(log(Pmat+1e-10) * y_extended,1,sum)
+            }
+          }
+        }
+        cv_tmp = apply(errs,2,mean)
+        cvsd_tmp = apply(errs,2,sd)/sqrt(n-1)
+        cvm[l,j] = min(cv_tmp)
+        cvsd[l,j] = cvsd_tmp[which.min(cv_tmp)]
+        for(foldind in 1:nfolds){
+          Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
+        }
+        projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
+        if(family %in% standardize_family){
+          projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
+        }
+        chats.return.temp[[j]] <- list(chats = chats, minval = which.min(cv_tmp))
+        if(family == 0){
+          intercepts[[j]][l,] = mean(y - mean(yhat *chats[which.min(cv_tmp)] ))
+        }else if(family==1){
+          tmp = glm(y ~ offset(chats[which.min(cv_tmp)] * yhat), family = "binomial")
+          a = tmp$coefficients[1]
+          intercepts[[j]][l,] = a
+        }else{
+          tmp = polr(reverseY ~ offset(-chats[which.min(cv_tmp)] * yhat))
+          a = tmp$zeta
+          a = a[length(a):1]
+          intercepts[[j]][l,] = a
+        }
+        ###scale the projection coefficients post_by in the original data object
+        for(foldind in 1:nfolds){
+          cv.projection_coefs[,j,foldind,l] =cv.projection_coefs[,j,foldind,l]/r2norm_cv[foldind,j] 
+          cv.projection_coefs[,j,foldind,l]= cv.projection_coefs[,j,foldind,l] *chats[which.min(cv_tmp)]
+        }
       }
-      projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
+    }else{
       if(family %in% standardize_family){
-        projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
-      }
-      chats.return.temp[[j]] <- list(chats = chats, minval = which.min(cv_tmp))
-      if(family == 0){
-        intercepts[[j]][l,] = mean(y - mean(yhat *chats[which.min(cv_tmp)] ))
-      }else if(family==1){
-        tmp = glm(y ~ offset(chats[which.min(cv_tmp)] * yhat), family = "binomial")
-        a = tmp$coefficients[1]
-        intercepts[[j]][l,] = a
+        r2norm = sqrt(apply(U0^2,2,function(z) mean(z^2)))
+        U0std  = U0
       }else{
-        tmp = polr(reverseY ~ offset(-chats[which.min(cv_tmp)] * yhat))
-        a = tmp$zeta
-        a = a[length(a):1]
-        intercepts[[j]][l,] = a
+        U0std = U0
+        r2norm = rep(1, ncol(U0))
       }
-      ###scale the projection coefficients post_by in the original data object
-      for(foldind in 1:nfolds){
-        cv.projection_coefs[,j,foldind,l] =cv.projection_coefs[,j,foldind,l]/r2norm_cv[foldind,j] 
-        cv.projection_coefs[,j,foldind,l]= cv.projection_coefs[,j,foldind,l] *chats[which.min(cv_tmp)]
+      if(ncol(Y) <=2){
+        stop('multinomial class < 3, please use binomial.')
+      }
+      ycollapsed = rep(0, nrow(Y))
+      for(j in 1:ncol(Y)){
+        ycollapsed[Y[,j]==1] = (j-1)
+      }
+      #get penalty lists
+      fitted_multinomial = glmnet(x =U0std, y = ycollapsed, standardize = F, family = 'multinomial', nlambda = nlambda)
+      lambdas =fitted_multinomial$lambda 
+      # perform cv fit with given penalty lists
+      probs_predictions = array(NA, dim  = c(nrow(Y),ncol(Y),length(lambdas)))
+      tmp.fit = list()
+      for(fold_id in 1:nfolds){
+        test_id = which(foldid == fold_id)
+        train_id = which(foldid != fold_id)
+        U0cv = array(0, dim = c(n, num_factors))
+        for(k in 1:num_patterns){
+          ii = pattern_samples[[k]]
+          jj = pattern_features[[k]]
+          U0cv[ii,] = Z[ii,jj]%*% cv.fact_coefs[jj,,k,fold_id, l]
+        }
+        if(family %in% standardize_family){
+          tmp = sqrt(apply(U0cv^2,2,function(z) mean(z^2)))
+          U0cv.std  = U0/tmp *r2norm
+          scale.factors[,fold_id,l] = r2norm/tmp
+          #Uhat.cv[foldid==fold_id,,l] = Uhat.cv[foldid==fold_id,,l]/tmp * r2norm
+        }else{
+          U0cv.std  = U0cv
+        }
+        tmp.fit[[fold_id]] = glmnet(x =U0cv.std[train_id,], y = ycollapsed[train_id], standardize = F, family = 'multinomial', lambda = lambdas)
+        preds = predict(tmp.fit[[fold_id]], U0cv.std, type = 'response')
+        probs_predictions[test_id,,1:dim(preds[test_id,,])[3]] = preds[test_id,,]
+      }
+      cvs = apply(probs_predictions,3, function(z) -2*mean(log(z+1e-12) * Y))
+      # choose penalty and model refit
+      cvm[l] = min(cvs)
+      idx = which.min(cvs)
+      for(j in 1:py){
+        projection_coefs[,j,l] = fitted_multinomial$beta[[j]][,idx]
+        intercepts[[j]][l] = fitted_multinomial$a0[j,idx]
+        for(fold_id in 1:nfolds){
+          cv.projection_coefs[,j,fold_id,l] = tmp.fit[[fold_id]]$beta[[j]][,idx]/scale.factors[,fold_id,l]
+        }
       }
     }
-    chats.return[[l]] <- chats.return.temp
   }
-  
   ##regression coefficients 
   reg_coefs = array(0, dim = c(pz,num_patterns,py,num_weights))
   for(l in 1:num_weights){
@@ -806,7 +885,6 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
     }
   }
- 
   #replace deviance contriution to spearman correlation
   factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
   factor_contributions_pvals = array(NA,dim = c(num_factors, py, num_weights))
@@ -850,3 +928,6 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
               factor_contributions_pvals = factor_contributions_pvals,
               Yhat.keep = Yhat.keep))
 }
+
+
+

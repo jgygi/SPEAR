@@ -14,6 +14,7 @@
 #'@param Y Response matrix (can be multidimensional for gaussian data).
 #'@param X Assay matrix.
 #'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).
+#'@param family 0=gaussian (multiple response); 1 = binary(multiple response); 2 = ordinal (multiple response); 3 = multinomial (single response)
 #'@param ws A vector of weights that you want to try out, default is ws = c(0).
 #'@param num.factors Number of factors estimated.
 #'@param functional_path Grouping structure.
@@ -36,13 +37,15 @@
 #'@param sparsity_upper: Sparsity parameter for feature selection
 #'@param L: parameter
 #'@export
-spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functional_path, 
-                  pattern_samples = NULL, pattern_features = NULL,
+spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
+                  functional_path, case.weights = NULL, ws_y = NULL,
+pattern_samples = NULL, pattern_features = NULL,
                   inits_type = "pca", warm_up = 100, max_iter = 1000,
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
                   a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(sqrt(nrow(X))), sparsity_upper = 0.1, L = nrow(X)/1){
+                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(nrow(X)), 
+                  sparsity_upper = 0.5, L = nrow(X)/log(ncol(X))){
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -108,6 +111,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
   post_tmuX =array(0, dim=c(px, num_factors));
   post_tsigma2X = array(1e-4, dim=c(px, num_factors));
   post_tpiX = array(1.0, dim=c(px, num_factors));
+  post_tpiX_marginal = array(1.0, dim=c(px, num_factors));
   post_tmuY =array(0, dim=c(py, num_factors));
   post_tsigma2Y = array(1e-4, dim=c(py, num_factors));
   post_tpiY = array(1.0, dim=c(py, num_factors));
@@ -130,9 +134,10 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
   post_b2y = rep(1, ncol(Y))
   post_betas = array(NA, dim  = c(ncol(X),num_factors , num_patterns, length(ws)))
   post_bys = array(NA, dim = c(num_factors, ncol(Y), length(ws)))
-  post_bxs = array(NA, dim = c(num_factors, ncol(X), length(ws)))
-  post_pis = array(NA, dim = c(ncol(X), num_factors, length(ws)))
+  post_bxs = array(NA, dim = c(ncol(X), num_factors, length(ws)))
+  post_pis = array(NA, dim = c(ncol(X), num_factors, num_patterns, length(ws)))
   post_selections = array(NA, dim = c(ncol(X), num_factors, length(ws)))
+  post_selections_marginal = array(NA, dim = c(ncol(X), num_factors, length(ws)))
   lowers = rep(0, length(ws))
   for(idx_w in 1:length(ws)){
     weights = rep(ws[idx_w], ncol(X))
@@ -153,7 +158,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
            a1 = a1, b1 = b1,a2 = a2,b2 = b2, lower = lowers[idx_w], print_out = print_out,
            interceptsX = interceptsX, interceptsY = interceptsY,
            post_mu = post_mu, post_sigma2 = post_sigma2,post_pi = post_pi, 
-           post_tmuX = post_tmuX, post_tsigma2X = post_tsigma2X, post_tpiX = post_tpiX,
+           post_tmuX = post_tmuX, post_tsigma2X = post_tsigma2X, post_tpiX = post_tpiX, post_tpiX_marginal = post_tpiX_marginal,
            post_tmuY = post_tmuY, post_tsigma2Y = post_tsigma2Y, post_tpiY = post_tpiY,
            tauY = tauY, tauZ = tauZ,log_pi = log_pi,log_minus_pi = log_minus_pi, 
            nuXmat = nuXmat, nuYmat = nuYmat,
@@ -214,15 +219,23 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
       post_pi[,,j] = post_pi[,ordering,j]
     } 
     post_tpiX = post_tpiX[,ordering]
+    post_tpiX_marginal = post_tpiX_marginal[,ordering]
     post_betas[,,,idx_w] = post_beta
     post_bys[,,idx_w] = post_by
     post_bxs[,,idx_w] = post_bx
-    post_pis[,,idx_w] = post_pi
+    post_pis[,,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
+    post_selections_marginal[,,idx_w]  = post_tpiX_marginal
     print(paste0("######weights#####",ws[idx_w], "###########"))
   }
+  post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
+  # hist(post_selections_marginal[,1,idx_w], breaks = 100)
+  # hist(post_selections[,1,idx_w], breaks = 100)
+  # hist(post_selections_joint[,1,idx_w], breaks = 100)
   return(list(post_betas = post_betas, post_bys = post_bys, post_bxs =post_bxs,
-              post_pis = post_pis, post_selections = post_selections,
+              post_pis = post_pis, post_selections = post_selections, 
+              post_selections_marginal = post_selections_marginal,
+              post_selections_joint = post_selections_joint,
               interceptsX = interceptsX, interceptsY = interceptsY))
   
 }
@@ -254,13 +267,13 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, functi
 #'@param L: parameter
 #'@export
 cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
-                     functional_path, foldid = foldid,
+                     functional_path, foldid = foldid, case.weights = NULL, ws_y = NULL, 
                      pattern_samples = NULL, pattern_features = NULL,
                      inits_type = "pca", warm_up = 100, max_iter = 1000,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                      a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
-                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1.0/(sqrt(nrow(X))),
-                     sparsity_upper = 0.1, L = nrow(X)/1,inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
+                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1/nrow(X),
+                     sparsity_upper = 0.1, L = nrow(X)/log(nrow(X)),inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
   fold_ids = sort(unique(foldid))
   fold_ids = c(0, fold_ids)
   px = ncol(X); py = ncol(Y); pz = ncol(Z); n = nrow(Y)

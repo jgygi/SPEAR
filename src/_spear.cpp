@@ -61,8 +61,8 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             const double a2, const double b2, const double lower, const int print_out,
             arma::vec interceptsX, List& interceptsY, 
             arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi, 
-            arma::mat& post_tmuX, arma::mat& post_tsigma2X, arma::mat& post_tpiX,
-            arma::mat& post_tmuY, arma::mat& post_tsigma2Y, arma::mat& post_tpiY,
+            arma::mat& post_tmuX, arma::mat& post_tsigma2X, arma::mat& post_tpiX, 
+            arma::mat& post_tpiX_marginal, arma::mat& post_tmuY, arma::mat& post_tsigma2Y, arma::mat& post_tpiY,
             arma::mat& tauY, arma::mat& tauZ,
             arma::mat& log_pi,arma::mat& log_minus_pi, 
             arma::mat& nuXmat, arma::mat& nuYmat,
@@ -78,6 +78,8 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
     int pz = Z.n_cols;
     int n = Y.n_rows;
     int consecutives_count = 0;
+    arma::mat UPXI = arma::zeros<arma::mat>(n, py);
+    arma::vec UPXIjoint = arma::zeros<arma::vec>(n);
     /*
     Yapprox and Xapprox can be viewed as residuals that we want to further fit to.
     It will be updated based on current model fits. Update can occur due to
@@ -166,6 +168,9 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
     }else if(family == 2){
         update_ordinal_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,
                                      U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat, robust_eps);
+    }else if(family == 3){
+        update_multinomial_approximation(Y, Yobs, UPXI, UPXIjoint, nclasses,Yapprox, meanFactors, U2,
+                                       post_tmuY, post_tsigma2Y, post_tpiY, interceptsY, nuYmat, robust_eps);
     }
    //Initiliazation done. Start iteration
     int it = 0;
@@ -211,6 +216,9 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }else if(family == 2){
           update_ordinal_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,
                                        U2, post_tmuY, post_tsigma2Y,  post_tpiY,  interceptsY, nuYmat, robust_eps);
+        }else if(family == 3){
+          update_multinomial_approximation(Y, Yobs, UPXI, UPXIjoint, nclasses,Yapprox, meanFactors, U2,
+                                           post_tmuY, post_tsigma2Y, post_tpiY, interceptsY, nuYmat, robust_eps);
         }
         //update prior tau
         delta3 = tau_update(num_factors, weights, pattern_features , functional_path,
@@ -265,6 +273,24 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         delta51 =  nu_update(Xapprox, Xobs, ones, meanFactors, U2, nuXmat, a2, b2,
                              post_tmuX, post_tsigma2X, post_tpiX,post_a2x, post_b2x, true);
         it = it + 1;
+    }
+    //calculate the marginal significance
+    for(int k = 0; k < num_factors; k++){
+      arma::vec meanfac0 = meanFactors.col(k);
+      arma::vec u20 = U2.col(k);
+      for(int j = 0; j < px; j++){
+        arma::vec nu_vec = nuXmat.col(j);
+        arma::vec x = Xapprox.col(j);
+        arma::uvec obs = arma::find(Xobs.col(j) == 1);
+        x = x(obs);
+        nu_vec = nu_vec(obs);
+        arma::vec meanfac = meanfac0(obs);
+        arma::vec u2 = u20(obs);
+        double taux = tauZ(j,k);
+        double log_pix = log_pi(j,k);
+        double log_minus_pix = log_minus_pi(j,k);
+        post_tpiX_marginal(j,k) = update_marginal_prob(x,  nu_vec, meanfac, u2, taux, log_pix, log_minus_pix);
+      }
     }
     return Yapprox;
 }

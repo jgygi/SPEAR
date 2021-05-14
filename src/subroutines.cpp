@@ -288,6 +288,95 @@ void update_ordinal_approximation(arma::mat& Y, const arma::mat& Yobs,
 }
 
 
+/*
+ * Logistic multinomial
+ */
+void UPXI_update_multinomial(arma::mat& Y, arma::mat& Yapprox,
+                             arma::mat& offset, arma::mat& Delta,
+                             arma::vec& intercepts, arma::mat& UPXI,  arma::vec& UPXIjoint, arma::mat& nu_mat,
+                             const double robust_eps){
+  //Boucher bound
+  int n = UPXI.n_rows;
+  int p = UPXI.n_cols;
+  //iterate three times
+  for(int j = 0; j < p; j++){
+    UPXI.col(j) = (offset.col(j) + intercepts(j)-UPXIjoint);
+    UPXI.col(j)  = UPXI.col(j) % UPXI.col(j) + Delta.col(j);
+    UPXI.col(j) = arma::sqrt(UPXI.col(j));
+  }
+  UPXIjoint = arma::ones<arma::vec>(n) * 1/2.0 * (p/2.0 - 1);
+  arma::vec tmp0 = arma::zeros<arma::vec>(n);
+  for(int j = 0; j < p; j++){
+    arma::vec lambdas = exp(-UPXI.col(j));
+    lambdas = (1.0 - lambdas)/(1.0+lambdas)/(4 * UPXI.col(j))+robust_eps/p;
+    UPXIjoint += lambdas % (offset.col(j)+intercepts(j));
+    tmp0 += lambdas;
+  }
+  UPXIjoint  = UPXIjoint /tmp0;
+}
+
+void Yapprox_update_multinomial(arma::mat& Y, arma::mat& Yapprox,
+                                arma::mat& offset, arma::mat& Delta,
+                                arma::vec& intercepts, arma::mat& UPXI,  arma::vec& UPXIjoint, arma::mat& nu_mat,
+                                const double robust_eps){
+  //Boucher bound
+  int n = UPXI.n_rows;
+  int p = UPXI.n_cols;
+  for(int j = 0; j < p; j++){
+    arma::vec lambdas = exp(-UPXI.col(j));
+    lambdas = (1.0 - lambdas)/(1.0+lambdas)/(4 * UPXI.col(j));
+    for(int i = 0; i < n; i++){
+      if(UPXI(i,j) < 1e-4){
+        lambdas(i) = 1.0/8.0;
+      }
+    }
+    lambdas = lambdas + robust_eps/p;
+    nu_mat.col(j) = 2.0 * lambdas;
+    Yapprox.col(j) = (Y.col(j) - 0.5  - 2* lambdas % UPXIjoint)/nu_mat.col(j)  -  intercepts(j);
+  }
+}
+
+void update_multinomial_approximation(arma::mat& Y, const arma::mat& Yobs,
+                                      arma::mat& UPXI,  arma::vec& UPXIjoint,
+                                      const arma::vec nclasses,  arma::mat& Yapprox,
+                                      arma::mat& meanFactors, arma::mat& U2,
+                                      arma::mat& post_tmu, arma::mat& post_tsigma2,
+                                      arma::mat& post_tpi, List& intercepts, arma::mat& nu_mat,
+                                      const double robust_eps){
+  int p = Y.n_cols;
+  int n = Y.n_rows;
+  int num_factors = meanFactors.n_cols;
+  arma::mat offset = arma::zeros<arma::mat>(n,p);
+  arma::mat Delta = arma::zeros<arma::mat>(n,p);
+  for(int j = 0; j < p; j++){
+    //number of classes
+    arma::vec intercept_prev = intercepts(j);
+    arma::vec b = (post_tmu.row(j) % post_tpi.row(j)).t();
+    arma::vec b2 = ((post_tmu.row(j) % post_tmu.row(j) + post_tsigma2.row(j)) % post_tpi.row(j)).t();
+    offset.col(j) = meanFactors * b;
+    for(int k = 0; k < num_factors; k++){
+      Delta.col(j) += U2.col(k) * b2(k) - (meanFactors.col(k) % meanFactors.col(k)) * b(k) * b(k);
+    }
+  }
+  arma::vec tmp_intercepts = arma::zeros<arma::vec>(p);
+  for(int j = 0; j < p; j++){
+    tmp_intercepts(j) = intercepts(j);
+  }
+  UPXI_update_multinomial(Y,  Yapprox, offset, Delta, tmp_intercepts, UPXI, UPXIjoint, nu_mat,robust_eps);
+  //update intercepts USING the non-missing values!
+  for(int j = 0; j < p; j++){
+    arma::vec lambdas = exp(-UPXI.col(j));
+    lambdas = (1.0 - lambdas)/(1.0+lambdas)/(4 * UPXI.col(j))+robust_eps/p;
+    arma::vec tmp1 = (Y.col(j) - 0.5 - 2 * lambdas % UPXIjoint)/(2 * lambdas);
+    tmp1 = tmp1 - offset.col(j);
+    tmp_intercepts(j)= arma::sum(tmp1 % lambdas)/arma::sum(lambdas);
+    intercepts(j) =tmp_intercepts(j); 
+  }
+  //update UPXI matrix and Y approx
+  Yapprox_update_multinomial(Y, Yapprox, offset, Delta, tmp_intercepts, UPXI,  UPXIjoint, nu_mat,robust_eps);
+}
+
+
 
 double binary_search(double val_min, double val_max, double bound, arma::vec diags, arma::vec z, int max_it){
   double cur_val = (val_min + val_max)/2.0;
@@ -413,6 +502,26 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
   return Delta;
 }
 
+double update_marginal_prob(arma::vec& x, arma::vec& nu_vec, arma::vec& meanfac, arma::vec& u2,
+                            double taux, double log_pix, double log_minus_pix){
+  double tmp = arma::sum(nu_vec % u2) +  taux;
+  double tmp1 = sum(x % meanfac);
+  double post_tsigma2x = 1.0/tmp;
+  double post_tmux = tmp1 * post_tsigma2x;
+  //update post_tmu, post_tsigma2, post_tpi with formulas (1)-(3)
+  double post_tpix = 0.0;
+  double tmp2 = 0.5 *(post_tmux * post_tmux) / post_tsigma2x +
+    0.5 * std::log( taux * post_tsigma2x) +  log_pix - log_minus_pix;
+  if(tmp2 < 0){
+    post_tpix = std::exp(tmp2);
+    post_tpix = post_tpix/(1.0+post_tpix);
+  }else{
+    post_tpix = std::exp(-tmp2);
+    post_tpix = 1.0/(1.0+post_tpix);
+  }
+  return post_tpix;
+}
+
 /*
  * update_projection_constrained: update posterior of B for X.
  * Contraint is incoporated via proximal gradient descent
@@ -426,7 +535,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
  * post_tsigma2: current posterior variance of non-zero B.
  * tau: prior variance of inactive B.
  * lower: lower bound on posterior magnitudes.
-*/
+ */
 
 double update_projection_constrained(const int num_factors, arma::mat& Y, const arma::mat& Yobs,
                                      arma::mat& nuYmat, arma::mat& meanFactors,  arma::mat& U2,
@@ -703,7 +812,7 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
 }
 
 /*
- * Update the prior distribution of coefficient variance for inactive features.
+ * Update the prior distribution of coefficient inverse variance for inactive features.
  */
 double tau_update(const int& num_factors, const arma::vec& weights,
                   const List& pattern_features, const List& functional_path,
@@ -717,6 +826,7 @@ double tau_update(const int& num_factors, const arma::vec& weights,
   double Delta = 0.0;
   for(int l = 0; l < num_path; l++){
     arma::uvec path_index = functional_path(l);
+    path_index -=1;
     int p0 = path_index.n_elem;
     for(int k = 0; k < num_factors; k++){
       double post_a = a0;
@@ -724,6 +834,7 @@ double tau_update(const int& num_factors, const arma::vec& weights,
       //add up the effects from factors
       for(int q = 0; q < num_pattern; q++){
         arma::uvec jj = pattern_features(q);
+        jj -= 1;
         arma::uvec path_q = intersect(jj, path_index);
         int p1 = path_q.n_elem;
         for(int j0 = 0; j0 < p1; j0++){
@@ -786,6 +897,7 @@ double pi_update(const int& num_factors, const arma::vec& weights,
   double Delta =0.0;
   for(int l = 0; l < num_path; l++){
     arma::uvec path_index = functional_path(l);
+    path_index -= 1;
     int p0 = path_index.n_elem;
     for(int k = 0; k < num_factors; k++){
       double weight_sum = 0.0;
@@ -793,6 +905,7 @@ double pi_update(const int& num_factors, const arma::vec& weights,
       //add up the effects from factors
       for(int q = 0; q < num_pattern; q++){
         arma::uvec jj = pattern_features(q);
+        jj -= 1;
         arma::uvec path_q = intersect(jj, path_index);
         int p1 = path_q.n_elem;
         for(int j0 = 0; j0 < p1; j0++){

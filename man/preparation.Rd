@@ -11,6 +11,7 @@ preparation(
   pattern_samples = NULL,
   pattern_assays = NULL,
   path.type = "assay",
+  bx = NULL,
   other.path = NULL
 )
 }

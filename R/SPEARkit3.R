@@ -211,7 +211,7 @@ SPEAR.set_color_scheme <- function(SPEARobject, X.vector = NULL, Y.vector = NULL
 #'@param show.overall Plot the overall mean cv error (only works with more than one response)? Defaults to FALSE
 #'@param plot.per.response Make a different plot for each response? Defaults to TRUE
 #'@export
-SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line = TRUE, show.sd = TRUE, show.overall = FALSE, plot.per.response = TRUE){
+SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = FALSE, show.min.w.line = TRUE, show.sd = TRUE, show.overall = FALSE, plot.per.response = TRUE){
   # Only show one line if there's only one response
   
   # Get the cv errors:
@@ -256,10 +256,9 @@ SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line =
   }
   
   if(show.sd){
-    g <- g + ggplot2::geom_errorbar(ggplot2::aes(x = w, ymin = cvm - cvsd, ymax = cvm + cvsd, group = response, color = response), size = .4)
+    g <- g + ggplot2::geom_errorbar(ggplot2::aes(x = w, ymin = cvm - cvsd, ymax = cvm + cvsd, group = response, color = response), size = .6, width = .1)
     if(show.min.w.line){
       g <- g + ggplot2::geom_hline(ggplot2::aes(yintercept = min + min.sd, color = response), lwd = .2, linetype = "dashed")
-      #g <- g + geom_hline(aes(yintercept = min - min.sd, color = response), lwd = .2, linetype = "dashed")
     }
   }
   
@@ -267,13 +266,18 @@ SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = TRUE, show.min.w.line =
     ggplot2::geom_point(ggplot2::aes(x = w, y = cvm, group = response, fill = response), size = 3, shape = 21)
   
   
-  g <- g + ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARobj)) +
-    ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj)) +
+  g <- g + ggplot2::scale_color_manual(values = c(SPEARobj$params$colors$X, SPEARobj$params$colors$Y)) +
+    ggplot2::scale_fill_manual(values = c(SPEARobj$params$colors$X, SPEARobj$params$colors$Y)) +
     ggplot2::scale_x_continuous(breaks = round(SPEARobj$params$weights, 2)) +
     ggplot2::ylab("Mean CV Error") +
+    ggplot2::xlab("SPEAR Weight (w)") +
     ggplot2::ylim(c(0, NA)) +
-    ggplot2::ggtitle("Mean CV Errors of SPEAR weights") +
-    ggplot2::theme_bw()
+    ggplot2::ggtitle("Mean CV Loss of SPEAR Weights (w)") +
+    ggplot2::theme_classic() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                   axis.line = ggplot2::element_blank(),
+                   panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=.5)) +
+    ggplot2::labs(color = "Response", fill = "Response")
   
   if(show.w.labels){
     g <- g + ggplot2::geom_text(ggplot2::aes(x = w, y = cvm-max(cvm)/10, label = paste0("w=", round(w, 2))), angle = 0)
@@ -325,7 +329,7 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   factors <- list()
   
   # factor.scores 
-  W.to_X <- t(SPEARobj$fit$results$post_bxs[,,w.idx])
+  W.to_X <- SPEARobj$fit$results$post_bxs[,,w.idx]
   W.to_U <- SPEARobj$fit$results$post_betas[,,,w.idx]
   # Get out-of-sample factor scores:
   U.hat.cv <- matrix(0, ncol = SPEARobj$params$num_factors, nrow = nrow(SPEARobj$data$X))
@@ -394,12 +398,21 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   #     features ----------------------------------------------------------------------
   cat("*** Getting feature coefficients and posterior selection probabilities for all factors...\n")
   features <- list()
-  w.loadings = SPEARobj$fit$results$post_selections[,,w.idx]
-  w.coefficients = SPEARobj$fit$results$post_betas[,,1,w.idx]
-  colnames(w.loadings) <- paste0("Factor", 1:ncol(w.loadings))
-  rownames(w.loadings) <- colnames(SPEARobj$data$X)
-  colnames(w.coefficients) <- paste0("Factor", 1:ncol(w.loadings))
-  rownames(w.coefficients) <- colnames(SPEARobj$data$X)
+  w.joint.probabilities = SPEARobj$fit$results$post_selections_joint[,,w.idx]
+  w.marginal.probabilities = SPEARobj$fit$results$post_selections_marginal[,,w.idx]
+  w.regular.probabilities = SPEARobj$fit$results$post_selections[,,w.idx]
+  w.regular.coefficients = SPEARobj$fit$results$post_betas[,,1,w.idx]
+  w.marginal.coefficients = SPEARobj$fit$results$post_bxs[,,w.idx]
+  colnames(w.joint.probabilities) <- paste0("Factor", 1:ncol(w.joint.probabilities))
+  rownames(w.joint.probabilities) <- colnames(SPEARobj$data$X)
+  colnames(w.marginal.probabilities) <- paste0("Factor", 1:ncol(w.marginal.probabilities))
+  rownames(w.marginal.probabilities) <- colnames(SPEARobj$data$X)
+  colnames(w.regular.probabilities) <- paste0("Factor", 1:ncol(w.regular.probabilities))
+  rownames(w.regular.probabilities) <- colnames(SPEARobj$data$X)
+  colnames(w.regular.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
+  rownames(w.regular.coefficients) <- colnames(SPEARobj$data$X)
+  colnames(w.marginal.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
+  rownames(w.marginal.coefficients) <- colnames(SPEARobj$data$X)
   # by factor
   num.omics <- length(SPEARobj$data$xlist)
   factor.features <- list()
@@ -409,17 +422,28 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
     s <- 1
     for(o in 1:num.omics){
       omic.features <- list()
-      w.loadings.current <- w.loadings[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
-      w.coefficients.current <- w.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.joint.probabilities.current <- w.joint.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.marginal.probabilities.current <- w.marginal.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.regular.probabilities.current <- w.regular.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.regular.coefficients.current <- w.regular.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.marginal.coefficients.current <- w.marginal.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
       s <- s + ncol(SPEARobj$data$xlist[[o]])
       # Round loading probabilities to 7 decimals (to rank 1's):
-      w.loadings.current <- round(w.loadings.current, 7)
-      feat.order <- order(w.loadings.current, abs(w.coefficients.current), decreasing = TRUE)
-      w.coefficients.current <- w.coefficients.current[feat.order]
-      w.loadings.current <- w.loadings.current[feat.order]
-      temp[[names(SPEARobj$data$xlist)[o]]]$features <- names(w.loadings.current)
-      temp[[names(SPEARobj$data$xlist)[o]]]$probabilities <- w.loadings.current
-      temp[[names(SPEARobj$data$xlist)[o]]]$coefficients <- w.coefficients.current
+      w.joint.probabilities.current <- round(w.joint.probabilities.current, 7)
+      w.marginal.probabilities.current <- round(w.marginal.probabilities.current, 7)
+      w.regular.probabilities.current <- round(w.regular.probabilities.current, 7)
+      feat.order <- order(w.joint.probabilities.current, abs(w.marginal.coefficients.current), decreasing = TRUE)
+      w.regular.coefficients.current <- w.regular.coefficients.current[feat.order]
+      w.marginal.coefficients.current <- w.marginal.coefficients.current[feat.order]
+      w.joint.probabilities.current <- w.joint.probabilities.current[feat.order]
+      w.marginal.probabilities.current <- w.marginal.probabilities.current[feat.order]
+      w.regular.probabilities.current <- w.regular.probabilities.current[feat.order]
+      temp[[names(SPEARobj$data$xlist)[o]]]$features <- names(w.joint.probabilities.current)
+      temp[[names(SPEARobj$data$xlist)[o]]]$joint.probabilities <- w.joint.probabilities.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$marginal.probabilities <- w.marginal.probabilities.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$regular.probabilities <- w.regular.probabilities.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$marginal.coefficients <- w.marginal.coefficients.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$regular.coefficients <- w.regular.coefficients.current
     }
     features[[factor]] <- temp
   }
@@ -432,7 +456,9 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   fit[['post_bys']] <- array(SPEARobj$fit$results$post_bys[,,w.idx], dim = dim(SPEARobj$fit$results$post_bys)[1:2])
   fit[['post_betas']] <- array(SPEARobj$fit$results$post_betas[,,,w.idx], dim = dim(SPEARobj$fit$results$post_betas)[1:3])
   fit[['post_betas_cv']] <- array(SPEARobj$fit$factors_coefs[,,,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:4])
-  fit[['post_selections']] <- array(SPEARobj$fit$results$post_selections[,,w.idx], dim = dim(SPEARobj$fit$factors_coefs)[1:2])
+  fit[['post_selections_joint']] <- array(SPEARobj$fit$results$post_selections_joint[,,w.idx], dim = dim(SPEARobj$fit$results$post_selections_joint)[1:2])
+  fit[['post_selections_marginal']] <- array(SPEARobj$fit$results$post_selections_marginal[,,w.idx], dim = dim(SPEARobj$fit$results$post_selections_marginal)[1:2])
+  fit[['post_selections']] <- array(SPEARobj$fit$results$post_selections[,,w.idx], dim = dim(SPEARobj$fit$results$post_selections)[1:2])
   fit[['post_bys_cv']] <- array(SPEARobj$fit$projection_coefs[,,,w.idx], dim = dim(SPEARobj$fit$projection_coefs)[1:3])
   fit[['post_bys_scaled']] <- array(SPEARobj$cv.eval$projection_coefs_scaled[,,w.idx], dim = dim(SPEARobj$cv.eval$projection_coefs_scaled)[1:2])
   fit[['post_bys_cv_scaled']] <- array(SPEARobj$cv.eval$cv.projection_coefs_scaled[,,,w.idx], dim = dim(SPEARobj$cv.eval$cv.projection_coefs_scaled)[1:3])
@@ -569,9 +595,18 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   params <- SPEARobj$params
   params[['w']] <- SPEARobj$params$weights[w.idx]
   params[['weights']] <- NULL
-  
-  
-  
+  if(is.null(SPEARobj$params$colors)){
+    colorlist <- list()
+    num.omics <- length(SPEARobj$data$xlist)
+    num.resp <- ncol(SPEARobj$data$Y)
+    cols <- c("#9E0142", "#F46D43", "#ABDDA4", "#3288BD", "#5E4FA2")
+    omic.cols <- grDevices::colorRampPalette(cols)(num.omics)
+    names(omic.cols) <- names(SPEARobj$data$xlist)
+    cols <- c("#F8AFA8", "#D0C7E7", "#DBD7AF", "#F1AD75", "#E47A7F", "#85D4E3")
+    resp.cols <- grDevices::colorRampPalette(cols)(num.resp)
+    names(resp.cols) <- colnames(SPEARobj$data$Y)
+    params[['colors']] <- list(X = omic.cols, Y = resp.cols)
+  }
   
   # Assemble model:
   SPEARmodel <- list(factors = factors,
@@ -793,7 +828,11 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
          ggplot2::ylab("out-of-sample predictions") +
          ggplot2::theme_bw() +
          ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) + 
-         ggplot2::facet_wrap(ggplot2::vars(response))
+         ggplot2::facet_wrap(ggplot2::vars(response)) +
+         ggplot2::theme_classic() +
+         ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                     axis.line = ggplot2::element_blank(),
+                     panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=.5))
   } else {
     df.list <- list()
     for(j in 1:ncol(SPEARmodel$data$Y)){
@@ -824,7 +863,11 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
       ggplot2::ylab("out-of-sample predictions") +
       ggplot2::theme_bw() +
       ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) +
-      ggplot2::facet_wrap(ggplot2::vars(response))
+      ggplot2::facet_wrap(ggplot2::vars(response)) +
+      ggplot2::theme_classic() +
+      ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                     axis.line = ggplot2::element_blank(),
+                     panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=.5))
   }
   
   # Return plots
@@ -940,7 +983,7 @@ SPEAR.plot_factor_contributions <- function(SPEARmodel, threshold = .01, show.la
       ggplot2::geom_text(data = df.var, ggplot2::aes(y = omic, x = nrow(df.comb) + 1, label = label), color = "black", angle = 270) +
       ggplot2::geom_hline(yintercept = length(SPEARmodel$data$xlist) + .5, size = 1) +
       ggplot2::scale_alpha_continuous(range = c(0, 1), guide = F) +
-      ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARmodel), guide = FALSE) +
+      ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y), guide = FALSE) +
       ggplot2::ggtitle(title, paste0("w = ", w)) +
       ggplot2::ylab("") +
       ggplot2::xlab("") +
@@ -1024,7 +1067,10 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
   
   g <- g + ggplot2::xlab(NULL) +
     ggplot2::ylab(paste0("Factor Score (", forecast, ")")) +
-    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) +
+    ggplot2::theme_classic() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                   axis.line = ggplot2::element_blank(),
+                   panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=.5)) +
     ggplot2::facet_wrap(ggplot2::vars(variable), nrow = 1)
   
   return(g)
@@ -1084,16 +1130,22 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
 
 
 
-#' Plot factor loadings for a SPEARmodel
+#' Plot factor coefficients for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param plot.per.omic Should a bar with colors for each omic be plotted along side the loadings? Defaults to TRUE
+#'@param type Which coefficients to plot? Options include "marginal" and "regular" (default)
 #'@return A plot with the factor loadings of the SPEAR model
 #' @examples
-#' SPEAR.plot_factor_loadings(SPEARmodel)
+#' SPEAR.plot_factor_coefficients(SPEARmodel)
 #'@export
-SPEAR.plot_factor_loadings <- function(SPEARmodel, plot.per.omic = TRUE){
+SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regular"){
   ### Group loop? [,g,]
-  w.coefficients = SPEARmodel$fit$post_betas[,,1]
+  if(type == "marginal"){
+    w.coefficients = SPEARmodel$fit$post_bxs
+  } else if(type == "regular"){
+    w.coefficients = SPEARmodel$fit$post_betas[,,1]
+  } else {
+    stop("ERROR: type not recognized. Must be 'marginal' or 'regular'")
+  }
   ### Add to group loop?
   colnames(w.coefficients) <- paste0("Factor", 1:ncol(w.coefficients))
   rownames(w.coefficients) <- colnames(SPEARmodel$data$X)
@@ -1115,9 +1167,10 @@ SPEAR.plot_factor_loadings <- function(SPEARmodel, plot.per.omic = TRUE){
     ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = unique(Var1)), fill = coefficient)) +
     ggplot2::ylab(paste0("Features\n(n = ", ncol(SPEARmodel$data$X), ")")) +
     ggplot2::scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b") +
-    ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARmodel)) +
+    ggplot2::scale_color_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
     ggplot2::xlab(NULL) +
     ggplot2::ggtitle("Factor Loadings", paste0("w = ",round(SPEARmodel$params$w, 3))) +
+    ggplot2::geom_rect(data = omic.df, ggplot2::aes(xmin = x.start, xmax = x.end, ymin = y.start, ymax = y.end, color = omic), fill = "white", size = 1) +
     ggplot2::theme_void() +
     ggplot2::theme(axis.title.y = ggplot2::element_text(size = 10, angle = 90),
           axis.text.x = ggplot2::element_text(size = 10),
@@ -1127,12 +1180,9 @@ SPEAR.plot_factor_loadings <- function(SPEARmodel, plot.per.omic = TRUE){
           plot.title = ggplot2::element_text(hjust = .5, face = "plain", size = 12),
           plot.subtitle = ggplot2::element_text(hjust = .5, face = "plain", size = 10),
           legend.text = ggplot2::element_text(size = 8),
-          legend.title = ggplot2::element_text(size = 10))
-  
-  if(plot.per.omic){
-    g <- g + ggplot2::geom_rect(data = omic.df, ggplot2::aes(xmin = x.start, xmax = x.end, ymin = y.start, ymax = y.end, color = omic), fill = "white", size = 1)
-  }
-  
+          legend.title = ggplot2::element_text(size = 10)) +
+    ggplot2::labs(fill = "Coefficient", color = "Dataset")
+
   return(g)
 }
 
@@ -1140,19 +1190,28 @@ SPEAR.plot_factor_loadings <- function(SPEARmodel, plot.per.omic = TRUE){
 
 #' Plot posterior selection probabilities for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param plot.per.omic Should a bar with colors for each omic be plotted along side the loadings? Defaults to TRUE
+#'@param type Which coefficients to plot? Options include "marginal" and "regular" (default)
 #'@return A plot with the factor loadings of the SPEAR model
 #' @examples
-#' SPEAR.plot_factor_loadings(SPEARmodel)
+#' SPEAR.plot_factor_probabilities(SPEARmodel)
 #'@export
-SPEAR.plot_factor_probabilities <- function(SPEARmodel, plot.per.omic = TRUE){
+SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per.omic = TRUE){
   ### Group loop? [,g,]
-  w.probabilities = SPEARmodel$fit$post_selections
+  if(type == "marginal"){
+    w.probabilities = SPEARmodel$fit$post_selections_marginal
+  } else if(type == "regular"){
+    w.probabilities = SPEARmodel$fit$post_selections
+  } else if(type == "joint"){
+    w.probabilities = SPEARmodel$fit$post_selections_joint
+  } else {
+    stop("ERROR: type not recognized. Must be 'joint' or 'marginal'")
+  }
   ### Add to group loop?
   colnames(w.probabilities) <- paste0("Factor", 1:ncol(w.probabilities))
   rownames(w.probabilities) <- colnames(SPEARmodel$data$X)
   df <- reshape2::melt(w.probabilities)
   colnames(df)[3] <- "probability"
+  df$probability <- -log(1 - df$probability)
   # Add bars:
   omic.ends <- c(0, as.vector(sapply(SPEARmodel$data$xlist, ncol)))
   for(o in 2:length(omic.ends)){
@@ -1167,10 +1226,11 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, plot.per.omic = TRUE){
   g <- ggplot2::ggplot(df) +
     ggplot2::geom_tile(ggplot2::aes(x = Var2, y = factor(Var1, levels = unique(Var1)), fill = probability)) +
     ggplot2::ylab(paste0("Features\n(n = ", ncol(SPEARmodel$data$X), ")")) +
-    ggplot2::scale_fill_gradient2(mid = "white", high = "#b2182b", limits = c(0, 1)) +
-    ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARmodel)) +
+    ggplot2::scale_fill_gradient2(mid = "white", high = "#b2182b") +
+    ggplot2::scale_color_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
     ggplot2::xlab(NULL) +
     ggplot2::ggtitle("Post Selection Probabilities", paste0("w = ",round(SPEARmodel$params$w, 3))) +
+    ggplot2::geom_rect(data = omic.df, ggplot2::aes(xmin = x.start, xmax = x.end, ymin = y.start, ymax = y.end, color = omic), fill = "white", size = 1) +
     ggplot2::theme_void() +
     ggplot2::theme(axis.title.y = ggplot2::element_text(size = 10, angle = 90),
                    axis.text.x = ggplot2::element_text(size = 10),
@@ -1180,11 +1240,8 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, plot.per.omic = TRUE){
                    plot.title = ggplot2::element_text(hjust = .5, face = "plain", size = 12),
                    plot.subtitle = ggplot2::element_text(hjust = .5, face = "plain", size = 10),
                    legend.text = ggplot2::element_text(size = 8),
-                   legend.title = ggplot2::element_text(size = 10))
-  
-  if(plot.per.omic){
-    g <- g + ggplot2::geom_rect(data = omic.df, ggplot2::aes(xmin = x.start, xmax = x.end, ymin = y.start, ymax = y.end, color = omic), fill = "white", size = 1)
-  }
+                   legend.title = ggplot2::element_text(size = 10)) +
+    ggplot2::labs(fill = "-log(1 - Prob)", color = "Dataset")
   
   return(g)
 }
@@ -1209,7 +1266,7 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, plot.per.omic = TRUE){
 #' # Get features that pass cutoffs:
 #' SPEAR.get_feature_table(SPEARmodel, coefficient.cutoff = .2, probability.cutoff = .5)
 #'@export
-SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, coefficient.cutoff = .01, probability.cutoff = .5, method = "spearman"){
+SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, coefficient.cutoff = 0, probability.cutoff = .95, method = "spearman"){
   # Check that factors is within range:
   if(is.null(factors)){
     factors <- 1:SPEARmodel$params$num_factors
@@ -1235,8 +1292,8 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
   for(f in factors){
     for(o in omics){
       feature.vec <- SPEARmodel$factors$features[[f]][[o]]
-      passed.coeff.cutoff <- abs(feature.vec$coefficients) >= coefficient.cutoff
-      passed.prob.cutoff <- feature.vec$probabilities >= probability.cutoff
+      passed.coeff.cutoff <- abs(feature.vec$marginal.coefficients) >= coefficient.cutoff
+      passed.prob.cutoff <- feature.vec$joint.probabilities >= probability.cutoff
       passed.total.cutoff <- passed.coeff.cutoff & passed.prob.cutoff
       if(sum(passed.total.cutoff) > 0){
         res <- as.data.frame(feature.vec)[passed.coeff.cutoff & passed.prob.cutoff,]
@@ -1254,9 +1311,9 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
           res$pval.in.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)$p.value
           res$pval.out.of.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)$p.value
         }
-        colnames(res) <- c("Feature", "Probability", "Coefficient", "Omic", "Factor", "in.sample.cor", "out.of.sample.cor", "in.sample.pval", "out.of.sample.pval")
+        #colnames(res) <- c("Feature", "Probability", "Coefficient", "Omic", "Factor", "in.sample.cor", "out.of.sample.cor", "in.sample.pval", "out.of.sample.pval")
         rownames(res) <- NULL
-        res <- dplyr::select(res, Feature, Omic, Factor, Coefficient, Probability, in.sample.cor, out.of.sample.cor, in.sample.pval, out.of.sample.pval)
+        #res <- dplyr::select(res, Feature, Omic, Factor, Coefficient, Probability, in.sample.cor, out.of.sample.cor, in.sample.pval, out.of.sample.pval)
         results.list[[length(results.list) + 1]] <- res
       }
     }
@@ -1270,6 +1327,7 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
                       Coefficient = numeric(0)))
   } else {
     total.results <- do.call("rbind", results.list)
+    total.results <- dplyr::arrange(total.results, -joint.probabilities, -abs(marginal.coefficients))
     return(total.results)
   }
 }
@@ -1390,7 +1448,7 @@ SPEAR.plot_feature_grid <- function(SPEARmodel, factors = NULL, omics = NULL, co
   g <- ggplot2::ggplot(feature.table) +
     ggplot2::geom_bar(ggplot2::aes(x = Coefficient, y = Feature, fill = Omic), stat = "identity") +
     ggplot2::geom_vline(xintercept = 0) +
-    ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARmodel)) +
+    ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
     ggplot2::theme_bw() +
     ggplot2::facet_grid(rows = ggplot2::vars(Omic), cols = ggplot2::vars(Factor), scales="free_y")
     
@@ -1452,7 +1510,7 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
       ggplot2::geom_bar(ggplot2::aes(y = Feature, x = Coefficient, fill = Omic), stat = "identity") +
       ggplot2::geom_vline(xintercept = 0) +
       ggplot2::ggtitle(names(final.res)[i]) +
-      ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARmodel), guide = FALSE) +
+      ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y), guide = FALSE) +
       ggplot2::theme_bw() +
       ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12))
     plotlist[[i]] <- g
@@ -1460,7 +1518,7 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
   # add legend:
   g.legend <- ggplot2::ggplot(data.frame(Omic = names(SPEARmodel$data$xlist), x = 1, y = 1)) +
     ggplot2::geom_bar(ggplot2::aes(x = x, y = y, fill = Omic), stat = "identity") +
-    ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARmodel))
+    ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y))
   plotlist[[length(plotlist) + 1]] <- cowplot::get_legend(g.legend)
   
   p <- cowplot::plot_grid(plotlist = plotlist, nrow = 1)
@@ -1735,6 +1793,8 @@ SPEAR.plot_feature_correlation <- function(SPEARmodel, feature.table, method = "
   return(g)
 }
 
+
+
 #' Get the best features from the variance cutoff parameter
 #'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
 #'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
@@ -1769,6 +1829,8 @@ SPEAR.get_best_features <- function(SPEARmodel, factor = 1, var.cutoff = .5, for
   
   return(feature.table)
 }
+
+
 
 #' Plot variance per feature
 #'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)

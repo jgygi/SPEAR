@@ -8,8 +8,8 @@ SPEAR.get_feature_table(
   SPEARmodel,
   factors = NULL,
   omics = NULL,
-  coefficient.cutoff = 0.01,
-  probability.cutoff = 0.5,
+  coefficient.cutoff = 0,
+  probability.cutoff = 0.95,
   method = "spearman"
 )
 }

@@ -8,6 +8,7 @@ SPEAR.plot_class_predictions(
   SPEARmodel,
   forecast = "out.of.sample",
   Xlist = NULL,
+  Y = NULL,
   show.true.distribution = TRUE
 )
 }

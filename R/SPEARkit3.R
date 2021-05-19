@@ -221,7 +221,11 @@ SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = FALSE, show.min.w.line 
   }
   minimum.values <- apply(cv.errors, 2, min)
   cv.errors <- cbind(cv.errors, SPEARobj$params$weights)
-  colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
+  if(SPEARobj$params$family == "multinomial"){
+    colnames(cv.errors) <- c("overall", "w")
+  } else {
+    colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
+  }
   
   # Melt to make graph
   cv.errors.melted <- reshape2::melt(cv.errors, id.vars = c("w"))
@@ -235,7 +239,11 @@ SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = FALSE, show.min.w.line 
     }
     minimum.values.sd <- sapply(1:ncol(cv.errors.sd), function(idx){return(cv.errors.sd[apply(cv.errors, 2, which.min)[idx],idx])})
     cv.errors.sd <- cbind(cv.errors.sd, SPEARobj$params$weights)
-    colnames(cv.errors.sd) <- c(colnames(SPEARobj$data$Y), "w")
+    if(SPEARobj$params$family == "multinomial"){
+      colnames(cv.errors) <- c("overall", "w")
+    } else {
+      colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
+    }
     
     # Melt to make graph
     cv.errors.sd.melted <- reshape2::melt(cv.errors.sd, id.vars = c("w"))
@@ -400,19 +408,19 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
   features <- list()
   w.joint.probabilities = SPEARobj$fit$results$post_selections_joint[,,w.idx]
   w.marginal.probabilities = SPEARobj$fit$results$post_selections_marginal[,,w.idx]
-  w.regular.probabilities = SPEARobj$fit$results$post_selections[,,w.idx]
-  w.regular.coefficients = SPEARobj$fit$results$post_betas[,,1,w.idx]
-  w.marginal.coefficients = SPEARobj$fit$results$post_bxs[,,w.idx]
+  w.projection.probabilities = SPEARobj$fit$results$post_selections[,,w.idx]
+  w.regression.coefficients = SPEARobj$fit$results$post_betas[,,1,w.idx]
+  w.projection.coefficients = SPEARobj$fit$results$post_bxs[,,w.idx]
   colnames(w.joint.probabilities) <- paste0("Factor", 1:ncol(w.joint.probabilities))
   rownames(w.joint.probabilities) <- colnames(SPEARobj$data$X)
   colnames(w.marginal.probabilities) <- paste0("Factor", 1:ncol(w.marginal.probabilities))
   rownames(w.marginal.probabilities) <- colnames(SPEARobj$data$X)
-  colnames(w.regular.probabilities) <- paste0("Factor", 1:ncol(w.regular.probabilities))
-  rownames(w.regular.probabilities) <- colnames(SPEARobj$data$X)
-  colnames(w.regular.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
-  rownames(w.regular.coefficients) <- colnames(SPEARobj$data$X)
-  colnames(w.marginal.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
-  rownames(w.marginal.coefficients) <- colnames(SPEARobj$data$X)
+  colnames(w.projection.probabilities) <- paste0("Factor", 1:ncol(w.projection.probabilities))
+  rownames(w.projection.probabilities) <- colnames(SPEARobj$data$X)
+  colnames(w.regression.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
+  rownames(w.regression.coefficients) <- colnames(SPEARobj$data$X)
+  colnames(w.projection.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
+  rownames(w.projection.coefficients) <- colnames(SPEARobj$data$X)
   # by factor
   num.omics <- length(SPEARobj$data$xlist)
   factor.features <- list()
@@ -424,26 +432,26 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
       omic.features <- list()
       w.joint.probabilities.current <- w.joint.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
       w.marginal.probabilities.current <- w.marginal.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
-      w.regular.probabilities.current <- w.regular.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
-      w.regular.coefficients.current <- w.regular.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
-      w.marginal.coefficients.current <- w.marginal.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.projection.probabilities.current <- w.projection.probabilities[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.regression.coefficients.current <- w.regression.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
+      w.projection.coefficients.current <- w.projection.coefficients[s:(s + ncol(SPEARobj$data$xlist[[o]]) - 1),factor]
       s <- s + ncol(SPEARobj$data$xlist[[o]])
       # Round loading probabilities to 7 decimals (to rank 1's):
-      w.joint.probabilities.current <- round(w.joint.probabilities.current, 7)
-      w.marginal.probabilities.current <- round(w.marginal.probabilities.current, 7)
-      w.regular.probabilities.current <- round(w.regular.probabilities.current, 7)
-      feat.order <- order(w.joint.probabilities.current, abs(w.marginal.coefficients.current), decreasing = TRUE)
-      w.regular.coefficients.current <- w.regular.coefficients.current[feat.order]
-      w.marginal.coefficients.current <- w.marginal.coefficients.current[feat.order]
+      #w.joint.probabilities.current <- round(w.joint.probabilities.current, 7)
+      #w.marginal.probabilities.current <- round(w.marginal.probabilities.current, 7)
+      #w.projection.probabilities.current <- round(w.projection.probabilities.current, 7)
+      feat.order <- order(w.joint.probabilities.current, abs(w.projection.coefficients.current), decreasing = TRUE)
+      w.regression.coefficients.current <- w.regression.coefficients.current[feat.order]
+      w.projection.coefficients.current <- w.projection.coefficients.current[feat.order]
       w.joint.probabilities.current <- w.joint.probabilities.current[feat.order]
       w.marginal.probabilities.current <- w.marginal.probabilities.current[feat.order]
-      w.regular.probabilities.current <- w.regular.probabilities.current[feat.order]
+      w.projection.probabilities.current <- w.projection.probabilities.current[feat.order]
       temp[[names(SPEARobj$data$xlist)[o]]]$features <- names(w.joint.probabilities.current)
       temp[[names(SPEARobj$data$xlist)[o]]]$joint.probabilities <- w.joint.probabilities.current
       temp[[names(SPEARobj$data$xlist)[o]]]$marginal.probabilities <- w.marginal.probabilities.current
-      temp[[names(SPEARobj$data$xlist)[o]]]$regular.probabilities <- w.regular.probabilities.current
-      temp[[names(SPEARobj$data$xlist)[o]]]$marginal.coefficients <- w.marginal.coefficients.current
-      temp[[names(SPEARobj$data$xlist)[o]]]$regular.coefficients <- w.regular.coefficients.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$projection.probabilities <- w.projection.probabilities.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$projection.coefficients <- w.projection.coefficients.current
+      temp[[names(SPEARobj$data$xlist)[o]]]$regression.coefficients <- w.regression.coefficients.current
     }
     features[[factor]] <- temp
   }
@@ -539,7 +547,7 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
                                              class.probabilities = Pmat,
                                              signal = out.of.sample.signal)
     }
-    if(SPEARobj$params$family == "categorical"){
+    if(SPEARobj$params$family == "multinomial"){
       class.probabilities <- lapply(colnames(SPEARobj$data$Y), function(j){return(in.sample.res[[j]]$class.probabilities)})
       names(class.probabilities) <- colnames(SPEARobj$data$Y)
       overall.class.predictions <- matrix(0, nrow = nrow(SPEARobj$data$Y), ncol = ncol(SPEARobj$data$Y))
@@ -653,7 +661,6 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
       rownames(X) <- paste0("sample_", 1:nrow(X))
     }
   } # ---------------------
-  
   preds.list <- list()
   for(j in 1:ncol(SPEARmodel$data$Y)){
     response <- colnames(SPEARmodel$data$Y)[j]
@@ -665,7 +672,7 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
     if(SPEARmodel$params$family != "gaussian"){
       resp.name <- colnames(SPEARmodel$data$Y)[j]
       signal <- matrix(preds, ncol = 1)
-      rownames(signal) <- rownames(SPEARmodel$data$Y)
+      rownames(signal) <- rownames(Xlist[[1]])
       colnames(signal) <- c(resp.name)
       intercept = SPEARmodel$fit$intercepts[[j]]
       Pmat0 = matrix(0, ncol = length(intercept), nrow = length(signal))
@@ -683,19 +690,19 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
         }
       }
       class.predictions <- matrix(apply(Pmat, 1, which.max) - 1, ncol=1)
-      rownames(class.predictions) <- rownames(SPEARmodel$data$Y)
+      rownames(class.predictions) <- rownames(X)
       colnames(class.predictions) <- c(resp.name)
-      rownames(Pmat) <- rownames(SPEARmodel$data$Y)
+      rownames(Pmat) <- rownames(X)
       colnames(Pmat) <- paste0("Class", 0:(ncol(Pmat)-1))
-      if(SPEARmodel$params$family == "categorical"){
-        overall.class.predictions <- matrix(0, nrow = nrow(SPEARmodel$data$Y), ncol = ncol(SPEARmodel$data$Y))
+      if(SPEARmodel$params$family == "multinomial"){
+        overall.class.predictions <- matrix(0, nrow = nrow(X), ncol = ncol(SPEARmodel$data$Y))
         for(i in 1:nrow(overall.class.predictions)){
           overall.class.predictions[i, which.max(sapply(1:ncol(SPEARmodel$data$Y), function(ind){
             return(Pmat[i,2]) # Return the probability of Class1 for each binomial
           }))] <- 1
         }
         colnames(overall.class.predictions) <- colnames(SPEARmodel$data$Y)
-        rownames(overall.class.predictions) <- rownames(SPEARmodel$data$Y)
+        rownames(overall.class.predictions) <-rownames(X)
         preds.list[[response]] <- list(
           overall.class.predictions = overall.class.predictions,
           individual.class.predictions = class.predictions,
@@ -719,17 +726,17 @@ SPEAR.get_predictions <- function(SPEARmodel, Xlist = NULL){
     rownames(preds) <- rownames(X)
     colnames(preds) <- colnames(SPEARmodel$data$Y)
     return(preds)
-  } else if(SPEARmodel$params$family == "categorical"){
+  } else if(SPEARmodel$params$family == "multinomial"){
     class.probabilities <- lapply(1:ncol(SPEARmodel$data$Y), function(j){return(preds.list[[j]]$class.probabilities)})
     names(class.probabilities) <- colnames(SPEARmodel$data$Y)
-    overall.class.predictions <- matrix(0, nrow = nrow(SPEARmodel$data$Y), ncol = ncol(SPEARmodel$data$Y))
+    overall.class.predictions <- matrix(0, nrow = nrow(X), ncol = ncol(SPEARmodel$data$Y))
     for(i in 1:nrow(overall.class.predictions)){
       overall.class.predictions[i, which.max(sapply(1:ncol(SPEARmodel$data$Y), function(ind){
         return(class.probabilities[[ind]][i,2]) # Return the probability of Class1 for each binomial
       }))] <- 1
     }
     colnames(overall.class.predictions) <- colnames(SPEARmodel$data$Y)
-    rownames(overall.class.predictions) <- rownames(SPEARmodel$data$Y)
+    rownames(overall.class.predictions) <- rownames(X)
     preds <- list(overall.class.predictions = overall.class.predictions,
                   individual.class.predictions = do.call("cbind", lapply(preds.list, function(res){return(res$class.predictions)})),
                   class.probabilities = class.probabilities,
@@ -876,11 +883,12 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
 
 
 
-#' Plot class probabilities for a SPEARmodel (of family "binomial", "categorical", or "ordinal")
+#' Plot class probabilities for a SPEARmodel (of family "binomial", "multinomial", or "ordinal")
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
 #'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
 #'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
 #'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
+#'@param simplify.multinomial If the family of the SPEARobject is 'multinomial', condense into one plot? Will ignore if family parameter is not 'multinomial'. Defaults to TRUE.
 #'@return A plot showing in-sample vs. out-of-sample predictions per response
 #' @examples
 #' SPEAR.plot_class_probabilities(SPEARmodel)
@@ -889,9 +897,9 @@ SPEAR.plot_overfit <- function(SPEARmodel, groups = NULL){
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_class_probabilities(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
-SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL){
+SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, simplify.multinomial = TRUE){
   if(SPEARmodel$params$family == "gaussian"){
-    stop('*** ERROR: SPEARmodel must be of type "ordinal", "categorical", or "binomial" to plot class probabilities.')
+    stop('*** ERROR: SPEARmodel must be of type "ordinal", "multinomial", or "binomial" to plot class probabilities.')
   } else {
     if(!forecast %in% c("in.sample", "out.of.sample")){
       stop('*** ERROR: unknown forecast parameter "', forecast, '". Can be "in.sample" or "out.of.sample"')
@@ -903,12 +911,50 @@ SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast =
       class.probabilities <- SPEAR::SPEAR.get_predictions(SPEARmodel, Xlist)
     } # ------
     
-    df.list <- list()
-    for(j in 1:length(class.probabilities$class.probabilities)){
-      df <- as.data.frame(class.probabilities$class.probabilities[[j]])
+    if(SPEARmodel$params$family != "multinomial" | !simplify.multinomial){
+      df.list <- list()
+      for(j in 1:length(class.probabilities$class.probabilities)){
+        df <- as.data.frame(class.probabilities$class.probabilities[[j]])
+        df$group <- NaN
+        df$sample <- rownames(df)
+  
+        if(!is.null(groups)){
+          # Check for mapping of metadata to subjects:
+          if(is.null(names(groups)) | any(!names(groups) %in% rownames(df))){
+            stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+          }
+          else{
+            df$group <- sapply(rownames(df), function(sample){return(groups[which(names(groups) == sample)])})
+          }
+        }
+        df.melt <- reshape2::melt(df, id.vars = c("group", "sample"))
+        df.melt$response = colnames(SPEARmodel$data$Y)[j]
+        # Add to list:
+        df.list[[j]] <- df.melt
+      }
+      df.total <- do.call("rbind", df.list)
+      
+      g <- ggplot2::ggplot(df.total) +
+        ggplot2::geom_line(ggplot2::aes(x = variable, y = value, color = group, group = sample)) +
+        ggplot2::geom_point(ggplot2::aes(x = variable, y = value, color = group)) +
+        ggplot2::xlab("Class") +
+        ggplot2::ylab("Probability") +
+        ggplot2::theme_bw() +
+        ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) +
+        ggplot2::facet_wrap(ggplot2::vars(response), nrow = 1)
+      
+    } else {
+      overall.probability.matrix <- matrix(NA, nrow = nrow(SPEARmodel$data$Y), ncol = ncol(SPEARmodel$data$Y))
+      # Get P(Class1) for each column in Y:
+      for(i in 1:length(SPEARmodel$predictions$in.sample$class.probabilities)){
+        overall.probability.matrix[,i] <- SPEARmodel$predictions$in.sample$class.probabilities[[i]][,2]
+      }
+      colnames(overall.probability.matrix) <- paste0("PClass1.", colnames(SPEARmodel$data$Y))
+      rownames(overall.probability.matrix) <- rownames(SPEARmodel$data$Y)
+      df <- as.data.frame(overall.probability.matrix)
       df$group <- NaN
       df$sample <- rownames(df)
-
+      
       if(!is.null(groups)){
         # Check for mapping of metadata to subjects:
         if(is.null(names(groups)) | any(!names(groups) %in% rownames(df))){
@@ -919,20 +965,17 @@ SPEAR.plot_class_probabilities <- function(SPEARmodel, groups = NULL, forecast =
         }
       }
       df.melt <- reshape2::melt(df, id.vars = c("group", "sample"))
-      df.melt$response = response = colnames(SPEARmodel$data$Y)[j]
-      # Add to list:
-      df.list[[j]] <- df.melt
+      df.melt$predicted = colnames(SPEARmodel$data$Y)[apply(SPEAR::SPEAR.get_predictions(SPEARmodel, Xlist = Xlist)$overall.class.predictions, 1, which.max)]
+      g <- ggplot2::ggplot(df.melt) +
+        ggplot2::geom_line(ggplot2::aes(x = variable, y = value, color = group, group = sample)) +
+        ggplot2::geom_point(ggplot2::aes(x = variable, y = value, color = group)) +
+        ggplot2::xlab("Class") +
+        ggplot2::ylab("Probability") +
+        ggplot2::theme_bw() +
+        ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) +
+        ggplot2::facet_wrap(ggplot2::vars(predicted), nrow = 1)
+      
     }
-    df.total <- do.call("rbind", df.list)
-    
-    g <- ggplot2::ggplot(df.total) +
-      ggplot2::geom_line(ggplot2::aes(x = variable, y = value, color = group, group = sample)) +
-      ggplot2::geom_point(ggplot2::aes(x = variable, y = value, color = group)) +
-      ggplot2::xlab("Class") +
-      ggplot2::ylab("Probability") +
-      ggplot2::theme_bw() +
-      ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5)) +
-      ggplot2::facet_wrap(ggplot2::vars(response), nrow = 1)
   }
   
   # Return plots
@@ -1112,7 +1155,7 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
       if(any(table(groups) <= 2)){
         stop("*** ERROR: 1 or more groups provided in the 'groups' argument have 2 or less entries. Cannot perform correlation analyses. Groups need to have at least 3 members.")
       }
-      # Make categorical if is.numeric:
+      # Make multinomial if is.numeric:
       if(any(is.numeric(groups))){
         
       }
@@ -1132,19 +1175,19 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
 
 #' Plot factor coefficients for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param type Which coefficients to plot? Options include "marginal" and "regular" (default)
+#'@param type Which coefficients to plot? Options include "marginal" and "regression" (default)
 #'@return A plot with the factor loadings of the SPEAR model
 #' @examples
 #' SPEAR.plot_factor_coefficients(SPEARmodel)
 #'@export
-SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regular"){
+SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regression"){
   ### Group loop? [,g,]
   if(type == "marginal"){
     w.coefficients = SPEARmodel$fit$post_bxs
-  } else if(type == "regular"){
+  } else if(type == "regression"){
     w.coefficients = SPEARmodel$fit$post_betas[,,1]
   } else {
-    stop("ERROR: type not recognized. Must be 'marginal' or 'regular'")
+    stop("ERROR: type not recognized. Must be 'marginal' or 'regression'")
   }
   ### Add to group loop?
   colnames(w.coefficients) <- paste0("Factor", 1:ncol(w.coefficients))
@@ -1190,16 +1233,16 @@ SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regular"){
 
 #' Plot posterior selection probabilities for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param type Which coefficients to plot? Options include "marginal" and "regular" (default)
-#'@return A plot with the factor loadings of the SPEAR model
+#'@param type Which probabilities to plot? Options include "marginal", "regression", and "joint" (default)
+#'@return A plot with the factor probabilities of the SPEAR model
 #' @examples
 #' SPEAR.plot_factor_probabilities(SPEARmodel)
 #'@export
-SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per.omic = TRUE){
+SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per.omic = TRUE, plot.log = TRUE){
   ### Group loop? [,g,]
   if(type == "marginal"){
     w.probabilities = SPEARmodel$fit$post_selections_marginal
-  } else if(type == "regular"){
+  } else if(type == "regression"){
     w.probabilities = SPEARmodel$fit$post_selections
   } else if(type == "joint"){
     w.probabilities = SPEARmodel$fit$post_selections_joint
@@ -1211,7 +1254,9 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per
   rownames(w.probabilities) <- colnames(SPEARmodel$data$X)
   df <- reshape2::melt(w.probabilities)
   colnames(df)[3] <- "probability"
-  df$probability <- -log(1 - df$probability)
+  if(plot.log){
+    df$probability <- -log(1.000000001 - df$probability)
+  }
   # Add bars:
   omic.ends <- c(0, as.vector(sapply(SPEARmodel$data$xlist, ncol)))
   for(o in 2:length(omic.ends)){
@@ -1241,7 +1286,7 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per
                    plot.subtitle = ggplot2::element_text(hjust = .5, face = "plain", size = 10),
                    legend.text = ggplot2::element_text(size = 8),
                    legend.title = ggplot2::element_text(size = 10)) +
-    ggplot2::labs(fill = "-log(1 - Prob)", color = "Dataset")
+    ggplot2::labs(fill = ifelse(plot.log, "-log(1 - Prob)", "Prob"), color = "Dataset")
   
   return(g)
 }
@@ -1292,7 +1337,7 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
   for(f in factors){
     for(o in omics){
       feature.vec <- SPEARmodel$factors$features[[f]][[o]]
-      passed.coeff.cutoff <- abs(feature.vec$marginal.coefficients) >= coefficient.cutoff
+      passed.coeff.cutoff <- abs(feature.vec$projection.coefficients) >= coefficient.cutoff
       passed.prob.cutoff <- feature.vec$joint.probabilities >= probability.cutoff
       passed.total.cutoff <- passed.coeff.cutoff & passed.prob.cutoff
       if(sum(passed.total.cutoff) > 0){
@@ -1308,26 +1353,45 @@ SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, co
           vals <- SPEARmodel$data$xlist[[o]][,which(colnames(SPEARmodel$data$xlist[[o]]) == res$features[r])]
           res$cor.in.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)
           res$cor.out.of.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)
-          res$pval.in.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)$p.value
-          res$pval.out.of.sample[r] <- cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)$p.value
+          res$pval.in.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)$p.value)
+          res$pval.out.of.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)$p.value)
         }
-        #colnames(res) <- c("Feature", "Probability", "Coefficient", "Omic", "Factor", "in.sample.cor", "out.of.sample.cor", "in.sample.pval", "out.of.sample.pval")
+        colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor", "in.sample.correlation", "out.of.sample.correlation", "in.sample.pvalue", "out.of.sample.pvalue")
         rownames(res) <- NULL
-        #res <- dplyr::select(res, Feature, Omic, Factor, Coefficient, Probability, in.sample.cor, out.of.sample.cor, in.sample.pval, out.of.sample.pval)
+        res <- dplyr::select(res, 
+                             Factor,
+                             Feature, 
+                             Dataset, 
+                             regression.coefficient,
+                             projection.coefficient, 
+                             joint.probability,
+                             marginal.probability,
+                             projection.probability,
+                             in.sample.correlation, 
+                             in.sample.pvalue, 
+                             out.of.sample.correlation, 
+                             out.of.sample.pvalue)
         results.list[[length(results.list) + 1]] <- res
       }
     }
   }
   if(length(results.list) == 0){
     warning("*** Warning: No features found within cutoffs for chosen Factors/Omics. Returning data.frame with 0 rows. Try broadening the criteria.")
-    return(data.frame(Feature = character(0),
-                      Omic = character(0),
-                      Factor = character(0),
-                      Probability = numeric(0),
-                      Coefficient = numeric(0)))
+    return(res <- data.frame( Factor = character(0),
+                              Feature = character(0), 
+                              Dataset = character(0), 
+                              regression.coefficient = numeric(0),
+                              projection.coefficient = numeric(0), 
+                              joint.probability = numeric(0),
+                              marginal.probability = numeric(0),
+                              projection.probability = numeric(0),
+                              in.sample.correlation = numeric(0), 
+                              out.of.sample.correlation = numeric(0), 
+                              in.sample.pvalue = numeric(0), 
+                              out.of.sample.pvalue = numeric(0)))
   } else {
     total.results <- do.call("rbind", results.list)
-    total.results <- dplyr::arrange(total.results, -joint.probabilities, -abs(marginal.coefficients))
+    total.results <- dplyr::arrange(total.results, Factor, -joint.probability, -abs(projection.coefficient))
     return(total.results)
   }
 }
@@ -1533,20 +1597,27 @@ SPEAR.plot_feature_summary <- function(SPEARmodel, factors = NULL, omics = NULL,
 #'@param Xlist A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).
 #'@param show.true.distribution Plot the true distribution as well? Defaults to TRUE
 #'@export
-SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample", Xlist = NULL, show.true.distribution = TRUE){
+SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample", Xlist = NULL, Y = NULL, show.true.distribution = TRUE){
   ## Gaussian check: ----------
   if(SPEARmodel$params$family == "gaussian"){
-    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'categorical'. Current SPEARmodel is of type 'gaussian'.")
+    stop("ERROR: SPEARobj must be of 'family' type 'binomial', 'ordinal', or 'multinomial'. Current SPEARmodel is of type 'gaussian'.")
   }
-  if(SPEARmodel$params$family == "categorical"){
+  if(SPEARmodel$params$family == "multinomial"){
     # Get class predictions:
-    preds <- SPEARmodel$predictions[[forecast]]$overall.class.predictions
+    if(is.null(Xlist)){
+      preds <- SPEARmodel$predictions[[forecast]]$overall.class.predictions
+    } else {
+      preds <- SPEAR.get_predictions(SPEARmodel, Xlist = Xlist)$overall.class.predictions
+    }
     levels <- ncol(preds)
     class.preds <- data.frame(ClassPrediction = apply(preds, 1, which.max) - 1)
     rownames(class.preds) <- rownames(preds)
     
     # Get true classes:
-    true.classes <- SPEARmodel$data$Y
+    if(is.null(Y)){
+      Y <- SPEARmodel$data$Y
+    }
+    true.classes <- Y
     true.class.long <- data.frame(Class = apply(true.classes, 1, which.max) - 1)
     rownames(true.class.long) <- rownames(true.classes)
     
@@ -1610,7 +1681,7 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     ggplot2::geom_histogram(ggplot2::aes(x = ClassPrediction, fill = Class), color = "black", stat = "count", lwd = .25) +
     ggplot2::ylab("Count") +
     ggplot2::geom_segment(ggplot2::aes(x = 0.5, y = 0, xend = (levels+.5), yend = 0), lwd = 0) +
-    ggplot2::scale_fill_brewer(palette = "RdBu", direction = 1) +
+    ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
     ggplot2::scale_x_discrete(labels = labels, c(0:(levels-1))) +
     ggplot2::theme_bw() +
     ggplot2::theme(axis.title.x = ggplot2::element_blank()) +
@@ -1673,7 +1744,7 @@ SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = 
       for(i in 1:ncol(Y)){
         if(all(Y[,i] %in% 0:1)){
           if(ncol(Y) > 1){
-            family <- "categorical"
+            family <- "multinomial"
           } else {
             family <- "binomial"
           }
@@ -1792,6 +1863,74 @@ SPEAR.plot_feature_correlation <- function(SPEARmodel, feature.table, method = "
   
   return(g)
 }
+
+
+
+#' Plot a correlation matrix for the selected features
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param x What to show on the x-axis? Can be a string of a Factor name (i.e. "Factor1", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
+#'@param y What to show on the y-axis? Can be a string of a Factor name (i.e. "Factor2", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
+#'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
+#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
+#'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@export
+SPEAR.plot_correlation <- function(SPEARmodel, x = "Factor1", y = "Factor2", groups = NULL, method = "spearman", forecast = "out.of.sample"){
+  
+  # Make sure x and y are appropriate:
+  factors <- paste0("Factor", 1:SPEARmodel$params$num_factors)
+  if(!x %in% factors){
+    # check if it's a feature...
+    feature <- x
+    if(!x %in% colnames(SPEARmodel$data$X)){
+      stop("ERROR: parameter 'x' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
+    }
+    x.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
+  } else {
+    x.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", x))]
+  }
+  if(!y %in% factors){
+    # check if it's a feature...
+    feature <- y
+    if(!y %in% colnames(SPEARmodel$data$X)){
+      stop("ERROR: parameter 'y' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
+    }
+    y.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
+  } else {
+    y.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", y))]
+  }
+  
+  if(!is.null(groups)){
+    # Check for mapping of metadata to subjects:
+    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$factors$factor.scores))){
+      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+    }
+    else{
+      group.vals <- sapply(rownames(SPEARmodel$factors$factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
+    }
+  } else {
+    group.vals <- NaN
+  }
+  
+  df <- data.frame(x.axis = x.vals,
+                   y.axis = y.vals,
+                   group = group.vals)
+  
+  cor.val <- cor(df$x.axis, df$y.axis, method = method)
+  cor.pval <- suppressWarnings(cor.test(df$x.axis, df$y.axis, method = method)$p.value)
+  
+  g <- ggplot(df) +
+    geom_point(aes(y = y.axis, x = x.axis, color = group)) +
+    geom_smooth(aes(y = y.axis, x = x.axis), color = "red", method = "lm", alpha = 0, size = .3) +
+    ggtitle(paste0(y, " ~ ", x), paste0(method, " coef: ", round(cor.val, 3), " | p.value: ", signif(cor.pval, 3))) +
+    theme_classic() +
+    xlab(x) +
+    ylab(y) +
+    theme(plot.title = element_text(hjust = .5),
+          plot.subtitle = element_text(hjust = .5, size = 9))
+  
+  return(g)
+}
+
 
 
 

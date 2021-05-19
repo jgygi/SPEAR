@@ -16,7 +16,7 @@ double pos(double x){
 
 
 /* spear_ is the function for external use
-  family: datatype of y, 0 = Gaussian, 1 = binomial, 2 = ordinal, 3 = ?
+  family: datatype of y, 0 = Gaussian, 1 = binomial, 2 = ordinal, 3 = multinomial
   Y: N * p0 response matrix.
   X: N* p feature omics matrix for it.
   Yobs: N*p0 indicator matrix of wether Y is observed, Yobs[i,j] = 1 if Y[i,j] is observed.

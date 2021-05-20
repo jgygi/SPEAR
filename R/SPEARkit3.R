@@ -1901,11 +1901,11 @@ SPEAR.plot_correlation <- function(SPEARmodel, x = "Factor1", y = "Factor2", gro
   
   if(!is.null(groups)){
     # Check for mapping of metadata to subjects:
-    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$factors$factor.scores))){
+    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$data$Y))){
       stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
     }
     else{
-      group.vals <- sapply(rownames(SPEARmodel$factors$factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
+      group.vals <- sapply(rownames(SPEARmodel$data$Y), function(sample){return(groups[which(names(groups) == sample)])})
     }
   } else {
     group.vals <- NaN

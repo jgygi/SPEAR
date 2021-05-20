@@ -472,7 +472,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   }
   
   if(is.null(Z)){
-    Z <- data$X
+    Z <- do.call("cbind", X)
   }
   
   other.params <- c("warmup", "max.iterations", "elbo.threshold", "elbo.threshold.count")

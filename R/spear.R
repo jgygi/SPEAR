@@ -227,7 +227,7 @@ pattern_samples = NULL, pattern_features = NULL,
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
     
-    cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "------------------------\n"))
+    cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)

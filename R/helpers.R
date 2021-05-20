@@ -330,7 +330,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param run.debug debug?
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = "gaussian", inits.type = "pca",
-                         num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
+                         num.factors = NULL, seed = NULL, scale.x = FALSE, scale.y = FALSE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
                          save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
   
@@ -459,8 +459,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     }
   }
   if(is.null(weights)){
-    cat("***", paste0(" weights not provided. Using c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)\n"))
-    weights <- c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)
+    cat("***", paste0(" weights not provided. Using c(2, 1.5, 1.0, 0.5, 0.0)\n"))
+    weights <- c(2, 1.5, 1.0, 0.5, 0.0)
   } else {
     cat(SPEAR.color_text("~~~", tilde.color), paste0(" weights - using c(", paste(round(weights, 2), collapse = ", "), ")\n"))
   }
@@ -472,7 +472,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   }
   
   if(is.null(Z)){
-    Z <- do.call("cbind", X)
+    Z <- data$X
   }
   
   other.params <- c("warmup", "max.iterations", "elbo.threshold", "elbo.threshold.count")
@@ -613,7 +613,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       save.name <- paste0(save.name, ".rds")
     }
     saveRDS(SPEARobj, file = paste0(save.path, save.name))
-    cat(paste0("Saved SPEARobject to RDS file at ", save.name))
+    cat(paste0("Saved SPEARobject to RDS file at ", save.name, "\n\n"))
   }
   
   return(SPEARobj)

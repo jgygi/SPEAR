@@ -27,7 +27,7 @@ double pos(double x){
   pattern_samples: lists of samples having a common beta for each sample group.
   pattern_features: lists of features used in beta for each sample group.
   weights: weights for X.
-  thres_eblo, thres_count: stop if increase of eblo is below thre_eblo for consequtive thres_count.
+  thres_elbo, thres_count: stop if increase of elbo is below thre_elbo for consequtive thres_count.
   thres_factor: drop a factor if its variance is below thres_factor.
   (a0, b0), (a1, b1), (a2, b2): hyper priors for sparsity, effect size and noise variance.
   lower: ??
@@ -92,7 +92,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
    */
     arma::mat U2 = arma::zeros<arma::mat>(n, num_factors);
     /*
-     delta* is the increase in EBLO for each subroutines and Delta is the total increase.
+     delta* is the increase in elbo for each subroutines and Delta is the total increase.
     */
     double delta11, delta12, delta2, delta3, delta4, delta51, delta52 = 0.0;
     double Delta = 0.0;
@@ -259,8 +259,8 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             }
         }
         if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-            Rcout << "###############iteration" << it -warm_up <<
-            "############### EBLO increase" << Delta <<  "###############"<< "\n";
+            Rcout << "~~~ iteration " << it - warm_up <<
+            "\t\t ~~~ ELBO increase " << Delta << "\n";
         }
         it += 1;
     }

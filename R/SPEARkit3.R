@@ -68,6 +68,9 @@ SPEAR.get_best_weights <- function(SPEARobj, w.method = "sd", return.overall = F
   if(ncol(SPEARobj$data$Y) == 1){
     return.overall = FALSE
   }
+  if(SPEARobj$params$family == "multinomial"){
+    return.overall = TRUE
+  }
   if(w.method == "min"){
     if(!return.overall){
       w.idxs = apply(SPEARobj$cv.eval$cvm, 2, which.min)
@@ -100,8 +103,8 @@ SPEAR.get_best_weights <- function(SPEARobj, w.method = "sd", return.overall = F
     }
     else if(return.overall){
       min.ws.idx <- which.min(rowSums(SPEARobj$cv.eval$cvm))
-      min.ws.sum <- sum(SPEARobj$cv.eval$cvm[min.ws.idx,])
-      min.ws.sd <- sum(SPEARobj$cv.eval$cvsd[min.ws.idx,])
+      min.ws.sum <- sum(SPEARobj$cv.eval$cvm[min.ws.idx,], na.rm = TRUE)
+      min.ws.sd <- sum(SPEARobj$cv.eval$cvsd[min.ws.idx,], na.rm = TRUE)
       min.plus.sd.ws <- min.ws.sum + min.ws.sd
       best.idx <- min.ws.idx
       best.w <- SPEARobj$params$weights[min.ws.idx]
@@ -162,7 +165,7 @@ SPEAR.set_color_scheme <- function(SPEARobject, X.vector = NULL, Y.vector = NULL
   num.responses <- ncol(SPEARobject$data$Y)
   
   if(is.null(X.vector)){
-    cols <- c("#9E0142", "#F46D43", "#ABDDA4", "#3288BD", "#5E4FA2")
+    cols <- c("#CD4D4D", "#F46D43", "#ABDDA4", "#9650B4", "#3288BD")
     colorvec.omic <- grDevices::colorRampPalette(cols)(num.omics)
     names(colorvec.omic) <- names(SPEARobject$data$xlist)
   } else if(length(X.vector) != num.omics){
@@ -194,8 +197,8 @@ SPEAR.set_color_scheme <- function(SPEARobject, X.vector = NULL, Y.vector = NULL
     colorvec.response <- Y.vector
   }
 
-  colorlist['X'] <- colorvec.omic
-  colorlist['Y'] <- colorvec.response
+  colorlist$X <- colorvec.omic
+  colorlist$Y <- colorvec.response
   SPEARobject$params$colors <- colorlist
   
   return(SPEARobject)
@@ -371,9 +374,10 @@ get_SPEAR_model <- function(SPEARobj, w = "overall", w.method = "sd"){
         X.tilde.j <- X.tilde[,j]
         X.j <- SPEARobj$data$xlist[[o]][,j]
         X.tilde.j = X.tilde.j + rnorm(n = length(X.tilde.j), mean = 0, sd = sqrt(var(X.j))*1/nrow(SPEARobj$data$X))
-        tmp_pearson = cor(X.j, X.tilde.j)
         suppressWarnings( tmp_pearson <- cor.test(X.j, X.tilde.j, method = 'pearson') ) 
-        if( tmp_pearson$estimate<0){
+        if(is.na(tmp_pearson$estimate)){
+          factor.contributions <- c(factor.contributions, 0)
+        }else if( tmp_pearson$estimate<0){
           factor.contributions <- c(factor.contributions, 0)
         }else{
           factor.contributions <- c(factor.contributions, tmp_pearson$estimate^2)
@@ -1136,6 +1140,11 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 #' SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
 SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, fit.line = TRUE){
+  # First, check if GGally is installed:
+  if(!"GGally" %in% rownames(installed.packages())){
+    stop("*** NOTE: This function requires the 'GGally' package (can be installed with 'install.packages('GGally')'. You do not have this package installed.")
+  }
+  
   ### Xlist (test data) ----------
   if(is.null(Xlist)){
     factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
@@ -1175,19 +1184,19 @@ SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of
 
 #' Plot factor coefficients for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param type Which coefficients to plot? Options include "marginal" and "regression" (default)
+#'@param type Which coefficients to plot? Options include "projection" and "regression" (default)
 #'@return A plot with the factor loadings of the SPEAR model
 #' @examples
 #' SPEAR.plot_factor_coefficients(SPEARmodel)
 #'@export
 SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regression"){
   ### Group loop? [,g,]
-  if(type == "marginal"){
+  if(type == "projection"){
     w.coefficients = SPEARmodel$fit$post_bxs
   } else if(type == "regression"){
     w.coefficients = SPEARmodel$fit$post_betas[,,1]
   } else {
-    stop("ERROR: type not recognized. Must be 'marginal' or 'regression'")
+    stop("ERROR: type not recognized. Must be 'projection' or 'regression'")
   }
   ### Add to group loop?
   colnames(w.coefficients) <- paste0("Factor", 1:ncol(w.coefficients))
@@ -1233,7 +1242,7 @@ SPEAR.plot_factor_coefficients <- function(SPEARmodel, type = "regression"){
 
 #' Plot posterior selection probabilities for a SPEARmodel
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param type Which probabilities to plot? Options include "marginal", "regression", and "joint" (default)
+#'@param type Which probabilities to plot? Options include "marginal", "projection", and "joint" (default)
 #'@return A plot with the factor probabilities of the SPEAR model
 #' @examples
 #' SPEAR.plot_factor_probabilities(SPEARmodel)
@@ -1242,12 +1251,12 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per
   ### Group loop? [,g,]
   if(type == "marginal"){
     w.probabilities = SPEARmodel$fit$post_selections_marginal
-  } else if(type == "regression"){
+  } else if(type == "projection"){
     w.probabilities = SPEARmodel$fit$post_selections
   } else if(type == "joint"){
     w.probabilities = SPEARmodel$fit$post_selections_joint
   } else {
-    stop("ERROR: type not recognized. Must be 'joint' or 'marginal'")
+    stop("ERROR: type not recognized. Must be 'joint', 'projection', or 'marginal'")
   }
   ### Add to group loop?
   colnames(w.probabilities) <- paste0("Factor", 1:ncol(w.probabilities))
@@ -1295,11 +1304,12 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per
 
 #' Get a data.frame of all features that pass cutoffs from the chosen model:
 #'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
+#'@param rank How should features be ranked? "probability" (default) ranks first by joint.probability, followed by projection.coefficient magnitude. Features will be selected by coefficient.cutoff and probability.cutoff (see below) "variance" returns a set number of features that explain a single factor. Features are selected one at a time, choosing the feature with the highest correlation, calculating variance explained, regressing that feature out, and re-ordering features based on their correlation. Will continue until an amount of total variance explained reaches var.exp.cutoff or a number of features is reached (num.features).
 #'@param factors A vector of integers representing factors. If NULL, will return features for all factors. Defaults to NULL (all factors)
 #'@param omics A vector of names of datasets (see names(SPEARmodel$data$xlist)). Defaults to NULL (all omics)
 #'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
 #'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
-#'@param method Which method for correlation? Defaults to "spearman"
+#'@param correlation Which method for correlation? Defaults to "none", but can be "pearson", "spearman", or "kendall"
 #'@return A data.frame with features that passed cutoffs set by the parameters.
 #' @examples
 #' SPEAR.get_feature_table(SPEARmodel)
@@ -1311,213 +1321,176 @@ SPEAR.plot_factor_probabilities <- function(SPEARmodel, type = "joint", plot.per
 #' # Get features that pass cutoffs:
 #' SPEAR.get_feature_table(SPEARmodel, coefficient.cutoff = .2, probability.cutoff = .5)
 #'@export
-SPEAR.get_feature_table <- function(SPEARmodel, factors = NULL, omics = NULL, coefficient.cutoff = 0, probability.cutoff = .95, method = "spearman"){
-  # Check that factors is within range:
-  if(is.null(factors)){
-    factors <- 1:SPEARmodel$params$num_factors
-  }
-  if(any(!is.numeric(factors))){
-    stop("*** ERROR: Factors provided (", factors, ") are not integers. Please choose a vector of integers from 1:", SPEARmodel$params$num_factors)
-  } else if(any(!factors %in% 1:SPEARmodel$params$num_factors)){
-    stop("*** ERROR: Some/all factors provided (", factors, ") are not within the possible range of 1:", SPEARmodel$params$num_factors)
-  }
-  # Passed factors:
-  factors <- paste0("Factor", factors)
+SPEAR.get_feature_table <- function(SPEARmodel, rank = "probability", factors = NULL, omics = NULL, coefficient.cutoff = 0, probability.cutoff = .95, correlation = "none",
+                                    var.cutoff = .7, num.features = NULL, forecast = "out.of.sample", correlation.method = "pearson"){
   
-  # Check if omics exist:
-  if(is.null(omics)){
-    omics <- names(SPEARmodel$data$xlist)
-  }
-  if(any(!omics %in% names(SPEARmodel$data$xlist))){
-    stop("*** ERROR: Some/all omics provided (", paste(omics, collapse = " ,"), ") are not found in the possible omics names: ", paste(names(SPEARmodel$data$xlist), collapse = ', '))
-  }
-  
-  # Get relevant features:
-  results.list <- list()
-  for(f in factors){
-    for(o in omics){
-      feature.vec <- SPEARmodel$factors$features[[f]][[o]]
-      passed.coeff.cutoff <- abs(feature.vec$projection.coefficients) >= coefficient.cutoff
-      passed.prob.cutoff <- feature.vec$joint.probabilities >= probability.cutoff
-      passed.total.cutoff <- passed.coeff.cutoff & passed.prob.cutoff
-      if(sum(passed.total.cutoff) > 0){
-        res <- as.data.frame(feature.vec)[passed.coeff.cutoff & passed.prob.cutoff,]
-        res$omic <- o
-        res$factor <- f
-        res$cor.in.sample <- NA
-        res$cor.out.of.sample <- NA
-        res$pval.in.sample <- NA
-        res$pval.out.of.sample <- NA
-        # Correlations:
-        for(r in 1:nrow(res)){
-          vals <- SPEARmodel$data$xlist[[o]][,which(colnames(SPEARmodel$data$xlist[[o]]) == res$features[r])]
-          res$cor.in.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)
-          res$cor.out.of.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)
-          res$pval.in.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = method)$p.value)
-          res$pval.out.of.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = method)$p.value)
-        }
-        colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor", "in.sample.correlation", "out.of.sample.correlation", "in.sample.pvalue", "out.of.sample.pvalue")
-        rownames(res) <- NULL
-        res <- dplyr::select(res, 
-                             Factor,
-                             Feature, 
-                             Dataset, 
-                             regression.coefficient,
-                             projection.coefficient, 
-                             joint.probability,
-                             marginal.probability,
-                             projection.probability,
-                             in.sample.correlation, 
-                             in.sample.pvalue, 
-                             out.of.sample.correlation, 
-                             out.of.sample.pvalue)
-        results.list[[length(results.list) + 1]] <- res
-      }
+    # Check that factors is within range:
+    if(is.null(factors)){
+      factors <- 1:SPEARmodel$params$num_factors
     }
-  }
-  if(length(results.list) == 0){
-    warning("*** Warning: No features found within cutoffs for chosen Factors/Omics. Returning data.frame with 0 rows. Try broadening the criteria.")
-    return(res <- data.frame( Factor = character(0),
-                              Feature = character(0), 
-                              Dataset = character(0), 
-                              regression.coefficient = numeric(0),
-                              projection.coefficient = numeric(0), 
-                              joint.probability = numeric(0),
-                              marginal.probability = numeric(0),
-                              projection.probability = numeric(0),
-                              in.sample.correlation = numeric(0), 
-                              out.of.sample.correlation = numeric(0), 
-                              in.sample.pvalue = numeric(0), 
-                              out.of.sample.pvalue = numeric(0)))
-  } else {
-    total.results <- do.call("rbind", results.list)
-    total.results <- dplyr::arrange(total.results, Factor, -joint.probability, -abs(projection.coefficient))
-    return(total.results)
-  }
-}
-
-
-
-
-#' Plot posterior seleciton probabilities and coefficients for features that pass the provided cutoffs.
-#'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param factors A vector of integers representing factors. If NULL, will return features for all factors. Defaults to NULL (all factors)
-#'@param omics A vector of names of datasets (see names(SPEARmodel$data$xlist)). Defaults to NULL (all omics)
-#'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
-#'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
-#'@param show.facet Separate by Factor and Omic? Defaults to TRUE
-#'@return A plot of features that pass the provided cutoffs.
-#' @examples
-#' SPEAR.plot_feature_distribution(SPEARmodel)
-#' 
-#' # Plot specific features for one omic:
-#' omic.name <- names(SPEARmodel$data$X)[1]
-#' SPEAR.plot_feature_distribution(SPEARmodel, factors = 1, omics = omic.name)
-#' 
-#' # Plot features that pass cutoffs:
-#' SPEAR.plot_feature_distribution(SPEARmodel, coefficient.cutoff = .2, probability.cutoff = .5)
-#'@export
-SPEAR.plot_feature_distribution <- function(SPEARmodel, factors = NULL, omics = NULL, coefficient.cutoff = .01, probability.cutoff = .5, show.facet = TRUE){
-  feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = factors, omics = omics, coefficient.cutoff = 0, probability.cutoff = probability.cutoff)
-  if(nrow(feature.table) == 0){
-    stop("*** ERROR: No features found for requested cutoffs. Try broadening the cutoffs.")
-  }
-  
-  feature.table$color <- sapply(feature.table$Coefficient, function(coeff){
-    if(coeff >= coefficient.cutoff){
-      return("high")
-    } else if(coeff <= -coefficient.cutoff){
-      return("low")
-    } else {
-      return("insignificant")
+    if(any(!is.numeric(factors))){
+      stop("*** ERROR: Factors provided (", factors, ") are not integers. Please choose a vector of integers from 1:", SPEARmodel$params$num_factors)
+    } else if(any(!factors %in% 1:SPEARmodel$params$num_factors)){
+      stop("*** ERROR: Some/all factors provided (", factors, ") are not within the possible range of 1:", SPEARmodel$params$num_factors)
     }
-  })
-  
-  # Plot results:
-  g <- ggplot2::ggplot(feature.table) +
-    ggplot2::annotate("rect", xmin = coefficient.cutoff, xmax = 100, ymin = -100, ymax = 100, fill = "#2ECC71", alpha = .2) +
-    ggplot2::annotate("rect", xmin = -100, xmax = -coefficient.cutoff, ymin = -100, ymax = 100, fill = "#E94D3D", alpha = .2) +
-    ggplot2::geom_point(ggplot2::aes(x = Coefficient, y = Probability, fill = color), shape = 21, stroke = .2, size = 2) +
-    ggplot2::scale_fill_manual(values = list(high = "#2ECC71", low = "#E94D3D", insignificant = "grey"), guide = FALSE) +
-    ggplot2::coord_cartesian(xlim = c(-max(abs(feature.table$Coefficient)), max(abs(feature.table$Coefficient))), ylim = c(probability.cutoff,1)) +
-    ggplot2::theme_bw()
-  
-  if(show.facet){
-    g <- g + ggplot2::facet_grid(rows = ggplot2::vars(Omic), cols = ggplot2::vars(Factor))
-  }
-  
-  return(g)
-}
-
-
-
-#' Plot posterior seleciton probabilities and coefficients for features that pass the provided cutoffs.
-#'@param SPEARmodel SPEAR model (returned from \code{get_SPEAR_model})
-#'@param factors A vector of integers representing factors. If NULL, will return features for all factors. Defaults to NULL (all factors)
-#'@param omics A vector of names of datasets (see names(SPEARmodel$data$xlist)). Defaults to NULL (all omics)
-#'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
-#'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
-#'@param sort.by How to order the features? "probability" ranks by posterior selection probability first, then coefficient. "coefficient" ranks purely by coefficient. Defaults to "probability"
-#'@param max.per.factor Maximum number of features per factor? Defaults to 10 (may be more due to overlapping features)
-#'@return A plot of features that pass the provided cutoffs.
-#' @examples
-#' SPEAR.plot_feature_grid(SPEARmodel)
-#' 
-#' # Plot specific features for one omic:
-#' omic.name <- names(SPEARmodel$data$X)[1]
-#' SPEAR.plot_feature_grid(SPEARmodel, factors = 1, omics = omic.name)
-#' 
-#' # Plot features that pass cutoffs:
-#' SPEAR.plot_feature_grid(SPEARmodel, coefficient.cutoff = .2, probability.cutoff = .5)
-#'@export
-SPEAR.plot_feature_grid <- function(SPEARmodel, factors = NULL, omics = NULL, coefficient.cutoff = .01, probability.cutoff = .5, sort.by = "probability", max.per.factor = 10){
-  feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = factors, omics = omics, coefficient.cutoff = .01, probability.cutoff = probability.cutoff)
-  if(nrow(feature.table) == 0){
-    stop("*** ERROR: No features found for requested cutoffs. Try broadening the cutoffs.")
-  }
-  
-  if(sort.by == "probability"){
-    feature.table <- dplyr::arrange(feature.table, -Probability, -abs(Coefficient))
-  } else if(sort.by == "coefficient"){
-    feature.table <- dplyr::arrange(feature.table, -abs(Coefficient))
-  }
-  
-  # cut down to top max.per.factor:
-  final.res <- data.frame(Feature = character(0),
-                          Omic = character(0),
-                          Factor = character(0),
-                          Probability = numeric(0),
-                          Coefficient = numeric(0))
-  for(f in unique(feature.table$Factor)){
-    temp <- dplyr::filter(feature.table, Factor == f)
-    if(nrow(temp) > 0){
-      if(nrow(temp) > max.per.factor){
-        if(sort.by == "probability"){
-          temp <- dplyr::arrange(temp, -Probability, -abs(Coefficient))
-        } else if(sort.by == "coefficient"){
-          temp <- dplyr::arrange(temp, -abs(Coefficient))
-        }
-        temp <- temp[1:max.per.factor,]
-        final.res <- rbind(final.res, temp)
-      } else {
-        final.res <- rbind(final.res, temp)
-      }
-    }
-  }
-  feature.table <- final.res
-  
-  
-  # Plot results:
-  feature.table$Feature <- factor(feature.table$Feature, levels = rev(unique(feature.table$Feature)))
-  g <- ggplot2::ggplot(feature.table) +
-    ggplot2::geom_bar(ggplot2::aes(x = Coefficient, y = Feature, fill = Omic), stat = "identity") +
-    ggplot2::geom_vline(xintercept = 0) +
-    ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
-    ggplot2::theme_bw() +
-    ggplot2::facet_grid(rows = ggplot2::vars(Omic), cols = ggplot2::vars(Factor), scales="free_y")
+    # Passed factors:
+    factors.string <- paste0("Factor", factors)
     
-  
-  return(g)
+    # Check if omics exist:
+    if(is.null(omics)){
+      omics <- names(SPEARmodel$data$xlist)
+    }
+    if(any(!omics %in% names(SPEARmodel$data$xlist))){
+      stop("*** ERROR: Some/all omics provided (", paste(omics, collapse = " ,"), ") are not found in the possible omics names: ", paste(names(SPEARmodel$data$xlist), collapse = ', '))
+    }
+    
+    # Get relevant features:
+    results.list <- list()
+    for(f in factors.string){
+      for(o in omics){
+        feature.vec <- SPEARmodel$factors$features[[f]][[o]]
+        passed.coeff.cutoff <- abs(feature.vec$projection.coefficients) >= coefficient.cutoff
+        passed.prob.cutoff <- feature.vec$joint.probabilities >= probability.cutoff
+        passed.total.cutoff <- passed.coeff.cutoff & passed.prob.cutoff
+        if(sum(passed.total.cutoff) > 0){
+          res <- as.data.frame(feature.vec)[passed.coeff.cutoff & passed.prob.cutoff,]
+          res$omic <- o
+          res$factor <- f
+          res$cor.in.sample <- NA
+          res$cor.out.of.sample <- NA
+          res$pval.in.sample <- NA
+          res$pval.out.of.sample <- NA
+          # Correlations:
+          if(correlation != "none"){
+            for(r in 1:nrow(res)){
+              vals <- SPEARmodel$data$xlist[[o]][,which(colnames(SPEARmodel$data$xlist[[o]]) == res$features[r])]
+              res$cor.in.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = correlation)
+              res$cor.out.of.sample[r] <- cor(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = correlation)
+              res$pval.in.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$in.sample[,f], method = correlation)$p.value)
+              res$pval.out.of.sample[r] <- suppressWarnings(cor.test(vals, SPEARmodel$factors$factor.scores$out.of.sample[,f], method = correlation)$p.value)
+            }
+            colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor", "in.sample.correlation", "out.of.sample.correlation", "in.sample.pvalue", "out.of.sample.pvalue")
+            rownames(res) <- NULL
+            res <- dplyr::select(res, 
+                                 Factor,
+                                 Feature, 
+                                 Dataset, 
+                                 regression.coefficient,
+                                 projection.coefficient, 
+                                 joint.probability,
+                                 marginal.probability,
+                                 projection.probability,
+                                 in.sample.correlation, 
+                                 in.sample.pvalue, 
+                                 out.of.sample.correlation, 
+                                 out.of.sample.pvalue)
+          } else {
+            colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor")
+            rownames(res) <- NULL
+            res <- dplyr::select(res, 
+                                 Factor,
+                                 Feature, 
+                                 Dataset, 
+                                 regression.coefficient,
+                                 projection.coefficient, 
+                                 joint.probability,
+                                 marginal.probability,
+                                 projection.probability)
+          }
+          results.list[[length(results.list) + 1]] <- res
+        }
+      }
+    }
+    if(length(results.list) == 0){
+      warning("*** Warning: No features found within cutoffs for chosen Factors/Omics. Returning data.frame with 0 rows. Try broadening the criteria.")
+      total.results <- data.frame( Factor = character(0),
+                                Feature = character(0), 
+                                Dataset = character(0), 
+                                regression.coefficient = numeric(0),
+                                projection.coefficient = numeric(0), 
+                                joint.probability = numeric(0),
+                                marginal.probability = numeric(0),
+                                projection.probability = numeric(0))
+    } else {
+      total.results <- do.call("rbind", results.list)
+      total.results <- dplyr::arrange(total.results, Factor, -joint.probability, -abs(projection.coefficient))
+    }
+    
+    
+    if(rank == "probability"){
+      return(total.results)
+    } else if(rank == "variance"){
+      if(length(factors) > 1){
+        cat("*** WARNING: Factor can only be a single number (i.e. 1, 2, 4, etc). Using the first factor provided (", factors.string[1], ")\n")
+        total.results <- dplyr::filter(total.results, Factor == factors.string[1])
+        factor <- factors[1]
+      }
+        
+      if(!is.null(num.features)){
+        var.cutoff = 1
+        cat("Getting top ", num.features, " features for Factor", factor, "\n", sep="")
+      } else {
+        cat("Getting features to explain ", var.cutoff, " variance for Factor", factor, "\n", sep="")
+      }
+      
+      # Sort by Coefficient (Beta)
+      orig.feature.table <- total.results
+      # Now, iterate step by step...
+      var.exp = 0
+      var.exp.list = c()
+      var.add.list = c()
+      features = c()
+      new.feature = feature.table$Feature[1]
+      current.residuals = SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)]
+      orig.var = var(SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)])
+      
+      while(var.exp < var.cutoff){
+        # Add a feature:
+        #new.feature = feature.table$Feature[length(features) + 1]
+        features = c(features, new.feature)
+        # Regress factor by feature:
+        current.residuals <- lm(current.residuals ~ SPEARmodel$data$X[, new.feature])$residuals
+        # Get variance explained by all features up until now:
+        var.exp = 1 - (var(current.residuals)/orig.var)
+        var.add.list <- c(var.add.list, var.exp - sum(var.add.list))
+        var.exp.list <- c(var.exp.list, var.exp)
+        # print out:
+        cat("~~~ ", length(features), ")\tVar. Exp. Factor", factor, " = ", sprintf("%.5f", round(var.exp, 5)), " from adding ", SPEAR.color_text(new.feature, "light cyan"), "\n", sep = "")
+        # regress new current residuals, find next best feature:
+        #feature.table <- feature.table[!which(feature.table$Feature %in% features)]
+        if(!is.null(num.features)){
+          if(length(features) >= num.features){
+            break
+          }
+        }
+        if(var.exp < var.cutoff){
+          # Find next feature:
+          feature.table <- feature.table[-which(feature.table$Feature == new.feature),]
+          leftover.features <- feature.table$Feature
+          vars <- sapply(leftover.features, function(f){
+            corr <- cor(current.residuals, SPEARmodel$data$X[, f], method = correlation.method)
+            if(is.na(corr)){
+              corr <- 0
+            }
+            return(abs(corr))
+          })
+          if(length(vars) == 0){
+            break
+          }
+          new.feature = names(sort(vars, decreasing = TRUE))[1]
+        }
+      }
+      
+      # Return the feature table with the features chosen:
+      orig.feature.table$Rank <- 1:nrow(orig.feature.table)
+      orig.feature.table <- dplyr::select(orig.feature.table, Rank, everything())
+      orig.feature.table <- orig.feature.table[match(features, orig.feature.table$Feature),]
+      orig.feature.table$var.exp.total <- var.exp.list
+      orig.feature.table$var.exp.added <- var.add.list
+      rownames(orig.feature.table) <- 1:nrow(orig.feature.table)
+      
+      return(orig.feature.table)
+   }
 }
 
 
@@ -1692,6 +1665,360 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
 
 
 
+#' Plot a correlation matrix for the selected features
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param x What to show on the x-axis? Can be a string of a Factor name (i.e. "Factor1", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
+#'@param y What to show on the y-axis? Can be a string of a Factor name (i.e. "Factor2", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
+#'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
+#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
+#'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@export
+SPEAR.plot_correlation <- function(SPEARmodel, x = "Factor1", y = "Factor2", groups = NULL, method = "spearman", forecast = "out.of.sample"){
+  
+  # Make sure x and y are appropriate:
+  factors <- paste0("Factor", 1:SPEARmodel$params$num_factors)
+  if(!x %in% factors){
+    # check if it's a feature...
+    feature <- x
+    if(!x %in% colnames(SPEARmodel$data$X)){
+      stop("ERROR: parameter 'x' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
+    }
+    x.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
+  } else {
+    x.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", x))]
+  }
+  if(!y %in% factors){
+    # check if it's a feature...
+    feature <- y
+    if(!y %in% colnames(SPEARmodel$data$X)){
+      stop("ERROR: parameter 'y' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
+    }
+    y.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
+  } else {
+    y.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", y))]
+  }
+  
+  if(!is.null(groups)){
+    # Check for mapping of metadata to subjects:
+    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$data$Y))){
+      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+    }
+    else{
+      group.vals <- sapply(rownames(SPEARmodel$data$Y), function(sample){return(groups[which(names(groups) == sample)])})
+    }
+  } else {
+    group.vals <- NaN
+  }
+  
+  df <- data.frame(x.axis = x.vals,
+                   y.axis = y.vals,
+                   group = group.vals)
+  
+  cor.val <- cor(df$x.axis, df$y.axis, method = method)
+  cor.pval <- suppressWarnings(cor.test(df$x.axis, df$y.axis, method = method)$p.value)
+  
+  g <- ggplot(df) +
+    geom_point(aes(y = y.axis, x = x.axis, color = group)) +
+    geom_smooth(aes(y = y.axis, x = x.axis), color = "red", method = "lm", alpha = 0, size = .3) +
+    ggtitle(paste0(y, " ~ ", x), paste0(method, " coef: ", round(cor.val, 3), " | p.value: ", signif(cor.pval, 3))) +
+    theme_classic() +
+    xlab(x) +
+    ylab(y) +
+    theme(plot.title = element_text(hjust = .5),
+          plot.subtitle = element_text(hjust = .5, size = 9))
+  
+  return(g)
+}
+
+
+
+
+#' Plot a correlation matrix for the selected features
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param feature.table A table of features from SPEAR.get_feature_table
+#'@param show.feature.names Should the feature names be shown on the axes? Defaults to TRUE
+#'@param show.correlation.values Should the (rounded) correlation values be shown? Defaults to FALSE
+#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
+#'@param cluster.features Cluster the features in the heatmap? Defaults to TRUE
+#'@export
+SPEAR.plot_feature_correlation <- function(SPEARmodel, feature.table, method = "spearman", show.feature.names = TRUE, show.correlation.values = FALSE, cluster.features = TRUE){
+
+  if(length(unique(feature.table$Dataset)) > 1){
+    cat("*** WARNING: More than one Dataset present in 'feature.table'. Combining all features...")
+  }
+  if(length(unique(feature.table$Factor)) > 1){
+    cat("*** WARNING: More than one Factor present in 'feature.table'. Combining all features...")
+  }
+  
+  # Get matrix of samples x features:
+  mat <- matrix(NA, nrow = nrow(SPEARmodel$data$X), ncol = nrow(feature.table))
+  colnames(mat) <- feature.table$Feature
+  rownames(mat) <- rownames(SPEARmodel$data$X)
+  for(j in 1:ncol(mat)){
+    mat[,j] <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == colnames(mat)[j])]
+  }
+  # Make correlation matrix from features provided:
+  corr.mat <- matrix(NA, nrow = ncol(mat), ncol = ncol(mat))
+  colnames(corr.mat) <- colnames(mat)
+  rownames(corr.mat) <- colnames(mat)
+  for(i in 1:ncol(mat)){
+    for(j in 1:ncol(mat)){
+      corr.mat[i,j] <- cor(mat[,i], mat[,j], method = method)
+    }
+  }
+  
+  if(cluster.features){
+    hc = hclust(as.dist(1 - corr.mat))
+    corr.mat = corr.mat[hc$order, hc$order]
+  }
+  # remove lower triangle
+  corr.mat[lower.tri(corr.mat)] = NA
+  
+  mat.melt <- reshape2::melt(corr.mat)
+  g <- ggplot2::ggplot(mat.melt) +
+    ggplot2::geom_tile(ggplot2::aes(x = Var1, y = Var2, fill = value)) +
+    ggplot2::scale_fill_gradient2(high = "dark red", low = "dark blue", limits = c(-1, 1), na.value = "white", name = method) +
+    ggplot2::xlab(NULL) +
+    ggplot2::ylab(NULL) +
+    ggplot2::coord_equal() +
+    ggplot2::theme_void() +
+    ggplot2::scale_x_discrete(position = "top") +
+    ggplot2::theme(legend.title = ggplot2::element_text(size = 10),
+                   legend.position = c(.75, .25))
+    
+  if(show.feature.names){
+    g <- g + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, size = 8, hjust = 0),
+                   axis.text.y = ggplot2::element_text(size = 8, hjust = 1))
+  }
+  
+  if(show.correlation.values){
+    g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)), size = 2.5)
+  }
+
+  
+  return(g)
+}
+
+
+
+
+#' Get the top features from the variance cutoff parameter. First, takes the top feature (ranked by joint probability, then projection coefficients)
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param factor Which factor? Must be a single integer (i.e. 1, 2, 4). Defaults to 1
+#'@param var.cutoff How much variance needs to be explained? Must be between 0 - 1. Defaults to .7
+#'@param num.features Rather than looping until 'var.cutoff' is met, give a predetermined number of features (i.e. 50, 100, ...). If 'num.features' is provided, will ignore 'var.cutoff'. Defaults to NULL (will use 'var.cutoff' instead)
+#'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
+#'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
+#'@param forecast Which factor scores to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@param correlation.method Which method to be used to find the next best feature? Can be "spearman", "pearson", and "kendall". Defaults to "pearson" (fastest)
+#'@export
+SPEAR.get_top_features <- function(SPEARmodel, factor = 1, var.cutoff = .7, num.features = NULL, coefficient.cutoff = 0, probability.cutoff = .95, forecast = "out.of.sample", correlation.method = "pearson"){
+  if(length(factor) > 1){
+    stop("ERROR: Factor can only be a single number (i.e. 1, 2, 4, etc).")
+  }
+  if(!is.null(num.features)){
+    var.cutoff = 1
+    cat("Getting top ", num.features, " features for Factor", factor, "\n", sep="")
+  } else {
+    cat("Getting features to explain ", var.cutoff, " variance for Factor", factor, "\n", sep="")
+  }
+  
+  # First step: get all features:
+  feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = factor, coefficient.cutoff = coefficient.cutoff, probability.cutoff = probability.cutoff)
+  
+  # Sort by Coefficient (Beta)
+  feature.table = dplyr::arrange(feature.table, -joint.probability, -abs(projection.coefficient))
+  orig.feature.table <- feature.table
+  # Now, iterate step by step...
+  var.exp = 0
+  var.exp.list = c()
+  var.add.list = c()
+  features = c()
+  new.feature = feature.table$Feature[1]
+  current.residuals = SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)]
+  orig.var = var(SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)])
+  
+  while(var.exp < var.cutoff){
+    # Add a feature:
+    #new.feature = feature.table$Feature[length(features) + 1]
+    features = c(features, new.feature)
+    # Regress factor by feature:
+    current.residuals <- lm(current.residuals ~ SPEARmodel$data$X[, new.feature])$residuals
+    # Get variance explained by all features up until now:
+    var.exp = 1 - (var(current.residuals)/orig.var)
+    var.add.list <- c(var.add.list, var.exp - sum(var.add.list))
+    var.exp.list <- c(var.exp.list, var.exp)
+    # print out:
+    cat("~~~ ", length(features), ")\tVar. Exp. Factor", factor, " = ", sprintf("%.5f", round(var.exp, 5)), " from adding ", SPEAR.color_text(new.feature, "light cyan"), "\n", sep = "")
+    # regress new current residuals, find next best feature:
+    #feature.table <- feature.table[!which(feature.table$Feature %in% features)]
+    if(!is.null(num.features)){
+      if(length(features) >= num.features){
+        break
+      }
+    }
+    if(var.exp < var.cutoff){
+      # Find next feature:
+      feature.table <- feature.table[-which(feature.table$Feature == new.feature),]
+      leftover.features <- feature.table$Feature
+      vars <- sapply(leftover.features, function(f){
+        corr <- cor(current.residuals, SPEARmodel$data$X[, f], method = correlation.method)
+        if(is.na(corr)){
+          corr <- 0
+        }
+        return(abs(corr))
+      })
+      new.feature = names(sort(vars, decreasing = TRUE))[1]
+    }
+  }
+  
+  # Return the feature table with the features chosen:
+  orig.feature.table$Rank <- 1:nrow(orig.feature.table)
+  orig.feature.table <- dplyr::select(orig.feature.table, Rank, everything())
+  orig.feature.table <- orig.feature.table[match(features, orig.feature.table$Feature),]
+  orig.feature.table$var.exp.total <- var.exp.list
+  orig.feature.table$var.exp.added <- var.add.list
+  rownames(orig.feature.table) <- 1:nrow(orig.feature.table)
+  
+  return(orig.feature.table)
+}
+
+
+
+#' Plot the top features from the variance cutoff parameter. First, takes the top feature (ranked by joint probability, then projection coefficients)
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param feature.table A feature table returned by SPEAR.get_feature_table.
+#'@param plot.type Which plot to show? Options include "summary" (default), plots joint probabilities vs. projection coefficients, "variance" - plot variance explained per feature in a Factor.
+#'@export
+SPEAR.plot_feature_table <- function(SPEARmodel, feature.table, 
+                                     plot.type = "summary",
+                                     # Summary:
+                                     # Correlation:
+                                     correlation.method = "pearson", show.feature.names = TRUE, show.correlation.values = FALSE, cluster.features = TRUE
+                                     # Variance:
+                                     ){
+  if(plot.type == "summary"){
+
+    feature.table$Feature <- factor(feature.table$Feature, levels = rev(feature.table$Feature))
+    g <- ggplot2::ggplot(feature.table) +
+      ggplot2::geom_bar(ggplot2::aes(y = Feature, x = projection.coefficient, fill = Dataset), stat = "identity") +
+      ggplot2::geom_vline(xintercept = 0) +
+      ggplot2::scale_fill_manual(values = SPEARmodel$params$colors$X) +
+      ggplot2::xlim(c(-max(abs(feature.table$projection.coefficient)), max(abs(feature.table$projection.coefficient)))) +
+      ggplot2::theme_classic() +
+      ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                     axis.line = ggplot2::element_blank(),
+                     panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::facet_wrap(ggplot2::vars(Factor), scales = "free_y")
+    return(g)
+    
+  } else if(plot.type == "probability"){
+    g <- ggplot2::ggplot(feature.table) +
+      ggplot2::geom_point(ggplot2::aes(x = projection.coefficient, y = joint.probability, fill = Dataset), size = 3, shape = 21, alpha = .5) +
+      ggplot2::geom_vline(xintercept = 0) +
+      ggplot2::scale_fill_manual(values = SPEARmodel$params$colors$X) +
+      ggplot2::scale_color_manual(values = SPEARmodel$params$colors$X) +
+      ggplot2::theme_classic() +
+      ggplot2::ylim(c(min(feature.table$joint.probability) - .1, 1)) +
+      ggplot2::xlim(c(-max(abs(feature.table$projection.coefficient)), max(abs(feature.table$projection.coefficient)))) +
+      ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                     axis.line = ggplot2::element_blank(),
+                     panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::facet_grid(cols = ggplot2::vars(Factor), rows = ggplot2::vars(Dataset), scales = "free_y")
+    
+    return(g)
+    
+  }else if(plot.type == "variance"){
+    # Check that var.exp.total column exists (else ask to run the function again with method = "top")
+    if(!"var.exp.total" %in% colnames(feature.table)){
+      stop("ERROR: feature.table provided was not from 'SPEAR.get_top_features'. Use that function to get the correct feature.table for this plot.")
+    }
+    
+    g <- ggplot2::ggplot(feature.table) +
+      ggplot2::geom_segment(ggplot2::aes(x = 1:nrow(feature.table), xend = 1:nrow(feature.table), y = 0, yend = var.exp.total, color = Dataset), size = .5) +
+      ggplot2::geom_line(ggplot2::aes(x = 1:nrow(feature.table), y = var.exp.total), color = "black", size = 1) +
+      ggplot2::geom_rect(ggplot2::aes(xmin = 1:nrow(feature.table) - .5,
+                                      xmax = 1:nrow(feature.table) + .5,
+                                      ymin = 0,
+                                      ymax = var.exp.added, 
+                                      fill = Dataset), color = "black", size = .5) +
+      ggplot2::scale_x_continuous(breaks = 1:nrow(feature.table), labels = feature.table$Feature) +
+      ggplot2::scale_color_manual(values = SPEARmodel$params$colors$X) +
+      ggplot2::scale_fill_manual(values = SPEARmodel$params$colors$X) +
+      ggplot2::theme_classic() +
+      ggplot2::xlab(NULL) +
+      ggplot2::ylab(paste0("Var. Explained for ", unique(feature.table$Factor)[1])) +
+      ggplot2::ggtitle(paste0("Top features for ", unique(feature.table$Factor)[1], " (VarExp. = ", round(max(feature.table$var.exp.total), 3), ")")) +
+      ggplot2::ylim(c(0, 1)) +
+      ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90),
+                     plot.title = ggplot2::element_text(hjust = .5))
+    
+    return(g)
+  } else if(plot.type == "correlation"){
+    if(length(unique(feature.table$Dataset)) > 1){
+      cat("*** WARNING: More than one Dataset present in 'feature.table'. Combining all features...")
+    }
+    if(length(unique(feature.table$Factor)) > 1){
+      cat("*** WARNING: More than one Factor present in 'feature.table'. Combining all features...")
+    }
+    
+    # Get matrix of samples x features:
+    mat <- matrix(NA, nrow = nrow(SPEARmodel$data$X), ncol = nrow(feature.table))
+    colnames(mat) <- feature.table$Feature
+    rownames(mat) <- rownames(SPEARmodel$data$X)
+    for(j in 1:ncol(mat)){
+      mat[,j] <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == colnames(mat)[j])]
+    }
+    # Make correlation matrix from features provided:
+    corr.mat <- matrix(NA, nrow = ncol(mat), ncol = ncol(mat))
+    colnames(corr.mat) <- colnames(mat)
+    rownames(corr.mat) <- colnames(mat)
+    for(i in 1:ncol(mat)){
+      for(j in 1:ncol(mat)){
+        corr.mat[i,j] <- cor(mat[,i], mat[,j], method = correlation.method)
+      }
+    }
+    
+    if(cluster.features){
+      hc = hclust(as.dist(1 - corr.mat))
+      corr.mat = corr.mat[hc$order, hc$order]
+    }
+    # remove lower triangle
+    corr.mat[lower.tri(corr.mat)] = NA
+    
+    mat.melt <- reshape2::melt(corr.mat)
+    g <- ggplot2::ggplot(mat.melt) +
+      ggplot2::geom_tile(ggplot2::aes(x = Var1, y = Var2, fill = value)) +
+      ggplot2::scale_fill_gradient2(high = "dark red", low = "dark blue", limits = c(-1, 1), na.value = "white", name = correlation.method) +
+      ggplot2::xlab(NULL) +
+      ggplot2::ylab(NULL) +
+      ggplot2::coord_equal() +
+      ggplot2::theme_void() +
+      ggplot2::scale_x_discrete(position = "top") +
+      ggplot2::theme(legend.title = ggplot2::element_text(size = 10),
+                     legend.position = c(.75, .25))
+    
+    if(show.feature.names){
+      g <- g + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, size = 8, hjust = 0),
+                              axis.text.y = ggplot2::element_text(size = 8, hjust = 1))
+    }
+    
+    if(show.correlation.values){
+      g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)), size = 2.5)
+    }
+    
+    
+    return(g)
+  }
+}
+
+
+
+
+#### Below this line have not been fully tested!
+
+
+
 #' Check that data are normally distributed and scaled properly for SPEAR
 #'@param Xlist A list of matrices of omics data. Defaults to NULL.
 #'@param Y A data.frame of response variables. Defaults to NULL.
@@ -1788,7 +2115,7 @@ SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = 
         df.list[[o]] <- df.temp
       }
       df <- do.call("rbind", df.list)
-
+      
       g <- ggplot2::ggplot(data = df) +
         ggplot2::geom_histogram(ggplot2::aes(x = pval), fill = "lightgrey", color = "black", binwidth = .1) +
         ggplot2::theme_bw() +
@@ -1798,249 +2125,3 @@ SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = 
     }
   }
 }
-
-
-
-#' Plot a correlation matrix for the selected features
-#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
-#'@param feature.table A table of features from SPEAR.get_feature_table
-#'@param show.feature.names Should the feature names be shown on the axes? Defaults to TRUE
-#'@param show.correlation.values Should the (rounded) correlation values be shown? Defaults to FALSE
-#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
-#'@param cluster.features Cluster the features in the heatmap? Defaults to TRUE
-#'@export
-SPEAR.plot_feature_correlation <- function(SPEARmodel, feature.table, method = "spearman", show.feature.names = TRUE, show.correlation.values = FALSE, cluster.features = TRUE){
-
-    if(length(unique(feature.table$Omic)) > 1){
-    cat("*** WARNING: More than one Omic present in 'feature.table'. Combining all features...")
-  }
-  
-  # Get matrix of samples x features:
-  mat <- matrix(NA, nrow = nrow(SPEARmodel$data$X), ncol = nrow(feature.table))
-  colnames(mat) <- feature.table$Feature
-  rownames(mat) <- rownames(SPEARmodel$data$X)
-  for(j in 1:ncol(mat)){
-    mat[,j] <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == colnames(mat)[j])]
-  }
-  # Make correlation matrix from features provided:
-  corr.mat <- matrix(NA, nrow = ncol(mat), ncol = ncol(mat))
-  colnames(corr.mat) <- colnames(mat)
-  rownames(corr.mat) <- colnames(mat)
-  for(i in 1:ncol(mat)){
-    for(j in 1:ncol(mat)){
-      corr.mat[i,j] <- cor(mat[,i], mat[,j], method = method)
-    }
-  }
-  
-  if(cluster.features){
-    hc = hclust(as.dist(1 - corr.mat))
-    corr.mat = corr.mat[hc$order, hc$order]
-  }
-  # remove lower triangle
-  corr.mat[lower.tri(corr.mat)] = NA
-  
-  mat.melt <- reshape2::melt(corr.mat)
-  g <- ggplot2::ggplot(mat.melt) +
-    ggplot2::geom_tile(ggplot2::aes(x = Var1, y = Var2, fill = value)) +
-    ggplot2::scale_fill_gradient2(high = "dark red", low = "dark blue", limits = c(-1, 1), na.value = "white", name = method) +
-    ggplot2::xlab(NULL) +
-    ggplot2::ylab(NULL) +
-    ggplot2::coord_equal() +
-    ggplot2::theme_void() +
-    ggplot2::scale_x_discrete(position = "top") +
-    ggplot2::theme(legend.title = ggplot2::element_text(size = 10),
-                   legend.position = c(.75, .25))
-    
-  if(show.feature.names){
-    g <- g + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, size = 8, hjust = 0),
-                   axis.text.y = ggplot2::element_text(size = 8, hjust = 1))
-  }
-  
-  if(show.correlation.values){
-    g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)), size = 2.5)
-  }
-
-  
-  return(g)
-}
-
-
-
-#' Plot a correlation matrix for the selected features
-#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
-#'@param x What to show on the x-axis? Can be a string of a Factor name (i.e. "Factor1", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
-#'@param y What to show on the y-axis? Can be a string of a Factor name (i.e. "Factor2", default) or string of a feature name (see colnames(SPEARmodel$data$X)).
-#'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
-#'@param method Method for correlation. Can be 'pearson', 'kendall', or 'spearman'. Defaults to 'spearman'.
-#'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
-#'@export
-SPEAR.plot_correlation <- function(SPEARmodel, x = "Factor1", y = "Factor2", groups = NULL, method = "spearman", forecast = "out.of.sample"){
-  
-  # Make sure x and y are appropriate:
-  factors <- paste0("Factor", 1:SPEARmodel$params$num_factors)
-  if(!x %in% factors){
-    # check if it's a feature...
-    feature <- x
-    if(!x %in% colnames(SPEARmodel$data$X)){
-      stop("ERROR: parameter 'x' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
-    }
-    x.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
-  } else {
-    x.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", x))]
-  }
-  if(!y %in% factors){
-    # check if it's a feature...
-    feature <- y
-    if(!y %in% colnames(SPEARmodel$data$X)){
-      stop("ERROR: parameter 'y' is not a factor, nor was it found in the available features (see colnames(SPEARmodel$data$X)...)")
-    }
-    y.vals <- SPEARmodel$data$X[,which(colnames(SPEARmodel$data$X) == feature)]
-  } else {
-    y.vals <- SPEARmodel$factors$factor.scores[[forecast]][,as.integer(gsub("Factor", "", y))]
-  }
-  
-  if(!is.null(groups)){
-    # Check for mapping of metadata to subjects:
-    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$data$Y))){
-      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
-    }
-    else{
-      group.vals <- sapply(rownames(SPEARmodel$data$Y), function(sample){return(groups[which(names(groups) == sample)])})
-    }
-  } else {
-    group.vals <- NaN
-  }
-  
-  df <- data.frame(x.axis = x.vals,
-                   y.axis = y.vals,
-                   group = group.vals)
-  
-  cor.val <- cor(df$x.axis, df$y.axis, method = method)
-  cor.pval <- suppressWarnings(cor.test(df$x.axis, df$y.axis, method = method)$p.value)
-  
-  g <- ggplot(df) +
-    geom_point(aes(y = y.axis, x = x.axis, color = group)) +
-    geom_smooth(aes(y = y.axis, x = x.axis), color = "red", method = "lm", alpha = 0, size = .3) +
-    ggtitle(paste0(y, " ~ ", x), paste0(method, " coef: ", round(cor.val, 3), " | p.value: ", signif(cor.pval, 3))) +
-    theme_classic() +
-    xlab(x) +
-    ylab(y) +
-    theme(plot.title = element_text(hjust = .5),
-          plot.subtitle = element_text(hjust = .5, size = 9))
-  
-  return(g)
-}
-
-
-
-
-#' Get the best features from the variance cutoff parameter
-#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
-#'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
-#'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
-#'@export
-SPEAR.get_best_features <- function(SPEARmodel, factor = 1, var.cutoff = .5, forecast = "out.of.sample"){
-  # First step: get all features:
-  feature.table = SPEAR.get_feature_table(SPEARmodel, factors = factor, coefficient.cutoff = 0, probability.cutoff = 0)
-  
-  # Sort by Coefficient (Beta)
-  feature.table = dplyr::arrange(feature.table, -Probability, -abs(Coefficient))
-  
-  # Now, iterate step by step...
-  var.exp = 0
-  features = c()
-  current.residuals = SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)]
-  orig.var = var(SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)])
-  while(var.exp < var.cutoff){
-    # Add a feature:
-    new.feature = feature.table$Feature[length(features) + 1]
-    features = c(features, new.feature)
-    # Regress factor by feature:
-    current.residuals <- lm(current.residuals ~ SPEARmodel$data$X[, new.feature])$residuals
-    # Get variance explained by all features up until now:
-    var.exp = 1 - (var(current.residuals)/orig.var)
-    # print out:
-    cat("~~~ ", length(features), ") Adding ", SPEAR.color_text(new.feature, "light cyan"), "...\t Total Var. Exp. Factor", factor, " = ", var.exp, "\n", sep = "")
-  }
-  
-  # Return the feature table with the features chosen:
-  feature.table <- dplyr::filter(feature.table, Feature %in% features)
-  
-  return(feature.table)
-}
-
-
-
-#' Plot variance per feature
-#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
-#'@param coefficient.cutoff Cutoff for coefficient magnitude. If .1 is provided, abs(coefficients) >= .1 are returned. Defaults to .01
-#'@param probability.cutoff Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5
-#'@export
-SPEAR.plot_variance_per_feature <- function(SPEARmodel, factor = 1, num.features = 50, coefficient.cutoff = 0, probability.cutoff = 0, forecast = "out.of.sample"){
-  # First step: get all features:
-  feature.table = SPEAR::SPEAR.get_feature_table(SPEARmodel, factors = factor, coefficient.cutoff = coefficient.cutoff, probability.cutoff = probability.cutoff)
-  
-  # Sort by Coefficient (Beta)
-  feature.table = dplyr::arrange(feature.table, -abs(Coefficient))
-  
-  # Now, iterate step by step...
-  var.exp = 0
-  features = c()
-  current.residuals = SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)]
-  orig.var = var(SPEARmodel$factors$factor.scores[[forecast]][,paste0('Factor', factor)])
-  var.exp.list <- c()
-  var.added.list <- c()
-  for(i in 1:num.features){
-    # Add a feature:
-    new.feature = feature.table$Feature[i]
-    # Regress factor by feature:
-    current.residuals <- lm(current.residuals ~ SPEARmodel$data$X[, new.feature])$residuals
-    # Get variance explained by all features up until now:
-    var.exp = 1 - (var(current.residuals)/orig.var)
-    var.exp.list <- c(var.exp.list, var.exp)
-    if(i != 1)
-      var.added.list <- c(var.added.list, var.exp - var.exp.list[i - 1])
-    else
-      var.added.list <- c(var.added.list, var.exp)
-    # print out:
-    cat("*** Trying with ", new.feature, "...\t Var Explained for Factor", factor, " = ", var.exp, "\n")
-  }
-  df <- feature.table[1:length(var.exp.list),]
-  df$var.exp <- var.exp.list
-  df$var.added <- var.added.list
-
-  g <- ggplot2::ggplot(df) +
-    ggplot2::geom_rect(ggplot2::aes(xmin = 1:nrow(df) - .5,
-                                    xmax = 1:nrow(df) + .5,
-                                    ymin = 0,
-                                    ymax = var.exp, 
-                                    fill = Omic), color = "black", size = .1) +
-    ggplot2::scale_x_continuous(breaks = 1:nrow(df), labels = df$Feature) +
-    ggplot2::scale_color_manual(values = SPEAR.get_color_scheme(SPEARobj)) +
-    ggplot2::scale_fill_manual(values = SPEAR.get_color_scheme(SPEARobj)) +
-    ggplot2::theme_bw() +
-    #ggplot2::ylim(c(0, 1)) +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90))
-  
-  return(g)
-}
-
-#SPEARobj <- readRDS("~/Dropbox/shared_folder/RealData/COVID-19/SPEAR_COVID_RF_Imputed_Ordinal.rds")
-#SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 2)
-
-#SPEAR.plot_variance_per_feature(SPEARmodel, factor = 1, num.features = 50)
-#SPEAR.get_best_features(SPEARmodel)
-#SPEARobj = readRDS("~/Documents/Coding/IMPACC/SPEAR/TCGA_tests/041421/SPEAR_tcga_encode_cat_0417_JG.rds")
-#SPEARmodel = SPEAR::get_SPEAR_model(SPEARobj, w = 2)
-#feature.table <- SPEAR.get_feature_table(SPEARmodel, factors = 2, omics = "mrna", probability.cutoff = .5, coefficient.cutoff = .0001, method = "pearson")
-#feature.table <- dplyr::arrange(feature.table, -abs(Coefficient))
-#feature.table <- dplyr::arrange(feature.table, -Probability, -abs(Coefficient))
-#feature.table <- feature.table[1:20,]
-#SPEAR.plot_feature_correlation(SPEARmodel, 
-#                               feature.table, 
-#                               show.feature.names = TRUE, 
-#                               show.correlation.values = TRUE, 
-#                               cluster.features = TRUE)
-
-
-

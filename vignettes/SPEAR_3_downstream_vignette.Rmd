@@ -1,0 +1,648 @@
+---
+title: "SPEAR: Downstream Analysis"
+author: "Jeremy Gygi"
+date: "3/29/21"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SPEAR_3-downstream_analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+### This vignette will provide insight into downstream analysis using SPEAR:
+
+1. Analyzing all SPEAR models (including SPEARgaussian)
+
+2. Functions specific to SPEARordinal, SPEARbinomial, and SPEARcategorical models
+
+##### Installing SPEAR:
+
+Follow installation instructions in README (located [here](https://github.com/jgygi/SPEAR))
+
+##### Required Libraries:
+
+```{r message = FALSE, warning = FALSE}
+library(SPEAR)
+```
+
+### Overview
+
+![SPEAR overview](vignette_spearoverview.png){width=100%}
+
+### The SPEARobject
+
+```{r}
+# Load in the SPEARobject saved from running SPEAR:
+file.path <- getwd()
+SPEARobj <- readRDS(paste0(file.path, "/SPEAR_vignette_object_gaussian.rds"))
+names(SPEARobj)
+```
+
+The SPEAR object returned has 4 components:
+1. fit (the cross-validated SPEAR object)
+2. cv.eval (the results from evaluating the fit object)
+3. params (the parameters used for this specific SPEAR object)
+4. data (the data used to train the SPEAR models in the object)
+
+*Variables used to reference results:*
+
++ $N$ - number of subjects [nrow($X$)]
+
++ $P$ - number of total features (across all omics) [ncol($X$)]
+
++ $D$ - number of omics datasets [length($X$)]
+
++ $G$ - number of groups of subjects (typically 1)
+
++ $Y$ - number of response vars [ncol($Y$)]
+
++ $K$ - number of factors SPEAR constructed
+
++ $W$ - number of weights used in CV
+
++ $F$ - number of folds used in CV
+
+
+
+1. fit - the cross-validated SPEAR object
+
+    + results
+    
+        + post_betas ($P$ x $K$ x $G$ x $W$)
+        
+        + post_bys ($K$ x $Y$ x $W$)
+        
+        + post_bxs ($K$ x $P$ x $W$)
+        
+        + post_pis ($P$ x $K$ x $W$)
+        
+        + post_selections ($P$ x $K$ x $W$)
+        
+        + interceptsX ($P$)
+        
+        + interceptsY ($Y$)
+        
+    + factors_coefs ($P$ x $K$ x $G$ x $F$ x $W$) # combine by F for out of sample
+    
+    + projection_coefs ($K$ x $Y$ x $F$ x $W$)    #
+    
+    + foldid ($N$)
+    
+2. cv.eval - results from evaluating 'fit'
+
+    + projection_coefs ($K$ x $Y$ x $W$) # after getting coefficients, use all data
+    
+    + reg_coefs ($P$ x $G$ x $Y$ x $W$)
+    
+    + intercepts ($Y$)
+    
+    + cvm ($W$ x $Y$)
+    
+    + cvsd ($W$ x $Y$)
+    
+    + factor_contributions ($K$ x $Y$ x $W$)
+    
+    + Yhat.keep ($N$ x $Y$ x $W$) # cv.predictions
+    
+3. params - the parameters used to generate 'fit' by SPEAR
+
+    + weights ($W$) - values of '$w$' used in SPEAR
+    
+    + foldid ($N$) - integer of 1:$F$
+    
+    + seed
+    
+    + num_factors
+    
+    + max_iter
+    
+    + thres_elbo
+    
+    + thres_count
+    
+4. data - the data used by SPEAR
+
+While it isn't necessary to extract these matrices directly from the model, it is useful to understand where the results are coming from. Most typical downstream analyses can be performed using the built-in SPEAR functions described below.
+
+### Weight parameter 'w'
+
+SPEAR generates factors based on a weight parameter, $w$. This parameter helps drive the factor construction process:
+
+![SPEAR overview](vignette_weightexplanation.png){width=100%}
+
+When $w\approx0$, it means that SPEAR will focus on generating factors that explain the response ($Y$). 
+
+When $w\ge1$, it means that SPEAR is equally considering the relationship between the constructed factors and both the datasets ($X$) and the response ($Y$). 
+
+This $w$ parameter is tuned automatically, meaning SPEAR will return factors constructed on the "best" $w$ (based on mean cross-validated prediction error from the training) by default. 
+
+SPEAR will generate a different set of factors for each value supplied in the 'weights' argument (if no argument is supplied, will default to c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0).
+```{r}
+# Check values of 'w' (weights) used by SPEAR:
+SPEARobj$params$weights
+```
+
+SPEAR uses the mean cross-validation error to determine which is the best $w$ to use.
+```{r}
+# Get best weights (w):
+SPEAR::SPEAR.get_best_weights(SPEARobj, w.method = 'min')
+SPEAR::SPEAR.get_best_weights(SPEARobj, w.method = 'sd')
+```
+
+Why did SPEAR return a different "best" $w$? Let's plot the mean cross-validation errors to visualize the impact of $w$ on the data.
+
+```{r fig.width = 7, fig.height = 5}
+SPEAR::SPEAR.plot_cv_loss(SPEARobj)
+```
+
+This function will plot the overall minimum cross validation loss for a SPEAR object (mean cross validation error for `family = "gaussian"`).
+
+The thick dashed line shows the **minimum overall** cross validated error (in this plot it extends from $w = 1.8$).
+
+The thin dashed line shows **1 standard deviation** of cross validated error above the **minimum overall** cross validated error (i.e. one error bar above $w = 1.8$ for this example).
+
+It looks like $w = 1.8$ was barely the lowest overall, but because $w = 2.0$ is a higher weight within 1 cross validation standard deviation, we choose $w = 2$ when `w.method = 'sd'`. 
+
+Whenever $w \ge 1$ the results are typically quite similar, so this shouldn't change too much.
+
+### The SPEARmodel
+
+Once we have chosen a value of $w$ to use, we can generate a SPEARmodel:
+
+```{r}
+SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj)
+```
+
+The SPEARmodel is similar to a SPEARobject, but it is used for a single $w$ value. Most downstream functions built into the SPEAR package utilize a SPEARmodel as input.
+
+The SPEARmodel can be broken down into the following lists:
+
++ factors
+
+    + factor.scores
+    
+        + in.sample
+        
+        + out.of.sample
+    
+    + contributions
+    
+        + X
+        
+        + Y
+        
+        + Y.pvals
+    
+    + features
+    
+        + [Factor1
+        
+            + OmicsDataset1
+            
+                +  features
+                
+                +  probabilities
+                
+                +  coefficients
+                
+            + ...
+                
+            + [last OmicsDataset]
+            
+        + ...
+        
+        + [last Factor]
+
++ predictions
+
+    +  in.sample
+    
+    +  out.of.sample
+
++ fit
+
+    +  post_bxs
+    
+    +  post_bys
+    
+    +  post_bys_cv
+    
+    +  post_betas
+    
+    +  post_betas_cv
+    
+    +  post_selections
+    
+    +  intercepts
+    
++ params
+
+    +  w
+    
+    +  family
+    
+    +  foldid
+    
+    +  seed
+    
+    +  num_factors
+    
+    +  max_iter
+    
+    +  thres_elbo
+    
+    +  thres_count
+
++ data
+
+    + X
+    
+    + Y
+    
+    + xlist
+
+Let's see what value of $w$ our SPEAR model is using:
+
+```{r}
+SPEARmodel$params$w
+```
+
+There are other ways to specify which value of $w$ a SPEARmodel should use:
+
+```{r eval = FALSE}
+### Specifying w.method:
+# Get a SPEARmodel for lowest cv error:
+SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w.method = "min")
+# Get a SPEARmodel for the highest weight within 1 sd of the lowest cv error:
+SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w.method = "sd")
+
+### Specifying w:
+# Note: if the provided weight is not within the provided weights
+#       (SPEARobj$params$weights), it will return the closest weight 
+#       to the value provided.
+SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 0)
+SPEARmodel <- SPEAR::get_SPEAR_model(SPEARobj, w = 1)
+```
+
+### Analyzing SPEARmodels with different `family` arguments: 
+
+#### SPEARgaussian
+
+1. Load the SPEARobject:
+
+```{r}
+file.path <- getwd()
+SPEARobj.gaussian <- readRDS(paste0(file.path, "/SPEAR_vignette_object_gaussian.rds"))
+```
+
+2. Choose a weight for a SPEARmodel:
+
+```{r fig.width = 7}
+# Plot cv loss:
+SPEAR::SPEAR.plot_cv_loss(SPEARobj.gaussian)
+```
+
+This is the same SPEARobject used above, so we will use the SPEARmodel for $w = 2$:
+
+```{r}
+SPEARmodel.w2 <- SPEAR::get_SPEAR_model(SPEARobj.gaussian, w = 2)
+```
+
+For this vignette, we will also make a $w = 0$ model to demonstrate the differences between $w = 0$ and $w \ge 1$.
+
+```{r}
+SPEARmodel.w0 <- SPEAR::get_SPEAR_model(SPEARobj.gaussian, w = 0)
+```
+
+
+##### Factor Contributions:
+
+We can see how much is explained from both the $w = 2$ and $w = 0$ SPEARmodels:
+
+```{r fig.width = 7, fig.height = 5, warning=FALSE}
+SPEAR::SPEAR.plot_factor_contributions(SPEARmodel.w2)
+SPEAR::SPEAR.plot_factor_contributions(SPEARmodel.w0)
+```
+
+##### Factor Scores
+
+Because SPEAR is run through cross-validation, you can choose to inspect the `in.sample` factors (those generated by $$all$$ of the training data) as well as the `out.of.sample` factors (each fold uses the factors generated from when it is left out as a validation set). This is done with the `forecast` argument:
+
+```{r fig.width = 7, fig.height = 4}
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w2, forecast = 'out.of.sample')
+```
+
+ Removing the jitter:
+ 
+```{r fig.width = 7, fig.height = 2.5}
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w2, forecast = 'out.of.sample', jitter.points = FALSE)
+```
+
+These plots don't show much on their own. Let's add a `groups` argument. This will color the points by some variable defined in a named vector... We can give each point (a sample) their respective response value as a group:
+
+```{r fig.width = 7, fig.height = 2.5}
+custom.groups <- SPEARmodel.w2$data$Y
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w2, groups = custom.groups, forecast = 'out.of.sample')
+```
+
+It looks like Factors 1 and 2 have strong correlations with the group (we set to Y).
+
+You can set the `groups` parameter to be continuous or categorical. Here we will bin our continuous response into different groups based on rounding them down to their nearest integer:
+
+```{r fig.width = 7, fig.height = 2.5}
+custom.groups <- factor(floor(SPEARmodel.w2$data$Y))
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w2, groups = custom.groups, forecast = 'out.of.sample')
+```
+
+What do the `in.sample` factor scores look like? We hope to not see much difference (this would mean the model overfit to the training data)...
+
+```{r fig.width = 7, fig.height = 2.5}
+custom.groups <- factor(floor(SPEARmodel.w2$data$Y))
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w2, groups = custom.groups, forecast = 'in.sample')
+```
+
+They look very similar, with the exception of a few samples (see Factor 3 group 2, they appear a bit lower). This means the model appears to be generalizable to test (external) data.
+
+##### Feature Selection:
+
+Let's inspect the loadings matrix and the probabilities.
+
+The loadings represent the coefficients used by SPEAR to convert the Omics data (X) into the factor scores...
+
+```{r fig.width = 4, fig.height = 5, fig.align = "center"}
+SPEAR::SPEAR.plot_factor_loadings(SPEARmodel.w2)
+```
+
+It looks like OmicsData4 has a lot of high coefficients compared to the other Omics datasets. Let's look at the post selection probabilities of the features...
+
+The probabilities represent the posterior selection probabilities assigned by SPEAR to each feature...
+
+```{r fig.width = 4, fig.height = 5, fig.align = "center"}
+SPEAR::SPEAR.plot_factor_probabilities(SPEARmodel.w2)
+```
+
+Again, it looks like OmicsData4 is the dataset that has the most features that are used in our model. Let's find out what the features are using the `SPEAR.get_feature_table` function...
+
+```{r}
+feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, factors = 1:5, omics = "OmicsData4")
+head(feature.table)
+```
+
+This function (`SPEAR.get_feature_table`) will return a data.frame table with:
+
++ **Feature** (the name supplied to SPEAR, taken from colnames(SPEARmodel\$data\$X))
+
++ **Omic** (which dataset does the feature belong to? Taken from names(SPEARmodel\$data\$xlist))
+
++ **Factor** (Which factor is being referenced? The same feature may appear with a different **Coefficient**/**Probability** for different **Factor**)
+
++ **Coefficient** (the loading given to the feature for the respective **Factor**)
+
++ **Probability** (the posterior selection probability given to the feature for the respective **Factor**)
+
+This function (`SPEAR.get_feature_table`) can accept many cutoff parameters to return a specific set of features:
+
+```{r eval = FALSE}
+# Specifying which factors:
+feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, factors = c(1,2,4))
+
+# Specifying which omics:
+feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, omics = c("OmicsData1", "OmicsData4"))
+
+# Only return features with a probability >= .5:
+feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, probability.cutoff = .5)
+
+# Only return features with a coefficient >= .01:
+feature.table <- SPEAR::SPEAR.get_feature_table(SPEARmodel.w2, coefficient.cutoff = .01)
+```
+
+Let's get another visual representation of the top features. We can use the `SPEAR.plot_feature_distribution` function to plot all features (points) by their coefficient (X axis) and posterior selection probability (Y axis). The white bar in the middle represents the `coefficient.cutoff` parameter (defaults to .01), and the Y axis will begin at the `probability.cutoff` (defaults to .5).
+
+```{r, fig.width = 7, fig.height = 6}
+SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2)
+```
+
+The same `factors` and `omics` parameters can be used (from the `SPEAR.get_feature_table` function) to limit the features shown...
+
+```{r, fig.width = 7, fig.height = 6}
+SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2, factors = c(1, 2, 5), omics = c("OmicsData1", "OmicsData4"))
+```
+
+If we want to see an overall distribution (rather than faceted per omic, per factor), use `show.facet = FALSE`...
+
+```{r, fig.width = 7, fig.height = 6}
+SPEAR::SPEAR.plot_feature_distribution(SPEARmodel.w2, show.facet = FALSE)
+```
+
+We use the `SPEAR.plot_feature_summary` function to get the actual names and coefficients of the top `max.per.factor` features. Specify which factors are desired with the `factors` argument (defaults to `NULL`, or all factors), set the `probability.cutoff` and `coefficient.cutoff`, and choose which omics to include (with `omics`)...
+
+```{r, fig.width = 7, fig.height = 3.5}
+SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = 1:2, max.per.factor = 20)
+```
+
+```{r, fig.width = 7, fig.height = 2}
+SPEAR::SPEAR.plot_feature_summary(SPEARmodel.w2, factors = c(2, 5), omics = c("OmicsData2", "OmicsData3"), max.per.factor = 20)
+```
+
+
+##### Prediction:
+
+Predictions for training samples are generated when calling `get_SPEAR_model`. They are stored under `predictions`:
+
+```{r}
+names(SPEARmodel.w2$predictions)
+head(SPEARmodel.w2$predictions$in.sample)
+head(SPEARmodel.w2$predictions$out.of.sample)
+```
+
+The `"in.sample"` predictions come from factors built on all of the folds of the data, whereas `"out.of.sample"` predictions come from factors built in a leave-one-out cross-validation.
+
+Use `SPEAR.plot_overfit` to compare the in.sample vs. out.of.sample predictions
+
+```{r fig.width = 4, fig.height = 4, fig.align = "center"}
+SPEAR::SPEAR.plot_overfit(SPEARmodel)
+```
+
+We can still use the `groups` argument here... let's try coloring by the assigned `foldid` for cross-validation...
+
+```{r fig.width = 5, fig.height = 4, fig.align = "center"}
+custom.groups <- factor(SPEARmodel.w2$params$foldid)
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+SPEAR::SPEAR.plot_overfit(SPEARmodel, groups = custom.groups)
+```
+
+There don't appear to be any obvious patterns amongst the different folds for this SPEARmodel.
+
+You can then plot the SPEAR predictions against the "true" response for the cross-validation training data:
+
+```{r fig.height = 5, fig.width = 6, fig.align="center"}
+true.response <- SPEARmodel.w2$data$Y
+out.of.sample.preds <- SPEARmodel.w2$predictions$out.of.sample
+in.sample.preds <- SPEARmodel.w2$predictions$in.sample
+
+predictions.data.frame <- as.data.frame(cbind(true.response, out.of.sample.preds, in.sample.preds))
+colnames(predictions.data.frame) <- c("True", "Out.of.Sample", "In.Sample")
+head(predictions.data.frame)
+
+# Out of sample vs. True:
+ggplot2::ggplot(data = predictions.data.frame, ggplot2::aes(x = Out.of.Sample, y = True)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(method = "lm") +
+  ggplot2::theme_bw()
+
+# In sample vs. True
+ggplot2::ggplot(data = predictions.data.frame, ggplot2::aes(x = In.Sample, y = True)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(method = "lm") +
+  ggplot2::theme_bw()
+```
+
+#### SPEARcategorical (SPEARordinal, SPEARbinomial)
+
+All of the above functions can be used with any family of SPEAR (`"binomial"`, `"categorical"`, `"ordinal"`). Below, we will highlight some of the important distinctions when using a SPEAR family other than `"gaussian"`.
+
+We will highlight a `"categorical"` model using TCGA breast cancer data, but these functions apply to `"binomial"` and `"ordinal"` models as well.
+
+```{r}
+# Load in the SPEARobject saved from running SPEAR:
+file.path <- getwd()
+SPEARobj.categorical <- readRDS(paste0(file.path, "/SPEAR_vignette_object_categorical.rds"))
+```
+
+Categorical response data should have one column per category, with 0's and 1's populating the column (1 being class assignment):
+
+```{r}
+head(SPEARobj.categorical$data$Y)
+```
+
+
+When using `SPEAR.plot_cv_loss` with more than one response column (see above), SPEAR will return one plot for the cross-validated loss per column.
+
+```{r fig.height = 5, fig.width = 7, align = "center"}
+SPEAR::SPEAR.plot_cv_loss(SPEARobj.categorical, show.w.labels = FALSE)
+```
+
+We also use a deviance loss ($-2 \times $ log-likelihood) when the family is not `"gaussian"`, so a mean cv-error of 1 is not the same as a mean cv-error of 1 for `"gaussian"` models (since empty `"gaussian"` models have variance of 1).
+
+We see that Basal and LumA subtypes prefer $w = 0$, whereas Lumb prefers $w = 0.8$. Basal also seems to perform well at $w = 0.8$, so it could be an interesting SPEARmodel to look at as well.
+
+```{r}
+SPEARmodel.w0 <- SPEAR::get_SPEAR_model(SPEARobj.categorical, w = 0)
+SPEARmodel.w0.8 <- SPEAR::get_SPEAR_model(SPEARobj.categorical, w = 0.8)
+```
+
+##### Response Probabilities
+
+Upon inspecting the `$predictions` list from our SPEARmodels, we see more entries for the `in.sample` and `out.of.sample` forecasts:
+
+```{r}
+names(SPEARmodel.w0$predictions$in.sample)
+```
+
+**class.probabilities**: A list with a probability matrix for each response column (in this example: Basal, Her2, LumA, Lumb). `Class0` represents the probability of not assigning that class label, whereas `Class1` is the probability of assignment. The sum of each row is 1. SPEAR will assign labels based on the `Class1` probability for `"categorical"` models.
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$class.probabilities$Basal)
+```
+
+**signal.predictions**: Continuous variable, used to assign classes from calculated intercepts (see `SPEARmodel$fit$intercepts`). These are used to calculate the class probabilities above.
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$signal.predictions)
+```
+
+**overall.class.predictions**: Given all possible response columns (in this case, the four disease subtypes Basal, Her2, LumA and Lumb), classify each sample with **one** label (each row has all 0's except for the one column with the assigned label). In other words, using the `$class.probabilities` matrix, which subtype has the highest probability of `Class1`?:
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$overall.class.predictions)
+```
+
+**individual.class.predictions**: Treating each column **independently**, classify each sample with either a 0 or a 1 (there can be **multiple** classes assigned to a single sample). This means the probability of assigning a 1 for a subtype was higher than the probability of assigning a 0 for **multiple responses**:
+
+```{r}
+head(SPEARmodel.w0$predictions$in.sample$individual.class.predictions)
+```
+
+
+```{r fig.width = 7, fig.height = 3, warning = FALSE}
+SPEAR::SPEAR.plot_class_predictions(SPEARmodel.w0, forecast = "out.of.sample")
+SPEAR::SPEAR.plot_class_predictions(SPEARmodel.w0.8, forecast = "out.of.sample")
+```
+
+As seen in the mean cross-validated errors, the $w = 0.8$ model does a better job of predicting Lumb, whereas the $w = 0$ model improves LumA prediction. Let's inspect the factors of these two models.
+
+```{r fig.width = 7, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0$predictions$out.of.sample$overall.class.predictions, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0, groups = custom.groups)
+```
+
+Recall from the plot above that the $w = 0$ SPEARmodel did not label any sample as Lumb. We can see here that this SPEARmodel (for $w = 0$) uses Factor1 to distinguish Basal from Her2 and LumA, and Factor 2 to distinguish Her2/LumA. Typically, $w = 0$ models will only return one factor, analagous to coefficients for a simple linear model (such as lasso). However, in this case, there are more than one response trying to be predicted, so multiple simple linear models (one for Factor1 and one for Factor2) are required.
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0$data$Y, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0, groups = custom.groups)
+```
+
+Now, we are coloring by the **true class label**. We can see that the $w = 0$ SPEARmodel is able to separate Basal and Her2 well using the first two factors, but there is very little separation between LumA and Lumb. Let's look at the $w = 0.8$ model to see if we have improved separation:
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0.8$predictions$out.of.sample$overall.class.predictions, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0.8$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0.8$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0.8, groups = custom.groups)
+```
+
+Based on the **out.of.sample** prediction labels, this SPEARmodel ($w = 0.8$) is able to separate its LumA and Lumb predictions well as well as the Basal subtype. Let's look at how it separates the true classes:
+
+```{r fig.width = 9, fig.height = 3, fig.align = "center"}
+custom.groups <- apply(SPEARmodel.w0.8$data$Y, 1, which.max)
+custom.groups <- colnames(SPEARmodel.w0.8$data$Y)[custom.groups]
+names(custom.groups) <- rownames(SPEARmodel.w0.8$data$Y)
+SPEAR::SPEAR.plot_factor_scores(SPEARmodel.w0.8, groups = custom.groups)
+```
+
+We still see that SPEAR is able to separate Basal from the other classes well, as well as LumA and Lumb in Factor 2.
+
+You can use the `SPEAR.plot_factor_grid` function to show the factor scores against one another.
+
+**NOTE** This utilizes the `GGally` package.
+
+```{r, fig.width = 10, fig.align = "center", fig.height = 8, message = FALSE}
+SPEAR::SPEAR.plot_factor_grid(SPEARmodel.w0.8, groups = custom.groups, forecast = "out.of.sample")
+```
+
+You can always extract the feature scores and plot them as you like.
+
+```{r fig.width = 6, fig.height = 5, fig.align = "center"}
+out.of.sample.factor.scores <- SPEARmodel.w0.8$factors$factor.scores$in.sample
+
+# Convert to a data.frame:
+out.of.sample.factor.scores <- as.data.frame(out.of.sample.factor.scores)
+out.of.sample.factor.scores$Group <- custom.groups
+
+# Out of sample vs. True:
+ggplot2::ggplot(data = out.of.sample.factor.scores, ggplot2::aes(x = Factor1, y = Factor2, color = Group)) +
+  ggplot2::ggtitle("Out-of-Sample Factor Scores") +
+  ggplot2::geom_point() +
+  ggplot2::theme_bw()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

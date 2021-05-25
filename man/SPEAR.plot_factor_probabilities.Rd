@@ -14,7 +14,7 @@ SPEAR.plot_factor_probabilities(
 \arguments{
 \item{SPEARmodel}{SPEAR model (returned from \code{get_SPEAR_model})}
 
-\item{type}{Which probabilities to plot? Options include "marginal", "regression", and "joint" (default)}
+\item{type}{Which probabilities to plot? Options include "marginal", "projection", and "joint" (default)}
 }
 \value{
 A plot with the factor probabilities of the SPEAR model

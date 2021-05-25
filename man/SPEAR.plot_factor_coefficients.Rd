@@ -9,7 +9,7 @@ SPEAR.plot_factor_coefficients(SPEARmodel, type = "regression")
 \arguments{
 \item{SPEARmodel}{SPEAR model (returned from \code{get_SPEAR_model})}
 
-\item{type}{Which coefficients to plot? Options include "marginal" and "regression" (default)}
+\item{type}{Which coefficients to plot? Options include "projection" and "regression" (default)}
 }
 \value{
 A plot with the factor loadings of the SPEAR model

@@ -13,7 +13,7 @@ vignette: >
 
 1. Analyzing all SPEAR models (including SPEARgaussian)
 
-2. Functions specific to SPEARordinal, SPEARbinomial, and SPEARcategorical models
+2. Functions specific to SPEARordinal, SPEARbinomial, and SPEARmultinomial models
 
 ##### Installing SPEAR:
 

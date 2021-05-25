@@ -243,9 +243,9 @@ SPEAR.plot_cv_loss <- function(SPEARobj, show.w.labels = FALSE, show.min.w.line 
     minimum.values.sd <- sapply(1:ncol(cv.errors.sd), function(idx){return(cv.errors.sd[apply(cv.errors, 2, which.min)[idx],idx])})
     cv.errors.sd <- cbind(cv.errors.sd, SPEARobj$params$weights)
     if(SPEARobj$params$family == "multinomial"){
-      colnames(cv.errors) <- c("overall", "w")
+      colnames(cv.errors.sd) <- c("overall", "w")
     } else {
-      colnames(cv.errors) <- c(colnames(SPEARobj$data$Y), "w")
+      colnames(cv.errors.sd) <- c(colnames(SPEARobj$data$Y), "w")
     }
     
     # Melt to make graph

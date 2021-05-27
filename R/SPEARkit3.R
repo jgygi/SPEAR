@@ -1903,7 +1903,7 @@ SPEAR.plot_feature_table <- function(SPEARmodel, feature.table,
                                      ){
   if(plot.type == "summary"){
 
-    feature.table$Feature <- factor(feature.table$Feature, levels = rev(feature.table$Feature))
+    feature.table$Feature <- factor(feature.table$Feature, levels = rev(unique(feature.table$Feature)))
     g <- ggplot2::ggplot(feature.table) +
       ggplot2::geom_bar(ggplot2::aes(y = Feature, x = projection.coefficient, fill = Dataset), stat = "identity") +
       ggplot2::geom_vline(xintercept = 0) +
@@ -1935,7 +1935,7 @@ SPEAR.plot_feature_table <- function(SPEARmodel, feature.table,
   }else if(plot.type == "variance"){
     # Check that var.exp.total column exists (else ask to run the function again with method = "top")
     if(!"var.exp.total" %in% colnames(feature.table)){
-      stop("ERROR: feature.table provided was not from 'SPEAR.get_top_features'. Use that function to get the correct feature.table for this plot.")
+      stop("ERROR: feature.table provided was not from SPEAR.get_feature_table(... rank = 'variance'). Use the 'rank = 'variance'' parameter to get the correct feature.table for this plot.")
     }
     
     g <- ggplot2::ggplot(feature.table) +

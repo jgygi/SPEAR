@@ -1424,6 +1424,8 @@ SPEAR.get_feature_table <- function(SPEARmodel, rank = "probability", factors = 
         cat("*** WARNING: Factor can only be a single number (i.e. 1, 2, 4, etc). Using the first factor provided (", factors.string[1], ")\n")
         total.results <- dplyr::filter(total.results, Factor == factors.string[1])
         factor <- factors[1]
+      } else {
+        factor <- factors
       }
         
       if(!is.null(num.features)){
@@ -1432,9 +1434,10 @@ SPEAR.get_feature_table <- function(SPEARmodel, rank = "probability", factors = 
       } else {
         cat("Getting features to explain ", var.cutoff, " variance for Factor", factor, "\n", sep="")
       }
-      
+
       # Sort by Coefficient (Beta)
       orig.feature.table <- total.results
+      feature.table <- total.results
       # Now, iterate step by step...
       var.exp = 0
       var.exp.list = c()
@@ -1463,6 +1466,7 @@ SPEAR.get_feature_table <- function(SPEARmodel, rank = "probability", factors = 
             break
           }
         }
+
         if(var.exp < var.cutoff){
           # Find next feature:
           feature.table <- feature.table[-which(feature.table$Feature == new.feature),]

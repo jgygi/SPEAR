@@ -566,6 +566,45 @@ As a note: if the number of requested features (`num.features`) is less than the
 
 The same can be said if there aren't sufficient features that pass both cutoffs to reach a desired variance explained (`var.cutoff`) such as 0.9. In this case, all features will be returned, but in the order from the regression process.
 
+### Correlation Plots:
+
+Use the `SPEAR.plot_correlation` function to easily plot variables against one-another. To do this, change the `x` and `y` parameters. Current options include:
+
++ Factors (represented by "Factor1", "Factor2", etc...)
+
++ Any feature in any of the datasets (represented by a string of the feature name)
+
+```{r fig.width = 5, fig.height = 5, fig.align="center"}
+# Plot Factor 1 scores vs. Factor 2 scores:
+SPEAR::SPEAR.plot_correlation(SPEARmodel,
+                              x = "Factor1",
+                              y = "Factor2")
+```
+
+```{r fig.width = 5, fig.height = 5, fig.align="center"}
+# We can look at the feature.table we generated earlier to find a feature to plot.
+# looks like 'OmicsData4_feat194' is positively correlated with Factor 1 score
+feature.table[1,]
+
+# Plot Factor 1 scores vs. 'OmicsData4_feat194' values:
+SPEAR::SPEAR.plot_correlation(SPEARmodel,
+                              x = "Factor1",
+                              y = "OmicsData4_feat194")
+```
+
+This function also supports a `groups` parameter (see above for how to set this up)
+
+```{r fig.width = 5, fig.height = 5, fig.align="center"}
+custom.groups <- factor(floor(SPEARmodel.w2$data$Y))
+names(custom.groups) <- rownames(SPEARmodel.w2$data$Y)
+
+# Plot Factor 1 scores vs. 'OmicsData4_feat194' values:
+SPEAR::SPEAR.plot_correlation(SPEARmodel,
+                              x = "Factor1",
+                              y = "OmicsData4_feat194",
+                              groups = custom.groups)
+```
+
 ### Prediction:
 
 Predictions for training samples are generated when calling `get_SPEAR_model`. They are stored under `predictions`:

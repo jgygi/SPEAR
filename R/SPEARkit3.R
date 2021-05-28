@@ -1800,7 +1800,7 @@ SPEAR.plot_feature_table <- function(SPEARmodel, feature.table,
     }
     
     if(show.correlation.values){
-      g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)))
+      g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = round(value, 2)), size = 2.5)
     } else {
       g <- g + ggplot2::geom_text(ggplot2::aes(x = Var1, y = Var2, label = ifelse(p.value < .05, "*", "")))
     }

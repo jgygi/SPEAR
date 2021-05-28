@@ -533,11 +533,7 @@ feature.table.sorted <- dplyr::arrange(feature.table.random_rows, -joint.probabi
 SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.sorted, plot.type = "summary")
 ```
 
-
-
 ##### `plot.type = "variance"`
-
-
 
 ```{r, fig.width = 6, fig.height = 6, fig.align = "center"}
 # This plot cannot be used if you use a feature.table without 'rank = "variance"'...
@@ -565,6 +561,44 @@ SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.var
 As a note: if the number of requested features (`num.features`) is less than the number of features found using the *coefficient.cutoff* and *probability.cutoff*, all features will end up getting returned, but in the order from the regression process. 
 
 The same can be said if there aren't sufficient features that pass both cutoffs to reach a desired variance explained (`var.cutoff`) such as 0.9. In this case, all features will be returned, but in the order from the regression process.
+
+##### `plot.type = "correlation"`
+
+This will plot each feature (every row in the feature.table) in a correlation matrix against every other feature.
+
+An asterisk ('\*') will be plotted when the correlation test returns a p.value < 0.05...
+
+```{r, fig.width = 6, fig.height = 6, fig.align = "center"}
+SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.var, plot.type = "correlation")
+```
+
+Use the `correlation.method` parameter to choose which correlation test you would like to use ('pearson' (default), 'spearman', or 'kendall')
+
+```{r, fig.width = 6, fig.height = 6, fig.align = "center"}
+SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.var, plot.type = "correlation",
+                                correlation.method = "spearman")
+```
+
+Return the correlation values themselves:
+
+```{r, fig.width = 8, fig.height = 8, fig.align = "center"}
+SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.var, plot.type = "correlation",
+                                show.correlation.values = TRUE)
+```
+
+By default, features are clustered. To disable this, use `cluster.feature = FALSE`: 
+
+```{r, fig.width = 6, fig.height = 6, fig.align = "center"}
+SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.var, plot.type = "correlation",
+                                cluster.features = FALSE)
+```
+
+If there are too many features, consider using `show.feature.names = FALSE`:
+
+```{r, fig.width = 6, fig.height = 6, fig.align = "center"}
+SPEAR::SPEAR.plot_feature_table(SPEARmodel.w2, feature.table = feature.table.all[1:100,], plot.type = "correlation",
+                                show.feature.names = FALSE)
+```
 
 ### Correlation Plots:
 

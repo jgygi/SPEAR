@@ -1590,10 +1590,12 @@ SPEAR.plot_class_predictions <- function(SPEARmodel, forecast = "out.of.sample",
     ggplot2::geom_histogram(ggplot2::aes(x = ClassPrediction, fill = Class), color = "black", stat = "count", lwd = .25) +
     ggplot2::ylab("Count") +
     ggplot2::geom_segment(ggplot2::aes(x = 0.5, y = 0, xend = (levels+.5), yend = 0), lwd = 0) +
-    ggplot2::scale_fill_manual(values = c(SPEARmodel$params$colors$X, SPEARmodel$params$colors$Y)) +
     ggplot2::scale_x_discrete(labels = labels, c(0:(levels-1))) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(axis.title.x = ggplot2::element_blank()) +
+    ggplot2::theme_classic() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5, size = 12),
+                   axis.line = ggplot2::element_blank(),
+                   panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=1),
+                   axis.title.x = ggplot2::element_blank()) +
     ggplot2::facet_wrap(ggplot2::vars(PlotType))
   
   return(g)
@@ -1653,15 +1655,15 @@ SPEAR.plot_correlation <- function(SPEARmodel, x = "Factor1", y = "Factor2", gro
   cor.val <- cor(df$x.axis, df$y.axis, method = method)
   cor.pval <- suppressWarnings(cor.test(df$x.axis, df$y.axis, method = method)$p.value)
   
-  g <- ggplot(df) +
-    geom_point(aes(y = y.axis, x = x.axis, color = group)) +
-    geom_smooth(aes(y = y.axis, x = x.axis), color = "red", method = "lm", alpha = 0, size = .3) +
-    ggtitle(paste0(y, " ~ ", x), paste0(method, " coef: ", round(cor.val, 3), " | p.value: ", signif(cor.pval, 3))) +
-    theme_classic() +
-    xlab(x) +
-    ylab(y) +
-    theme(plot.title = element_text(hjust = .5),
-          plot.subtitle = element_text(hjust = .5, size = 9))
+  g <- ggplot2::ggplot(df) +
+    ggplot2::geom_point(ggplot2::aes(y = y.axis, x = x.axis, color = group)) +
+    ggplot2::geom_smooth(ggplot2::aes(y = y.axis, x = x.axis), color = "red", method = "lm", alpha = 0, size = .3) +
+    ggplot2::ggtitle(paste0(y, " ~ ", x), paste0(method, " coef: ", round(cor.val, 3), " | p.value: ", signif(cor.pval, 3))) +
+    ggplot2::theme_classic() +
+    ggplot2::xlab(x) +
+    ggplot2::ylab(y) +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5),
+          plot.subtitle = ggplot2::element_text(hjust = .5, size = 9))
   
   return(g)
 }
@@ -1923,3 +1925,78 @@ SPEAR.get_data_summary <- function(Xlist = NULL, Y = NULL, plot.xlist.pvalues = 
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+#' Plot a biplot of the chosen Factor scores and features
+#'@param SPEARmodel A SPEAR model (returned from get_SPEAR_model)
+#'@param x Which Factor to show on the x-axis? String of a Factor name (i.e. "Factor1", default).
+#'@param y Which Factor to show on the y-axis? String of a Factor name (i.e. "Factor2", default).
+#'@param groups A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.
+#'@param forecast Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".
+#'@export
+SPEAR.plot_biplot <- function(SPEARmodel, x.factor = 1, y.factor = 2, groups = NULL, forecast = "out.of.sample"){
+  
+  # Make sure x and y are appropriate:
+  factors <- 1:SPEARmodel$params$num_factors
+  if(!x.factor %in% factors)
+    stop("ERROR: x.factor is not within the number of factors")
+  if(!y.factor %in% factors)
+    stop("ERROR: y.factor is not within the number of factors")
+  x.vals <- SPEARmodel$factors$factor.scores[[forecast]][,x.factor]
+  y.vals <- SPEARmodel$factors$factor.scores[[forecast]][,y.factor]
+  
+  if(!is.null(groups)){
+    # Check for mapping of metadata to subjects:
+    if(is.null(names(groups)) | any(!names(groups) %in% rownames(SPEARmodel$data$Y))){
+      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+    }
+    else{
+      group.vals <- sapply(rownames(SPEARmodel$data$Y), function(sample){return(groups[which(names(groups) == sample)])})
+    }
+  } else {
+    group.vals <- NaN
+  }
+  
+  df <- data.frame(x.axis = x.vals,
+                   y.axis = y.vals,
+                   group = group.vals)
+  
+  arrow.df <- data.frame(x = SPEARmodel$fit$post_bxs[,x.factor],
+                         y = SPEARmodel$fit$post_bxs[,y.factor],
+                         probability.x = SPEARmodel$fit$post_selections_joint[,x.factor],
+                         probability.y = SPEARmodel$fit$post_selections_joint[,y.factor],
+                         label = colnames(SPEARmodel$data$X))
+  arrow.df$probability <- arrow.df$probability.x * arrow.df$probability.y
+  
+  arrow.df <- dplyr::filter(arrow.df, (probability.x > .95 & abs(y) > .01) | (probability.y > .95 & abs(x) > .01))
+  
+  scaling.factor <- max(abs(df$x.axis), abs(df$y.axis))
+  arrow.df$x <- arrow.df$x/max(abs(arrow.df$x)) * scaling.factor
+  arrow.df$y <- arrow.df$y/max(abs(arrow.df$y)) * scaling.factor
+  
+  g <- ggplot2::ggplot(df) +
+    ggplot2::geom_segment(data = arrow.df, ggplot2::aes(x = 0, xend = x, y = 0, yend = y, alpha = probability), color = "red", size = .5, arrow = ggplot2::arrow(length = ggplot2::unit(0.1, "cm"))) +
+    ggplot2::geom_text(data = arrow.df, ggplot2::aes(x = x, y = y, label = label)) +
+    ggplot2::geom_point(ggplot2::aes(y = y.axis, x = x.axis, color = group)) +
+    ggplot2::ggtitle(paste0("Factor", y.factor, " ~ Factor", x.factor)) +
+    ggplot2::theme_classic() +
+    ggplot2::xlab(paste0("Factor", x.factor)) +
+    ggplot2::ylab(paste0("Factor", y.factor)) +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = .5),
+          plot.subtitle = ggplot2::element_text(hjust = .5, size = 9))
+  
+  return(g)
+}
+
+SPEAR.plot_biplot(SPEARmodel)
+
+
+

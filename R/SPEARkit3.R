@@ -1996,7 +1996,5 @@ SPEAR.plot_biplot <- function(SPEARmodel, x.factor = 1, y.factor = 2, groups = N
   return(g)
 }
 
-SPEAR.plot_biplot(SPEARmodel)
-
 
 

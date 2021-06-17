@@ -519,7 +519,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     }
     print(foldid)
   }
-  cat(SPEAR.color_text("\Starting parallel workers...\n", success.color))
+  cat(SPEAR.color_text("Starting parallel workers...\n", success.color))
   cat("NOTE: Only printing out results from one fold of the CV for simplicity...\n")
   
   spear_fit <- cv.spear(X = as.matrix(data$X), 

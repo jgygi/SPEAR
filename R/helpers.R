@@ -499,7 +499,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   
   
-  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n\n")
+  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n")
   
   if(.Platform$OS.type == "windows"){
     cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
@@ -519,6 +519,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     }
     print(foldid)
   }
+  cat(SPEAR.color_text("\Starting parallel workers...\n", success.color))
+  cat("NOTE: Only printing out results from one fold of the CV for simplicity...\n")
   
   spear_fit <- cv.spear(X = as.matrix(data$X), 
                         Y = as.matrix(data$Y),

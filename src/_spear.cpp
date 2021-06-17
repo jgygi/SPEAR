@@ -258,11 +258,14 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
                 }
             }
         }
-        if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-            Rcout << "~~~ iteration " << it - warm_up << "\t~~~ ELBOT increase " << Delta << "\n";
+        if(printout != 0){
+          if((it > warm_up) & ((it - warm_up)% print_out == 0)){
+              Rcout << "== it " << it - warm_up << ")\tELBO increase " << Delta << "\n";
+          }
         }
         it += 1;
     }
+    Rcout << "*** FINISHED - iterations: " << it - warm_up - 1 << "\n";
     it = 0;
     while(it < 2){
         arma::vec ones = arma::ones<arma::vec>(px);

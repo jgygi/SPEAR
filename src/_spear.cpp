@@ -265,7 +265,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         it += 1;
     }
-    Rcout << "*** FINISHED - iterations: " << it - warm_up - 1 << "\n";
+    //Rcout << "*** FINISHED - iterations: " << it - warm_up - 1 << "\n";
     it = 0;
     while(it < 2){
         arma::vec ones = arma::ones<arma::vec>(px);

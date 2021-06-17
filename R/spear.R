@@ -226,7 +226,8 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
     
-    cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
+    if(print_out < 1000000)
+      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)
@@ -354,7 +355,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
                   pattern_samples = pattern_samples_cv, pattern_features = pattern_features,
                   ws = ws,  num_factors = num_factors, warm_up = warm_up,
                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
-                  thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
+                  thres_factor = thres_factor,  print_out = 1000000, a0  = a0, b0 = b0,
                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,robust_eps=robust_eps,
                   sparsity_upper = sparsity_upper, L = L))
       if(class(fit)=="try-error"){

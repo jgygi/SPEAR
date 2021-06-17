@@ -148,6 +148,9 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
       warm_up1 = 1
     }
     set.seed(seed)
+    if(print_out < 1000000)
+      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
+    
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
            pattern_samples = pattern_samples, pattern_features = pattern_features,
@@ -225,9 +228,6 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
     post_pis[,,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
-    
-    if(print_out < 1000000)
-      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)

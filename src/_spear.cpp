@@ -258,7 +258,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
                 }
             }
         }
-        if(printout != 0){
+        if(print_out != 0){
           if((it > warm_up) & ((it - warm_up)% print_out == 0)){
               Rcout << "== it " << it - warm_up << ")\tELBO increase " << Delta << "\n";
           }

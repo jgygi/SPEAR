@@ -38,7 +38,7 @@
 #'@export
 spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors, 
                   functional_path, case.weights = NULL, ws_y = NULL,
-pattern_samples = NULL, pattern_features = NULL,
+                  pattern_samples = NULL, pattern_features = NULL,
                   inits_type = "pca", warm_up = 100, max_iter = 1000,
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
@@ -368,13 +368,17 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
   if(is.null(numCores)){
     numCores <- detectCores()
   }
+  
   a <- system.time(
-   results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-   #results <- sapply(fold_ids, run_parallel)
+    #results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    cl <- parallel::makeCluster(numCores)
+    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel
+                                   # All parameters to pass:
+                                   
+                                   )
+    on.exit(parallel::stopCluster(cl))
   )
-  # a <- system.time(
-  #   results <- run_parallel(0)
-  # )
+  
   print(a)
   if(run.debug){
     print(results)

@@ -311,7 +311,6 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
     }
   }
   run_parallel <- function(fold_id){
-    cat("RUNNING PARALLEL")
     if(fold_id == 0){
       res = spear(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
                    nclasses =  nclasses,  functional_path = functional_path,
@@ -370,7 +369,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, ws, num_factors,
     numCores <- detectCores()
   }
   
-  cl <- parallel::makeCluster(numCores)
+  cl <- parallel::makeCluster(numCores, outfile = "")
   a <- system.time(
     #results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
     results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)

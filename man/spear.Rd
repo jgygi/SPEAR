@@ -12,10 +12,10 @@ spear(
   Z,
   family,
   nclasses,
-  ws,
   num_factors,
   functional_path,
   case.weights = NULL,
+  ws_x = NULL,
   ws_y = NULL,
   pattern_samples = NULL,
   pattern_features = NULL,
@@ -36,7 +36,8 @@ spear(
   seed = 1,
   robust_eps = 1/(nrow(X)),
   sparsity_upper = 0.5,
-  L = nrow(X)/log(ncol(X))
+  L = nrow(X)/log(ncol(X)),
+  L2 = 1
 )
 }
 \arguments{
@@ -48,8 +49,6 @@ spear(
 
 \item{family}{0=gaussian (multiple response); 1 = binary(multiple response); 2 = ordinal (multiple response); 3 = multinomial (single response)}
 
-\item{ws}{A vector of weights that you want to try out, default is ws = c(0).}
-
 \item{functional_path}{Grouping structure.}
 
 \item{pattern_samples}{Sample indexes for each missing pattern, default NULL (one pattern). It should be a partition of all 1-n indexes.}
@@ -57,6 +56,8 @@ spear(
 \item{pattern_features}{Feature indexes for each missing pattern, default NULL (one pattern).}
 
 \item{inits_type}{Initialization type, can be None, pca, sparsepac.}
+
+\item{ws}{A vector of weights that you want to try out, default is ws = c(0).}
 
 \item{num.factors}{Number of factors estimated.}
 

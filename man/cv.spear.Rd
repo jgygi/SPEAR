@@ -12,11 +12,11 @@ cv.spear(
   Z,
   family,
   nclasses,
-  ws,
   num_factors,
   functional_path,
   foldid = foldid,
   case.weights = NULL,
+  ws_x = NULL,
   ws_y = NULL,
   pattern_samples = NULL,
   pattern_features = NULL,
@@ -36,6 +36,7 @@ cv.spear(
   robust_eps = 1/nrow(X),
   sparsity_upper = 0.1,
   L = nrow(X)/log(nrow(X)),
+  L2 = 1,
   inits_post_mu = NULL,
   seed = 1,
   crossYonly = F,
@@ -48,13 +49,13 @@ cv.spear(
 
 \item{Y}{Response matrix (can be multidimensional for gaussian data).}
 
-\item{ws}{A vector of weights that you want to try out, default is ws = c(0).}
-
 \item{functional_path}{Grouping structure.}
 
 \item{foldid}{CV foldid}
 
 \item{inits_type}{Initialization type, can be None, pca, sparsepac.}
+
+\item{ws}{A vector of weights that you want to try out, default is ws = c(0).}
 
 \item{num.factors}{Number of factors estimated.}
 

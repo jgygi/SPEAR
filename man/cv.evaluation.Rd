@@ -18,7 +18,8 @@ cv.evaluation(
   nlambda = 100,
   factor_contribution = F,
   weights = NULL,
-  max_iter = 10000
+  max_iter = 10000,
+  multinomical_loss = "deviance"
 )
 }
 \arguments{

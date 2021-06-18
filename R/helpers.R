@@ -496,30 +496,32 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   } else {
     thres_count <- elbo.threshold.count
   }
-  
-  
-  
-  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n")
-  
-  if(.Platform$OS.type == "windows"){
-    cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
-        Consider using SPEAR on a unix operating system for boosted performance.\n", "red"))
-    numCores <- 1
-  } else {
-    numCores <- parallel::detectCores()
-  }
-  
-  # Run cv.spear:
   if(is.null(robust_eps)){
     robust_eps = 1.0/sqrt(nrow(data$X))
   }
+  
+  # Debug statements to print:
   if(run.debug){
     for(k in 1:num.folds){
       print(table(data$Y[foldid==k]))
     }
     print(foldid)
   }
+  
+  
+  
+  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n")
+  
+  
   cat(SPEAR.color_text("Starting parallel workers...\n", success.color))
+  if(.Platform$OS.type == "windows"){
+    cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
+        Consider using SPEAR on a unix operating system for boosted performance. Setting numCores = 1\n", "red"))
+    numCores <- 1
+  } else {
+    numCores <- parallel::detectCores()
+  }
+  
   cat("NOTE: Only printing out results from one fold of the CV for simplicity...\n")
   
   spear_fit <- cv.spear(X = as.matrix(data$X), 
@@ -634,9 +636,11 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@param standardize Whether to standardize the data.
 #'@param alpha alpha = 1 corresponds to lasso and alpha = 0 corresponds to ridge.
 #'@export
+
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
-                          factor_contribution = F, weights = NULL, max_iter = 1e4){
+                          factor_contribution = F, weights = NULL, max_iter = 1e4,
+                          multinomical_loss = "deviance"){
   n = nrow(Y);
   px = ncol(X);
   py = ncol(Y);
@@ -664,7 +668,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
     cvm = matrix(NA, nrow = num_weights, ncol = 1)
     cvsd =matrix(NA, nrow = num_weights, ncol = 1)
   }
-
+  
   chats.return = list()
   #rescale the overall coefficients
   Yhat = array(NA, dim = c(n, py, num_weights))
@@ -737,7 +741,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
       chats.return.temp <- list()
       for(j in 1:py){
-        ##note that scaling is only required for Gaussian and logisstic!
+        ##note that scaling is only required for Gaussian and logistic!
         y = Y[,j]
         yhat = Yhat[,j,l]
         if(family == 0){
@@ -851,7 +855,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
       }
     }else{
       if(family %in% standardize_family){
-        r2norm = sqrt(apply(U0^2,2,function(z) mean(z^2)))
+        r2norm = sqrt(apply(U0,2,function(z) mean(z^2)))
         U0std  = U0
       }else{
         U0std = U0
@@ -877,24 +881,42 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         for(k in 1:num_patterns){
           ii = pattern_samples[[k]]
           jj = pattern_features[[k]]
+          #' This is where the error occurs previously!
+          #' changed from U0cv * scale.factors[,fold_id,l] to 
+          #'  U0cv %*%diag(scale.factors[,fold_id,l])
           U0cv[ii,] = Z[ii,jj]%*% cv.fact_coefs[jj,,k,fold_id, l]
         }
         if(family %in% standardize_family){
-          tmp = sqrt(apply(U0cv^2,2,function(z) mean(z^2)))
-          U0cv.std  = U0/tmp *r2norm
+          tmp = sqrt(apply(U0cv,2,function(z) mean(z^2)))
           scale.factors[,fold_id,l] = r2norm/tmp
-          #Uhat.cv[foldid==fold_id,,l] = Uhat.cv[foldid==fold_id,,l]/tmp * r2norm
+          U0cv.std  = U0cv %*%diag(scale.factors[,fold_id,l])
         }else{
           U0cv.std  = U0cv
         }
         tmp.fit[[fold_id]] = glmnet(x =U0cv.std[train_id,], y = ycollapsed[train_id], standardize = F, family = 'multinomial', lambda = lambdas)
-        preds = predict(tmp.fit[[fold_id]], U0cv.std, type = 'response')
-        probs_predictions[test_id,,1:dim(preds[test_id,,])[3]] = preds[test_id,,]
+        preds = predict(tmp.fit[[fold_id]], U0cv.std)
+        total = apply(preds,c(1,3),function(z) matrixStats::logSumExp(z))
+        for(kkk in 1:dim(preds)[2]){
+          preds[,kkk,] =  preds[,kkk,] -total
+        }
+        preds = exp(preds)
+        probs_predictions[test_id,,1:dim(preds)[3]] = preds[test_id,,]
       }
-      cvs = apply(probs_predictions,3, function(z) -2*mean(log(z+1e-12) * Y))
+      if(multinomical_loss=="deviance"){
+        cvs = apply(probs_predictions,c(3), function(z) -2*apply(as.matrix(log(z+1e-8) * Y),1,sum))
+      }else{
+        #classification loss
+        cvs = apply(probs_predictions,c(3), function(z){
+          tmp = apply(z,1,which.max)
+          tmp1 = apply(Y==1, 1, which)
+          ifelse(tmp==tmp1, 0, 1)
+        } )
+      }
       # choose penalty and model refit
-      cvm[l] = min(cvs)
-      idx = which.min(cvs)
+      cvs0 = apply(cvs,2,mean)
+      idx = which.min(cvs0)
+      cvm[l] =cvs0[idx]
+      cvsd[l] = sd(cvs[,idx])/sqrt(nrow(cvs))
       for(j in 1:py){
         projection_coefs[,j,l] = fitted_multinomial$beta[[j]][,idx]
         intercepts[[j]][l] = fitted_multinomial$a0[j,idx]
@@ -924,29 +946,29 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         print(paste0("~~~ Calculating contribution for weights: ", l, "/", num_weights))
       }
       for(k in 1:num_factors){
-          for(j in 1:py){
-            yhat = Uhat.cv[,k,l]
-            y = Y[,j]
-            for(fold_id in 1:nfolds){
-              b = cv.projection_coefs[k,j,fold_id,l]
-              yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
-            }
-            yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
-            tmp_pearson = cor(y, yhat)
-            suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') ) 
-            if( tmp_pearson<0){
-              factor_contributions[k,j,l] = 0
-              factor_contributions_pvals[k,j,l] = 1
-            }else{
-              factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
-              factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
-            }
+        for(j in 1:py){
+          yhat = Uhat.cv[,k,l]
+          y = Y[,j]
+          for(fold_id in 1:nfolds){
+            b = cv.projection_coefs[k,j,fold_id,l]
+            yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
+          }
+          yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
+          tmp_pearson = cor(y, yhat)
+          suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') ) 
+          if( tmp_pearson<0){
+            factor_contributions[k,j,l] = 0
+            factor_contributions_pvals[k,j,l] = 1
+          }else{
+            factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
+            factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
           }
         }
+      }
     }
   }
   
-
+  
   return(list(projection_coefs_scaled = projection_coefs,
               cv.projection_coefs_scaled = cv.projection_coefs,
               reg_coefs = reg_coefs,

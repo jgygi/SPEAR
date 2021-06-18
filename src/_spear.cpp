@@ -1,4 +1,7 @@
+#include "approximations.h"
 #include "subroutines.h"
+
+
 inline int randWrapper(const int n){return floor(unif_rand()*n);}
 
 void set_seed(unsigned int seed) {
@@ -16,7 +19,7 @@ double pos(double x){
 
 
 /* spear_ is the function for external use
-  family: datatype of y, 0 = Gaussian, 1 = binomial, 2 = ordinal, 3 = multinomial
+  family: datatype of y, 0 = Gaussian, 1 = binomial, 2 = ordinal, 3 = ?
   Y: N * p0 response matrix.
   X: N* p feature omics matrix for it.
   Yobs: N*p0 indicator matrix of wether Y is observed, Yobs[i,j] = 1 if Y[i,j] is observed.
@@ -27,7 +30,7 @@ double pos(double x){
   pattern_samples: lists of samples having a common beta for each sample group.
   pattern_features: lists of features used in beta for each sample group.
   weights: weights for X.
-  thres_elbo, thres_count: stop if increase of elbo is below thre_elbo for consequtive thres_count.
+  thres_eblo, thres_count: stop if increase of eblo is below thre_eblo for consequtive thres_count.
   thres_factor: drop a factor if its variance is below thres_factor.
   (a0, b0), (a1, b1), (a2, b2): hyper priors for sparsity, effect size and noise variance.
   lower: ??
@@ -54,7 +57,9 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             const arma::mat& Yobs, const arma::mat& Xobs,
             const arma::mat& Z, const arma::vec nclasses, const List& functional_path,
             const List& pattern_samples, const List& pattern_features,
-            const arma::vec weights, const int num_factors, 
+            const arma::vec weights, const arma::vec weights0, 
+            const arma::vec weights_case,
+            const int num_factors, 
             const int warm_up, const int max_iter,
             const double thres_elbo, const int thres_count, const double thres_factor, 
             const double a0, const double b0, const double a1, const double b1,
@@ -71,7 +76,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             arma::vec& post_a2x, arma::vec& post_b2x, 
             arma::vec& post_a2y, arma::vec& post_b2y,
             arma::mat& meanFactors, const int seed0,
-            const double robust_eps, const double alpha0, const double L){
+            const double robust_eps, const double alpha0, const double L, const double L2){
     int num_pattern = pattern_samples.size();
     int py = Y.n_cols;
     int px = X.n_cols;
@@ -92,7 +97,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
    */
     arma::mat U2 = arma::zeros<arma::mat>(n, num_factors);
     /*
-     delta* is the increase in elbo for each subroutines and Delta is the total increase.
+     delta* is the increase in EBLO for each subroutines and Delta is the total increase.
     */
     double delta11, delta12, delta2, delta3, delta4, delta51, delta52 = 0.0;
     double Delta = 0.0;
@@ -140,6 +145,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         U2.rows(ii) = U2_sub;
         meanFactors.rows(ii) = meanFactors_sub;
     }
+    //Rcout << "step1" << "\n";
     // Initialization step1:
     //remove intercepts
     if(family == 0){
@@ -161,6 +167,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
       interceptsX(j) = arma::mean(x(obs) - xhat(obs));
       Xapprox.col(j) = x - interceptsX(j);
     }
+    //Rcout << "step2" << "\n";
     //Update the residuals given the current model.
     if(family == 1){
         update_binomial_approximation(Y, Yobs, nclasses, Yapprox, meanFactors,
@@ -172,19 +179,31 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         update_multinomial_approximation(Y, Yobs, UPXI, UPXIjoint, nclasses,Yapprox, meanFactors, U2,
                                        post_tmuY, post_tsigma2Y, post_tpiY, interceptsY, nuYmat, robust_eps);
     }
+    //Rcout << "step3" << "\n";
    //Initiliazation done. Start iteration
     int it = 0;
     while(((it < max_iter) & (consecutives_count < thres_count)) | (it < warm_up)){
         // Update posteriors of beta for X and Y, Update approximated response values and variance for non-Gaussian data.
         arma::mat updatingOrders = updatingOrdersAll.slice(it);
-        delta11 = update_projection_sparse(num_factors, Xapprox, Xobs, weights, nuXmat, meanFactors, U2,
+        //does not change, case weights
+        //updated weighted_case
+        delta11 = update_projection_sparse(num_factors, Xapprox, Xobs, weights, 
+                                           weights_case,
+                                           nuXmat, meanFactors, U2,
                                            post_tmuX, post_tsigma2X, post_tpiX, tauZ,
                                            log_pi, log_minus_pi);
-        delta12 = update_projection_constrained(num_factors, Yapprox, Yobs, nuYmat, meanFactors, U2,
+        //Rcout << "step4" << "\n";
+        //add weights parameters for Y, case weights
+        delta12 = update_projection_constrained(num_factors, Yapprox, Yobs, weights0, 
+                                                weights_case,
+                                                nuYmat, meanFactors, U2,
                                                 post_tmuY,  post_tsigma2Y,
                                                 tauY,  lower);
+        //Rcout << "step5" << "\n";
         // Update for B in constructing factors
+        //add weights parameters for Y, case weights
         delta2 = update_factor(num_factors, Yapprox,  Yobs, Xapprox,  Xobs, Z,  weights,
+                               weights0, weights_case,
                                pattern_samples, pattern_features,
                                post_mu, post_sigma2, post_pi,
                                post_tmuX, post_tsigma2X, post_tpiX,
@@ -192,6 +211,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
                                tauZ,  log_pi, log_minus_pi,
                                nuXmat, nuYmat, meanFactors,  U2, updatingOrders);
         //Update the residuals given the current model.
+        //Rcout << "step6" << "\n";
         for(int j = 0; j < px; j++){
           arma::uvec obs = arma::find(Xobs.col(j) == 1);
           arma::vec x = X.col(j) * 1.0;
@@ -200,6 +220,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
           interceptsX(j) = arma::mean(x(obs) - xhat(obs));
           Xapprox.col(j) =  x - interceptsX(j);
         }
+        //Rcout << "step7" << "\n";
         if(family == 0){
           for(int j = 0; j < py; j++){
             arma::uvec obs = arma::find(Yobs.col(j) == 1);
@@ -220,23 +241,26 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
           update_multinomial_approximation(Y, Yobs, UPXI, UPXIjoint, nclasses,Yapprox, meanFactors, U2,
                                            post_tmuY, post_tsigma2Y, post_tpiY, interceptsY, nuYmat, robust_eps);
         }
+        //Rcout << "step8" << "\n";
         //update prior tau
-        delta3 = tau_update(num_factors, weights, pattern_features , functional_path,
+        delta3 = tau_update(num_factors, weights, weights0,pattern_features , functional_path,
                             a0, b0 , post_mu, post_sigma2, post_pi,
                             post_tmuX, post_tsigma2X, post_tpiX,
-                            tauZ, post_a0, post_b0,L);
+                            tauZ, post_a0, post_b0,L, L2);
+        //Rcout << "step9" << "\n";
         //update prior pi
-        delta4 = pi_update(num_factors, weights, pattern_features ,functional_path,
+        delta4 = pi_update(num_factors, weights, weights0, pattern_features ,functional_path,
                            a1, b1, post_mu, post_sigma2, post_pi,
                            post_tmuX, post_tsigma2X, post_tpiX,
                            log_pi, log_minus_pi, post_a1, post_b1, alpha0);
         //update prior nu
-        delta51 = nu_update(Xapprox, Xobs, weights, meanFactors, U2, nuXmat, a2, b2,
+        delta51 = nu_update(Xapprox, Xobs, weights, weights_case, meanFactors, U2, nuXmat, a2, b2,
                             post_tmuX, post_tsigma2X, post_tpiX,post_a2x, post_b2x, true);
         if(family == 0){
-            delta52 = nu_update(Yapprox, Yobs, weights, meanFactors, U2, nuYmat, a2, b2,
+            delta52 = nu_update(Yapprox, Yobs, weights0,weights_case, meanFactors, U2, nuYmat, a2, b2,
                            post_tmuY, post_tsigma2Y, post_tpiY,post_a2y, post_b2y, false);
         }
+        //Rcout << "step10" << "\n";
         delta11 = pos(delta11);
         delta12 = pos(delta12);
         delta2 = pos(delta2);
@@ -244,7 +268,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         delta4 = pos(delta4);
         delta51 = pos(delta51);
         delta52 = pos(delta52);
-        Delta = delta11 + delta2 + delta3 + delta4 + delta51 + delta52;
+        Delta = delta11 + delta2 + delta3 + delta4 + delta52;
         if((Delta  < thres_elbo) & (it >= warm_up)){
             consecutives_count = consecutives_count + 1;
         }else{
@@ -271,10 +295,11 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
     it = 0;
     while(it < 2){
         arma::vec ones = arma::ones<arma::vec>(px);
-        delta11 = update_projection_sparse(num_factors, Xapprox, Xobs, ones, nuXmat, meanFactors, U2,
+        delta11 = update_projection_sparse(num_factors, Xapprox, Xobs, ones, 
+                                           weights_case,nuXmat, meanFactors, U2,
                                            post_tmuX, post_tsigma2X, post_tpiX, tauZ,
                                            log_pi, log_minus_pi);
-        delta51 =  nu_update(Xapprox, Xobs, ones, meanFactors, U2, nuXmat, a2, b2,
+        delta51 =  nu_update(Xapprox, Xobs, ones, weights_case,meanFactors, U2, nuXmat, a2, b2,
                              post_tmuX, post_tsigma2X, post_tpiX,post_a2x, post_b2x, true);
         it = it + 1;
     }
@@ -293,7 +318,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         double taux = tauZ(j,k);
         double log_pix = log_pi(j,k);
         double log_minus_pix = log_minus_pi(j,k);
-        post_tpiX_marginal(j,k) = update_marginal_prob(x,  nu_vec, meanfac, u2, taux, log_pix, log_minus_pix);
+        post_tpiX_marginal(j,k) = update_marginal_prob(x, nu_vec, meanfac, u2, taux, log_pix, log_minus_pix);
       }
     }
     return Yapprox;

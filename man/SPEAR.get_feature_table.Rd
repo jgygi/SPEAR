@@ -6,22 +6,15 @@
 \usage{
 SPEAR.get_feature_table(
   SPEARmodel,
-  rank = "probability",
   factors = NULL,
   omics = NULL,
-  coefficient.cutoff = 0,
-  probability.cutoff = 0.95,
-  correlation = "none",
-  var.cutoff = 0.7,
-  num.features = NULL,
-  forecast = "out.of.sample",
-  correlation.method = "pearson"
+  coefficient.cutoff = 0.01,
+  probability.cutoff = 0.5,
+  method = "spearman"
 )
 }
 \arguments{
 \item{SPEARmodel}{SPEAR model (returned from \code{get_SPEAR_model})}
-
-\item{rank}{How should features be ranked? "probability" (default) ranks first by joint.probability, followed by projection.coefficient magnitude. Features will be selected by coefficient.cutoff and probability.cutoff (see below) "variance" returns a set number of features that explain a single factor. Features are selected one at a time, choosing the feature with the highest correlation, calculating variance explained, regressing that feature out, and re-ordering features based on their correlation. Will continue until an amount of total variance explained reaches var.exp.cutoff or a number of features is reached (num.features).}
 
 \item{factors}{A vector of integers representing factors. If NULL, will return features for all factors. Defaults to NULL (all factors)}
 
@@ -31,7 +24,7 @@ SPEAR.get_feature_table(
 
 \item{probability.cutoff}{Cutoff for posterior selection probability. Ranges from 0 - 1. Defaults to .5}
 
-\item{correlation}{Which method for correlation? Defaults to "none", but can be "pearson", "spearman", or "kendall"}
+\item{method}{Which method for correlation? Defaults to "spearman"}
 }
 \value{
 A data.frame with features that passed cutoffs set by the parameters.

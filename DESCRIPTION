@@ -10,5 +10,5 @@ License: What license is it under?
 Imports: Rcpp (>= 1.0.5), RcppArmadillo, parallel, glmnet, elasticnet, BH, ordinalNet, MASS
 LinkingTo: Rcpp, RcppArmadillo, BH
 RoxygenNote: 7.1.1
-Suggests: knitr, rmarkdown, markdown
+Suggests: knitr, rmarkdown
 VignetteBuilder: knitr

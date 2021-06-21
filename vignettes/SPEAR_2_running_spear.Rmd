@@ -1,7 +1,7 @@
 ---
 title: "SPEAR: Running SPEAR"
 author: "Jeremy Gygi"
-date: "5/24/21"
+date: "1/26/21"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{SPEAR_2-running_SPEAR}
@@ -38,7 +38,7 @@ X <- NULL # Replace with your list of matrices...
 Y <- NULL # Replace with your matrix...
 ```
 
-For this vignette, we will load simulated multi-omic data from the "SPEAR_1_simulate_data" vignette: (skip this if using your own data)
+Loading simulated multi-omic data: (skip this if using your own data)
 
 ```{r}
 # Generated from the SPEAR_simulate_data.Rmd file:
@@ -64,7 +64,7 @@ for(i in 1:length(X)){
 all(rownames(Y) == rownames(X[[1]]))
 ```
 
-### Running SPEAR to predict a gaussian (continuous) response:
+### Running SPEARgaussian:
 
 ```{r}
 # Run the cv version of SPEAR
@@ -106,7 +106,7 @@ You should see something like this (if the package is installed correctly)
 SPEAR supports the following options for the `family` parameter:
 
 ```{r echo=FALSE, message=FALSE, warnings=FALSE}
-options <- c("gaussian", "binomial", "ordinal", "multinomial")
+options <- c("gaussian", "binomial", "ordinal", "categorical")
 descriptions <- c("Continuous values (scaled)", 
                   "0's or 1's", 
                   "Ranked scale of integers (start at 0)", 
@@ -165,22 +165,22 @@ rownames(df) <- paste0("Sample", 1:nrow(df))
 print(df)
 ```
 
-##### Multinomial
+##### Categorical
 
 ```{r}
-# Multinomial (Categorical), multilple groups without an ordinal scale
+# Categorical, multilple groups without an ordinal scale
 # Same as binomial, but with multiple columns
 #   One column in Y per response
 #   Value = 1 if belongs to class, 0 otherwise
-family = "multinomial"
-Y_multinomial <- data.frame(Category1 = c(1,0,0,0,0,0,1,0,0,1),
+family = "categorical" #or "binomial"
+Y_categorical <- data.frame(Category1 = c(1,0,0,0,0,0,1,0,0,1),
                             Category2 = c(0,0,1,0,0,0,0,0,1,0),
                             Category3 = c(0,1,0,1,0,1,0,0,0,0),
                             Category4 = c(0,0,0,0,1,0,0,1,0,0))
 ```
 
 ```{r echo = FALSE}
-df <- Y_multinomial
+df <- Y_categorical
 rownames(df) <- paste0("Sample", 1:nrow(df))
 print(df)
 ```
@@ -204,6 +204,6 @@ print(df)
 
 
 
-Once Y is set up, run SPEAR the same way as above (Gaussian), but change the family parameter (`"binomial"`, `"ordinal"`, `"multinomial"`).
+Once Y is set up, run SPEAR the same way as above (Gaussian), but change the family parameter (`"binomial"`, `"ordinal"`, `"categorical"`).
 
 Look at 'SPEAR_3_downstream_vignette' for instructions on how to perform downstream analysis with all families of SPEAR.

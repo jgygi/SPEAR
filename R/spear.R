@@ -39,7 +39,7 @@
 #'@export
 spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors, 
                   functional_path, case.weights = NULL,  ws_x = NULL, ws_y = NULL,
-                  pattern_samples = NULL, pattern_features = NULL,
+pattern_samples = NULL, pattern_features = NULL,
                   inits_type = "pca", warm_up = 100, max_iter = 1000,
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
@@ -87,7 +87,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   }else{
     weights_case = case.weights
   }
-  
+
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -96,7 +96,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   interceptsY = list()
   interceptsX = rep(0, px)
   for(j in 1:py){
-    interceptsY[[j]] = rep(0, nclasses[j]-1)
+      interceptsY[[j]] = rep(0, nclasses[j]-1)
   }
   if(is.null(pattern_samples) | is.null(pattern_features)){
     pattern_samples = list()
@@ -280,10 +280,6 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
       meanFactors = one_meanFactors
     }
     set.seed(seed)
-    
-    if(print_out > 0)
-      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws_x[idx_w]), "green"), "\t------------------------\n"))
-    
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
            pattern_samples = pattern_samples, pattern_features = pattern_features,
@@ -305,10 +301,6 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
            post_a2y = post_a2y, post_b2y = post_b2y,
            meanFactors = meanFactors, 
            seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L,L2 = L2)
-    
-    if(print_out > 0)
-      cat(paste0("*** DONE WITH ", SPEAR.color_text(paste0("Running w = ", ws_x[idx_w]), "green"), "\t------------------------\n"))
-    
     if(idx_w==one_penalty_idx){
       one_post_mu = post_mu
       one_post_sigma2 = post_sigma2
@@ -397,6 +389,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     post_pis[,,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
+    print(paste0("######weights#####",all_ws[idx_w,1], "-",all_ws[idx_w,2],"###########"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)
@@ -442,7 +435,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
                      pattern_samples = NULL, pattern_features = NULL,
                      inits_type = "pca", warm_up = 100, max_iter = 1000,
                      thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
-                     a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
+                     a0 = 1e-2, b0 = 1e-2, a1 = 1, b1 = 1,
                      a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1/nrow(X),
                      sparsity_upper = 0.1, L = nrow(X)/log(nrow(X)),
                      L2 = 1,
@@ -486,12 +479,12 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   run_parallel <- function(fold_id){
     if(fold_id == 0){
       res = spear(family  = family, Y = as.matrix(Y, drop=F), X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
-                  nclasses =  nclasses,  functional_path = functional_path,
-                  pattern_samples = pattern_samples, pattern_features = pattern_features,
-                  ws_x = ws_x, ws_y  = ws_y, case.weights = case.weights,  num_factors = num_factors, warm_up = warm_up,
-                  max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
-                  thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                  a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
+                   nclasses =  nclasses,  functional_path = functional_path,
+                   pattern_samples = pattern_samples, pattern_features = pattern_features,
+                   ws_x = ws_x, ws_y  = ws_y, case.weights = case.weights,  num_factors = num_factors, warm_up = warm_up,
+                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
+                   thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
+                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
                   robust_eps=robust_eps, sparsity_upper = sparsity_upper, L = L,  L2=  L2)
       
     }else{
@@ -542,14 +535,13 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   if(is.null(numCores)){
     numCores <- detectCores()
   }
-  
-  cl <- parallel::makeCluster(numCores, outfile = "")
   a <- system.time(
-    #results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
+   results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
+   #results <- sapply(fold_ids, run_parallel)
   )
-  on.exit(parallel::stopCluster(cl))
-  
+  # a <- system.time(
+  #   results <- run_parallel(0)
+  # )
   print(a)
   if(run.debug){
     print(results)

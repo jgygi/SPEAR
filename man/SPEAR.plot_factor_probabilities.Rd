@@ -4,24 +4,19 @@
 \alias{SPEAR.plot_factor_probabilities}
 \title{Plot posterior selection probabilities for a SPEARmodel}
 \usage{
-SPEAR.plot_factor_probabilities(
-  SPEARmodel,
-  type = "joint",
-  plot.per.omic = TRUE,
-  plot.log = TRUE
-)
+SPEAR.plot_factor_probabilities(SPEARmodel, plot.per.omic = TRUE)
 }
 \arguments{
 \item{SPEARmodel}{SPEAR model (returned from \code{get_SPEAR_model})}
 
-\item{type}{Which probabilities to plot? Options include "marginal", "projection", and "joint" (default)}
+\item{plot.per.omic}{Should a bar with colors for each omic be plotted along side the loadings? Defaults to TRUE}
 }
 \value{
-A plot with the factor probabilities of the SPEAR model
+A plot with the factor loadings of the SPEAR model
 }
 \description{
 Plot posterior selection probabilities for a SPEARmodel
 }
 \examples{
-SPEAR.plot_factor_probabilities(SPEARmodel)
+SPEAR.plot_factor_loadings(SPEARmodel)
 }

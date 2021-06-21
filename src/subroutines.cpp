@@ -67,6 +67,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
       double delta1 = post_tpi(j,k) * (log_pi(j,k) -log(post_tpi(j,k)));
       //double delta2 = (1.0 - post_tpi(j,k)) * (weights(j)*log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
       double delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
+      //double delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)));
       if(post_tpi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
@@ -96,6 +97,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
       //delta2 = (1.0 - post_tpi(j,k)) * (weights(j)*log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
       delta1 = post_tpi(j,k) * (log_pi(j,k) -log(post_tpi(j,k)));
       delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
+      //delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)));
       if(post_tpi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
@@ -107,7 +109,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
       }
     
   }
-  Delta = (Delta/(num_factors*std::sqrt(p)*1.0));
+  Delta = (Delta/(num_factors*p*1.0));
   return Delta;
 }
 
@@ -297,23 +299,27 @@ double update_factor_one(const int num_factors, arma::mat& Y,  const arma::mat& 
       meanFactors.col(k) = meanFactors.col(k) - Z.col(j) * betajk;
       arma::vec response1 = response - s_vec % meanFactors.col(k);
       //tmp = denominator of mu_jk.
-      double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
+      //double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
+      //double tmp_tau = 1.0;
+      double tmp_tau =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
+      double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tmp_tau*weights0(0);
       //tmp1 = numerator of mu_jk.
       double tmp1 = sum(response1 % Z.col(j)%weights_case);
       double delta1 = post_pi(j,k) * (log_pi(j,k)*weights0(0) -log(post_pi(j,k)));
       double delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0)  -log(1.0 - post_pi(j,k)) - 0.5);
+      //double delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0)  -log(1.0 - post_pi(j,k)));
       if(post_pi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
       if(post_pi(j,k) >= (1.0-1e-8)){
         delta2 = 0.0;
       }
-      Delta = Delta - (0.5 * post_pi(j,k) *(-tmp * betajk2 + 2* tmp1 * post_mu(j,k) + log(post_sigma2(j,k) * tau(j,k)))
+      Delta = Delta - (0.5 * post_pi(j,k) *(-tmp * betajk2 + 2* tmp1 * post_mu(j,k) + log(post_sigma2(j,k) *  tmp_tau))
                          +  delta1 + delta2);
       post_sigma2(j,k) = 1.0/tmp;
       post_mu(j,k) = tmp1 *  post_sigma2(j,k);
       double tmp2 = 0.5 * (post_mu(j,k)* post_mu(j,k))/ post_sigma2(j,k) +
-        0.5 * std::log(tau(j,k) * post_sigma2(j,k)) + (log_pi(j,k) - log_minus_pi(j,k))*weights0(0);
+        0.5 * std::log( tmp_tau * post_sigma2(j,k)) + (log_pi(j,k) - log_minus_pi(j,k))*weights0(0);
       if(tmp2 < 0){
         post_pi(j,k) = std::exp(tmp2);
         post_pi(j,k) = post_pi(j,k)/(1.0+post_pi(j,k));
@@ -325,13 +331,14 @@ double update_factor_one(const int num_factors, arma::mat& Y,  const arma::mat& 
       betajk = post_mu(j,k) * post_pi(j,k);
       delta1 = post_pi(j,k) * (log_pi(j,k)*weights0(0) -log(post_pi(j,k)));
       delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0) -log(1.0 - post_pi(j,k)) - 0.5);
+      //delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0) -log(1.0 - post_pi(j,k)));
       if(post_pi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
       if(post_pi(j,k) >= (1.0-1e-8)){
         delta2 = 0.0;
       }
-      Delta = Delta + (0.5 * post_pi(j,k) *(-tmp * betajk2 + 2* tmp1 * post_mu(j,k) + log(post_sigma2(j,k) * tau(j,k)))
+      Delta = Delta + (0.5 * post_pi(j,k) *(-tmp * betajk2 + 2* tmp1 * post_mu(j,k) + log(post_sigma2(j,k) *  tmp_tau))
                          +  delta1 + delta2);
       meanFactors.col(k) += Z.col(j) * betajk;
     }
@@ -441,9 +448,8 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
         int p1 = path_q.n_elem;
         for(int j0 = 0; j0 < p1; j0++){
           int j = path_q(j0);
-          double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q))*post_pi(j,k,q)
-                                + (1-post_pi(j,k,q))*1.0/tauZ(j,k))* .5;
-          //double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q)))* .5;
+          //double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q))*post_pi(j,k,q) + (1-post_pi(j,k,q))*1.0/tauZ(j,k))* .5;
+          double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q)))* .5;
           post_a = post_a +  weights0(0)* .5;
           post_b = post_b + tmp;
         }
@@ -452,9 +458,8 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
       for(int j0 = 0; j0 < p0; j0++){
         int j = path_index(j0);
         post_a = post_a +    .5;
-        post_b = post_b +   ((post_tmu(j, k) * post_tmu(j, k) + post_tsigma2(j,k))*post_tpi(j,k)+
-          (1-post_tpi(j,k))*1.0/tauZ(j,k)) * .5;
-        //post_b = post_b +   ((post_tmu(j, k) * post_tmu(j, k) + post_tsigma2(j,k))) * .5;
+        //post_b = post_b +   ((post_tmu(j, k) * post_tmu(j, k) + post_tsigma2(j,k))*post_tpi(j,k)+(1-post_tpi(j,k))*1.0/tauZ(j,k)) * .5;
+        post_b = post_b +   ((post_tmu(j, k) * post_tmu(j, k) + post_tsigma2(j,k))) * .5;
       }
       Delta = Delta - ((post_a-post_a0(l,k)) * (boost::math::digamma(post_a0(l,k))-log(post_b0(l,k)))
                          - (post_b-post_b0(l,k)) * post_a0(l,k)/post_b0(l,k) +
@@ -466,7 +471,7 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
        post_b_use = post_a_use/L;
       }
       if(L_est <= L2){
-        post_b_use = L2*post_a_use;
+        post_b_use = post_a_use/L2;
       }
       for(int j0 = 0; j0 < p0; j0++){
         int j = path_index(j0);

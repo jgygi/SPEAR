@@ -524,7 +524,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   
   cat("NOTE: Only printing out results from one fold of the CV for simplicity...\n")
   
-  spear_fit <- cv.spear(X = as.matrix(data$X), 
+  spear_fit <- cv.spear(X = as.matrix(data$X),
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 
                         Yobs = Yobs,
@@ -533,7 +533,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         pattern_features = data$pattern_features,
                         family = family.encoded, 
                         nclasses = data$nclasses,
-                        ws = weights,
+                        ws_x = weights,
                         foldid = foldid, 
                         num_factors = num.factors,  
                         functional_path = data$functional_path,
@@ -542,7 +542,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         warm_up= warm_up, 
                         max_iter = max_iter, 
                         seed = seed,
-                        sparsity_upper = sparsity_upper, L = nrow(data$X)/L0,
+                        sparsity_upper = sparsity_upper, 
+                        L = nrow(data$X)/L0,
                         thres_elbo = thres_elbo, 
                         thres_count = thres_count,
                         crossYonly = F,

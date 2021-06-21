@@ -282,7 +282,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     set.seed(seed)
     
     if(print_out > 0)
-      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws[idx_w]), "green"), "\t------------------------\n"))
+      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", ws_x[idx_w]), "green"), "\t------------------------\n"))
     
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,

@@ -53,10 +53,11 @@ pattern_samples = NULL, pattern_features = NULL,
   }else{
     type_weights = "both"
   }
+  
   if(is.null(ws_y) & is.null(ws_x)){
     stop("no weights for x or y are supplied.")
   }
-  print(type_weights)
+
   if(type_weights != "yonly"){
     if(!(1 %in% ws_x)){
       stop("candidate weights for X must include 1 when supplied!")
@@ -79,7 +80,7 @@ pattern_samples = NULL, pattern_features = NULL,
     all_ws[,2] = ws_y
     one_penalty_idx = 1
   }
-  print(one_penalty_idx)
+  
   if(is.null(case.weights)){
     weights_case = rep(1, nrow(X))
   }else if(length(case.weights)!=nrow(X)){
@@ -208,7 +209,7 @@ pattern_samples = NULL, pattern_features = NULL,
   post_selections = array(NA, dim = c(ncol(X), num_factors, nrow(all_ws)))
   post_selections_marginal = array(NA, dim = c(ncol(X), num_factors,  nrow(all_ws)))
   colnames(all_ws) = c("x_weight", "y_weight")
-  print(all_ws)
+
   DEBUG = F
   if(DEBUG){
     print("post_mu -- log_minus_pi--nuYmat")
@@ -280,6 +281,10 @@ pattern_samples = NULL, pattern_features = NULL,
       meanFactors = one_meanFactors
     }
     set.seed(seed)
+    
+    if(print_out > 0)
+      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", weights[idx_w]), "green"), "\t------------------------\n"))
+    
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
            pattern_samples = pattern_samples, pattern_features = pattern_features,
@@ -521,7 +526,7 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
                        pattern_samples = pattern_samples_cv, pattern_features = pattern_features,
                        ws_x = ws_x, ws_y  = ws_y, case.weights = case.weights,  num_factors = num_factors, warm_up = warm_up,
                        max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
-                       thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
+                       thres_factor = thres_factor,  print_out = 0, a0  = a0, b0 = b0,
                        a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
                        robust_eps=robust_eps, sparsity_upper = sparsity_upper, L = L,  L2 =  L2))
       if(class(fit)=="try-error"){

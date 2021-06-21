@@ -330,7 +330,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param run.debug debug?
 #'@export
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = "gaussian", inits.type = "pca",
-                         num.factors = NULL, seed = NULL, scale.x = TRUE, scale.y = TRUE, num.folds = 5, 
+                         num.factors = NULL, seed = NULL, scale.x = FALSE, scale.y = FALSE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
                          save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
   
@@ -359,12 +359,12 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     family.encoded <- 0
   } else if(family == "binomial"){
     family.encoded <- 1
-  } else if(family == "categorical"){
-    family.encoded <- 1
   } else if(family == "ordinal"){
     family.encoded <- 2
+  } else if(family == "multinomial"){
+    family.encoded <- 3
   }else {
-    cat("***", paste0(" 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'ordinal'.\n"))
+    cat("***", paste0(" 'family' parameter not recognized (", family, "). Assuming 'gaussian'. Acceptable values are 'gaussian', 'binomial', and 'multinomial'.\n"))
     family.encoded <- 0
     family <- "gaussian"
   }
@@ -386,6 +386,10 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       cat("***", paste0(" Feature names in ", names(X.scaled)[d], " not provided. Renaming to ", paste0(names(X.scaled)[d], "_feat", 1), " ... ", paste0(names(X.scaled)[d], "_feat", ncol(X.scaled[[d]])), "\n"))
       colnames(X.scaled[[d]]) <- paste0(names(X.scaled)[d], "_feat", 1:ncol(X.scaled[[d]]))
     }
+    if(is.null(rownames(X.scaled[[d]]))){
+      cat("***", paste0(" Sample names in ", names(X.scaled)[d], " not provided. Renaming to sample1... sample", nrow(X.scaled[[d]]), "\n"))
+      rownames(X.scaled[[d]]) <- paste0("sample", 1:nrow(X.scaled[[d]]))
+    }
   }
   cat(paste0("Detected ", length(X.scaled), " datasets:\n"))
   for(i in 1:length(X.scaled)){
@@ -398,12 +402,23 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     Y.scaled <- Y
   }
   if(is.null(colnames(Y.scaled))){
-    cat("***", paste0(" Names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
+    cat("***", paste0(" Column names for response Y not provided. Renaming to ", paste(paste0("Y", 1:ncol(Y.scaled)), collapse = ", "), "\n"))
     colnames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
+  }
+  if(is.null(rownames(Y.scaled))){
+    cat("***", paste0(" Row names for response Y not provided. Renaming to sample1... sample", nrow(Y.scaled), "\n"))
+    rownames(Y.scaled) <- paste0("Y", 1:ncol(Y.scaled))
   }
   cat(paste0("Detected ", ncol(Y.scaled), " response ", ifelse(ncol(Y.scaled) == 1, "variable", "variables"), ":\n"))
   for(i in 1:ncol(Y.scaled)){
     cat(SPEAR.color_text(colnames(Y.scaled)[i], response.color), "\tSubjects: ", sum(!is.na(Y.scaled[,i])), "\tType: ", family, "\n")
+  }
+  
+  # Quickly ensure that each sample is lined up:
+  for(d in 1:length(X.scaled)){
+    if(any(rownames(X.scaled[[d]]) != rownames(Y.scaled))){
+      stop("ERROR: Rownames for ", names(X.scaled)[d], " are not equal to the others (at least to the response Y). Ensure they are all the same and try again.")
+    }
   }
   
   
@@ -444,8 +459,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     }
   }
   if(is.null(weights)){
-    cat("***", paste0(" weights not provided. Using c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)\n"))
-    weights <- c(2, 1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0)
+    cat("***", paste0(" weights not provided. Using c(2, 1.5, 1.0, 0.5, 0.0)\n"))
+    weights <- c(2, 1.5, 1.0, 0.5, 0.0)
   } else {
     cat(SPEAR.color_text("~~~", tilde.color), paste0(" weights - using c(", paste(round(weights, 2), collapse = ", "), ")\n"))
   }
@@ -481,23 +496,11 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   } else {
     thres_count <- elbo.threshold.count
   }
-  
-  
-  
-  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n\n")
-  
-  if(.Platform$OS.type == "windows"){
-    cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
-        Consider using SPEAR on a unix operating system for boosted performance.\n", "red"))
-    numCores <- 1
-  } else {
-    numCores <- parallel::detectCores()
-  }
-  
-  # Run cv.spear:
   if(is.null(robust_eps)){
     robust_eps = 1.0/sqrt(nrow(data$X))
   }
+  
+  # Debug statements to print:
   if(run.debug){
     for(k in 1:num.folds){
       print(table(data$Y[foldid==k]))
@@ -505,7 +508,23 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
     print(foldid)
   }
   
-  spear_fit <- cv.spear(X = as.matrix(data$X), 
+  
+  
+  cat("\n*****************\n", SPEAR.color_text(" Running SPEAR", info.color), "\n*****************\n")
+  
+  
+  cat(SPEAR.color_text("Starting parallel workers...\n", success.color))
+  if(.Platform$OS.type == "windows"){
+    cat(SPEAR.color_text("*NOTE:* Windows machine detected. SPEAR uses the mclapply function for parallelization, which is not supported on Windows.
+        Consider using SPEAR on a unix operating system for boosted performance. Setting numCores = 1\n", "red"))
+    numCores <- 1
+  } else {
+    numCores <- parallel::detectCores()
+  }
+  
+  cat("NOTE: Only printing out results from one fold of the CV for simplicity...\n")
+  
+  spear_fit <- cv.spear(X = as.matrix(data$X),
                         Y = as.matrix(data$Y),
                         Xobs = Xobs, 
                         Yobs = Yobs,
@@ -523,7 +542,8 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         warm_up= warm_up, 
                         max_iter = max_iter, 
                         seed = seed,
-                        sparsity_upper = sparsity_upper, L = nrow(data$X)/L0,
+                        sparsity_upper = sparsity_upper, 
+                        L = nrow(data$X)/L0,
                         thres_elbo = thres_elbo, 
                         thres_count = thres_count,
                         crossYonly = F,
@@ -560,6 +580,17 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
   params$thres_count = thres_count
   params$family <- family
   params$sparsity_upper <- sparsity_upper
+  # Add colors:
+  colorlist <- list()
+  num.omics <- length(data$xlist)
+  num.resp <- ncol(data$Y)
+  cols <- c("#9E0142", "#F46D43", "#ABDDA4", "#3288BD", "#5E4FA2")
+  omic.cols <- grDevices::colorRampPalette(cols)(num.omics)
+  names(omic.cols) <- names(data$xlist)
+  cols <- c("#F8AFA8", "#D0C7E7", "#DBD7AF", "#F1AD75", "#E47A7F", "#85D4E3")
+  resp.cols <- grDevices::colorRampPalette(cols)(num.resp)
+  names(resp.cols) <- colnames(data$Y)
+  params$colors <- list(X = omic.cols, Y = resp.cols)
   
   SPEARobj <- list(fit = spear_fit,
                    cv.eval = cv.eval,
@@ -587,7 +618,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
       save.name <- paste0(save.name, ".rds")
     }
     saveRDS(SPEARobj, file = paste0(save.path, save.name))
-    cat(paste0("Saved SPEARobject to RDS file at ", save.name))
+    cat(paste0("Saved SPEARobject to RDS file at ", save.name, "\n\n"))
   }
   
   return(SPEARobj)
@@ -606,7 +637,6 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 #'@param standardize Whether to standardize the data.
 #'@param alpha alpha = 1 corresponds to lasso and alpha = 0 corresponds to ridge.
 #'@export
-#'
 
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
@@ -639,7 +669,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
     cvm = matrix(NA, nrow = num_weights, ncol = 1)
     cvsd =matrix(NA, nrow = num_weights, ncol = 1)
   }
-
+  
   chats.return = list()
   #rescale the overall coefficients
   Yhat = array(NA, dim = c(n, py, num_weights))
@@ -917,29 +947,29 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         print(paste0("~~~ Calculating contribution for weights: ", l, "/", num_weights))
       }
       for(k in 1:num_factors){
-          for(j in 1:py){
-            yhat = Uhat.cv[,k,l]
-            y = Y[,j]
-            for(fold_id in 1:nfolds){
-              b = cv.projection_coefs[k,j,fold_id,l]
-              yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
-            }
-            yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
-            tmp_pearson = cor(y, yhat)
-            suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') ) 
-            if( tmp_pearson<0){
-              factor_contributions[k,j,l] = 0
-              factor_contributions_pvals[k,j,l] = 1
-            }else{
-              factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
-              factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
-            }
+        for(j in 1:py){
+          yhat = Uhat.cv[,k,l]
+          y = Y[,j]
+          for(fold_id in 1:nfolds){
+            b = cv.projection_coefs[k,j,fold_id,l]
+            yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
+          }
+          yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
+          tmp_pearson = cor(y, yhat)
+          suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') ) 
+          if( tmp_pearson<0){
+            factor_contributions[k,j,l] = 0
+            factor_contributions_pvals[k,j,l] = 1
+          }else{
+            factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
+            factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
           }
         }
+      }
     }
   }
   
-
+  
   return(list(projection_coefs_scaled = projection_coefs,
               cv.projection_coefs_scaled = cv.projection_coefs,
               reg_coefs = reg_coefs,

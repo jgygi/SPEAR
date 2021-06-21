@@ -4,7 +4,6 @@
 #'@importFrom MASS polr
 #'@importFrom glmnet glmnet
 #'@importFrom reshape2 melt
-#'@importFrom GGally ggpairs
 #'@importFrom Rcpp evalCpp
 #'@import parallel
 #'@import ggplot2

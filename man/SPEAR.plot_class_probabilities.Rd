@@ -2,13 +2,14 @@
 % Please edit documentation in R/SPEARkit3.R
 \name{SPEAR.plot_class_probabilities}
 \alias{SPEAR.plot_class_probabilities}
-\title{Plot class probabilities for a SPEARmodel (of family "binomial", "categorical", or "ordinal")}
+\title{Plot class probabilities for a SPEARmodel (of family "binomial", "multinomial", or "ordinal")}
 \usage{
 SPEAR.plot_class_probabilities(
   SPEARmodel,
   groups = NULL,
   forecast = "out.of.sample",
-  Xlist = NULL
+  Xlist = NULL,
+  simplify.multinomial = TRUE
 )
 }
 \arguments{
@@ -19,12 +20,14 @@ SPEAR.plot_class_probabilities(
 \item{forecast}{Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".}
 
 \item{Xlist}{A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).}
+
+\item{simplify.multinomial}{If the family of the SPEARobject is 'multinomial', condense into one plot? Will ignore if family parameter is not 'multinomial'. Defaults to TRUE.}
 }
 \value{
 A plot showing in-sample vs. out-of-sample predictions per response
 }
 \description{
-Plot class probabilities for a SPEARmodel (of family "binomial", "categorical", or "ordinal")
+Plot class probabilities for a SPEARmodel (of family "binomial", "multinomial", or "ordinal")
 }
 \examples{
 SPEAR.plot_class_probabilities(SPEARmodel)

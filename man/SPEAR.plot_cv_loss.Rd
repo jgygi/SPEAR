@@ -6,7 +6,7 @@
 \usage{
 SPEAR.plot_cv_loss(
   SPEARobj,
-  show.w.labels = TRUE,
+  show.w.labels = FALSE,
   show.min.w.line = TRUE,
   show.sd = TRUE,
   show.overall = FALSE,

@@ -535,13 +535,14 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   if(is.null(numCores)){
     numCores <- detectCores()
   }
+  
+  cl <- parallel::makeCluster(numCores, outfile = "")
   a <- system.time(
-   results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-   #results <- sapply(fold_ids, run_parallel)
+    #results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
   )
-  # a <- system.time(
-  #   results <- run_parallel(0)
-  # )
+  on.exit(parallel::stopCluster(cl))
+  
   print(a)
   if(run.debug){
     print(results)

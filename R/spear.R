@@ -305,6 +305,10 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
            post_a2y = post_a2y, post_b2y = post_b2y,
            meanFactors = meanFactors, 
            seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L,L2 = L2)
+    
+    if(print_out > 0)
+      cat(paste0("*** DONE WITH ", SPEAR.color_text(paste0("Running w = ", ws_x[idx_w]), "green"), "\t------------------------\n"))
+    
     if(idx_w==one_penalty_idx){
       one_post_mu = post_mu
       one_post_sigma2 = post_sigma2

@@ -514,7 +514,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                         pattern_features = data$pattern_features,
                         family = family.encoded, 
                         nclasses = data$nclasses,
-                        ws = weights,
+                        ws_x = weights,
                         foldid = foldid, 
                         num_factors = num.factors,  
                         functional_path = data$functional_path,

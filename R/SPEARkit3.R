@@ -1138,7 +1138,8 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 #' groups <- SPEARmodel$params$foldid
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
-#'@export
+# ADD EXPORT LINE!
+
 #SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, fit.line = TRUE){
 #  # First, check if GGally is installed:
 #  if(!"GGally" %in% rownames(installed.packages())){

@@ -284,7 +284,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         if(print_out != 0){
           if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-              Rcout << "iter" << it - warm_up << "\t| ΔELBO=" << std::setw(8) << Delta << "\t| thresh=" << std::setw(4) << thres_elbo << "\n";
+              Rcout << "iter" << it - warm_up << "\t| ΔELBO=" << std::setw(6) << Delta << "\t| thresh=" << std::setw(4) << thres_elbo << "\n";
           }
         }
         it += 1;

@@ -1,7 +1,7 @@
 ---
 title: "SPEAR: Simulating Gaussian Data"
 author: "Jeremy Gygi"
-date: "1/26/21"
+date: "5/24/21"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{SPEAR_1-simulate_data}
@@ -21,12 +21,10 @@ Follow installation instructions in README (located [here](https://github.com/jg
 
 ```{r message = FALSE, warning = FALSE}
 # Required Packages for SPEAR:
-library(SPEARcomplete)
-library(glmnet)
-library(parallel)
+library(SPEAR)
 
 # Seed: (for reproducibility)
-seed <- 1234
+seed <- 42
 ```
 
 ### 2. Preprocessing / Running SPEAR

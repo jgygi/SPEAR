@@ -2,7 +2,7 @@
 % Please edit documentation in R/SPEARkit3.R
 \name{SPEAR.plot_factor_coefficients}
 \alias{SPEAR.plot_factor_coefficients}
-\title{Plot factor coefficients for a SPEARmodel}
+\title{Plot factor scores for a SPEARmodel}
 \usage{
 SPEAR.plot_factor_coefficients(SPEARmodel, type = "regression")
 }
@@ -10,13 +10,29 @@ SPEAR.plot_factor_coefficients(SPEARmodel, type = "regression")
 \item{SPEARmodel}{SPEAR model (returned from \code{get_SPEAR_model})}
 
 \item{type}{Which coefficients to plot? Options include "projection" and "regression" (default)}
+
+\item{groups}{A named vector of a grouping variable, where names(groups) = rownames(SPEARmodel$data$X). Names are required to match to ensure correct representation of the data.}
+
+\item{forecast}{Which probabilities to use? A string with "out.of.sample" or "in.sample". Defaults to "out.of.sample".}
+
+\item{Xlist}{A list of matrices of testing data (must match the same dimensions as the data used to train the SPEARmodel (SPEARmodel$data$xlist)). Defaults to NULL (use training data).}
+
+\item{fit.line}{Add linear line of best fit? Defaults to TRUE}
 }
 \value{
+A plot showing in-sample vs. out-of-sample predictions per response
+
 A plot with the factor loadings of the SPEAR model
 }
 \description{
-Plot factor coefficients for a SPEARmodel
+Plot factor scores for a SPEARmodel
 }
 \examples{
+SPEAR.plot_factor_grid(SPEARmodel, jitter.points = FALSE)
+
+groups <- SPEARmodel$params$foldid
+names(groups) <- rownames(SPEARmodel$data$Y)
+SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
+Plot factor coefficients for a SPEARmodel
 SPEAR.plot_factor_coefficients(SPEARmodel)
 }

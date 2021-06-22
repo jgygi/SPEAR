@@ -150,6 +150,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
       }
     }
   }
+  
   post_tmuX =array(0, dim=c(px, num_factors));
   post_tsigma2X = array(1e-4, dim=c(px, num_factors));
   post_tpiX = array(1.0, dim=c(px, num_factors));
@@ -282,7 +283,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     set.seed(seed)
     
     if(print_out > 0)
-      cat(paste0("\n--- ", SPEAR.color_text(paste0("Running w_x = ", all_ws[idx_w,1], " | w_y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
+      cat(paste0("\n--- ", SPEAR.color_text(paste0("Running weight.x = ", all_ws[idx_w,1], " | weight.y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
     
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
@@ -305,6 +306,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
            post_a2y = post_a2y, post_b2y = post_b2y,
            meanFactors = meanFactors, 
            seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L,L2 = L2)
+    
     if(idx_w==one_penalty_idx){
       one_post_mu = post_mu
       one_post_sigma2 = post_sigma2
@@ -334,6 +336,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
       one_post_b2y = post_b2y
       one_meanFactors = meanFactors
     }
+    
     ###return both the factors after re-order and sign-fliping
     post_beta =array(0, dim = dim(post_mu))
     post_bx =  post_tmuX *  post_tpiX
@@ -395,9 +398,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
-  # hist(post_selections_marginal[,1,idx_w], breaks = 100)
-  # hist(post_selections[,1,idx_w], breaks = 100)
-  # hist(post_selections_joint[,1,idx_w], breaks = 100)
+  
   return(list(post_betas = post_betas, post_bys = post_bys, post_bxs =post_bxs,
               post_pis = post_pis, post_selections = post_selections, 
               post_selections_marginal = post_selections_marginal,
@@ -539,12 +540,12 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     numCores <- detectCores()
   }
   
-  #cl <- parallel::makeCluster(numCores, outfile = "")
+  cl <- parallel::makeCluster(numCores, outfile = "")
   a <- system.time(
-    results <- parallel::mclapply(fold_ids, run_parallel, mc.cores = numCores)
-    #results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
+    #results <- parallel::mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
   )
-  #on.exit(parallel::stopCluster(cl))
+  on.exit(parallel::stopCluster(cl))
   
   cat("\n--- All runs finished in ", as.numeric(round(a['elapsed'], 2)), " seconds\n")
   

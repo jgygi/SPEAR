@@ -1139,46 +1139,46 @@ SPEAR.plot_factor_scores <- function(SPEARmodel, groups = NULL, forecast = "out.
 #' names(groups) <- rownames(SPEARmodel$data$Y)
 #' SPEAR.plot_factor_grid(SPEARmodel, groups = groups, forecast = "in.sample")
 #'@export
-SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, fit.line = TRUE){
-  # First, check if GGally is installed:
-  if(!"GGally" %in% rownames(installed.packages())){
-    stop("*** NOTE: This function requires the 'GGally' package (can be installed with 'install.packages('GGally')'. You do not have this package installed.")
-  }
-  
-  ### Xlist (test data) ----------
-  if(is.null(Xlist)){
-    factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
-  } else {
-    factor.scores <- as.data.frame(SPEAR.get_factor_scores(SPEARmodel, Xlist))
-  } # ------
-  factor.scores$group <- NaN
-  show.groups <- FALSE
-  factor.scores$sample <- rownames(factor.scores)
-  if(!is.null(groups)){
-    # Check for mapping of metadata to subjects:
-    if(is.null(names(groups)) | any(!names(groups) %in% rownames(factor.scores))){
-      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
-    }
-    else{
-      # Check if there are at least 3 labels for each group:
-      if(any(table(groups) <= 2)){
-        stop("*** ERROR: 1 or more groups provided in the 'groups' argument have 2 or less entries. Cannot perform correlation analyses. Groups need to have at least 3 members.")
-      }
-      # Make multinomial if is.numeric:
-      if(any(is.numeric(groups))){
-        
-      }
-      factor.scores$group <- sapply(rownames(factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
-      show.groups <- TRUE
-    }
-  }
-  if(!show.groups){
-    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group)) + ggplot2::theme_bw()
-  } else {
-    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group), mapping=ggplot2::aes(colour = group)) + ggplot2::theme_bw()
-  }
-  return(g)
-}
+#SPEAR.plot_factor_grid <- function(SPEARmodel, groups = NULL, forecast = "out.of.sample", Xlist = NULL, fit.line = TRUE){
+#  # First, check if GGally is installed:
+#  if(!"GGally" %in% rownames(installed.packages())){
+#    stop("*** NOTE: This function requires the 'GGally' package (can be installed with 'install.packages('GGally')'. You do not have this package installed.")
+#  }
+#  
+#  ### Xlist (test data) ----------
+#  if(is.null(Xlist)){
+#    factor.scores <- as.data.frame(SPEARmodel$factors$factor.scores[[forecast]])
+#  } else {
+#    factor.scores <- as.data.frame(SPEAR.get_factor_scores(SPEARmodel, Xlist))
+#  } # ------
+#  factor.scores$group <- NaN
+#  show.groups <- FALSE
+#  factor.scores$sample <- rownames(factor.scores)
+#  if(!is.null(groups)){
+#    # Check for mapping of metadata to subjects:
+#    if(is.null(names(groups)) | any(!names(groups) %in% rownames(factor.scores))){
+#      stop("ERROR. 'groups' needs to be a named list to ensure the correct mapping to subjects. Please check that your subject names match.")
+#    }
+#    else{
+#      # Check if there are at least 3 labels for each group:
+#      if(any(table(groups) <= 2)){
+#        stop("*** ERROR: 1 or more groups provided in the 'groups' argument have 2 or less entries. Cannot perform correlation analyses. Groups need to have at least 3 members.")
+#      }
+#      # Make multinomial if is.numeric:
+#      if(any(is.numeric(groups))){
+#        
+#      }
+#      factor.scores$group <- sapply(rownames(factor.scores), function(sample){return(groups[which(names(groups) == sample)])})
+#      show.groups <- TRUE
+#    }
+#  }
+#  if(!show.groups){
+#    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group)) + ggplot2::theme_bw()
+#  } else {
+#    g <- GGally::ggpairs(dplyr::select(factor.scores, dplyr::starts_with("Factor"), group), mapping=ggplot2::aes(colour = group)) + ggplot2::theme_bw()
+#  }
+#  return(g)
+#}
 
 
 

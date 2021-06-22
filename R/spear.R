@@ -282,7 +282,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     set.seed(seed)
     
     if(print_out > 0)
-      cat(paste0("*** ", SPEAR.color_text(paste0("Running w_x = ", all_ws[idx_w,1], " | w_y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
+      cat(paste0("\n--- ", SPEAR.color_text(paste0("Running w_x = ", all_ws[idx_w,1], " | w_y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
     
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
@@ -539,14 +539,15 @@ cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     numCores <- detectCores()
   }
   
-  cl <- parallel::makeCluster(numCores, outfile = "")
+  #cl <- parallel::makeCluster(numCores, outfile = "")
   a <- system.time(
-    #results <- mclapply(fold_ids, run_parallel, mc.cores = numCores)
-    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
+    results <- parallel::mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    #results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
   )
-  on.exit(parallel::stopCluster(cl))
+  #on.exit(parallel::stopCluster(cl))
   
-  print(a)
+  cat("\n--- All runs finished in ", as.numeric(round(a['elapsed'], 2)), " seconds\n")
+  
   if(run.debug){
     print(results)
   }

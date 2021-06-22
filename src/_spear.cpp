@@ -284,13 +284,13 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         if(print_out != 0){
           if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-              Rcout << "iter" << it - warm_up << " - ELBO increase " << Delta << "\n";
+              Rcout << "iter" << it - warm_up << " - ΔELBO=" << Delta << "\n";
           }
         }
         it += 1;
     }
     if(print_out != 0){
-      Rcout << "*** FINISHED - iterations: " << it - warm_up - 1 << "\n";
+      Rcout << "--- FINISHED - iterations: " << it - warm_up - 1 << "\n";
     }
     it = 0;
     while(it < 2){

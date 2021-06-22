@@ -38,7 +38,7 @@
 #'@export
 spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors, 
                   functional_path, case.weights = NULL,  ws_x = NULL, ws_y = NULL,
-pattern_samples = NULL, pattern_features = NULL,
+                  pattern_samples = NULL, pattern_features = NULL,
                   inits_type = "pca", warm_up = 100, max_iter = 1000,
                   thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
                   a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
@@ -393,7 +393,8 @@ pattern_samples = NULL, pattern_features = NULL,
     post_pis[,,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
-    print(paste0("######weights#####",all_ws[idx_w,1], "-",all_ws[idx_w,2],"###########"))
+    if(print_out != 0)
+      print(paste0("######weights#####",all_ws[idx_w,1], "-",all_ws[idx_w,2],"###########"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)

@@ -324,6 +324,7 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 #'@param save.model  description
 #'@param save.path  description
 #'@param save.name  description
+#'@param multinomial.loss "deviance" or "misclassification"
 #'@param sparsity_upper  sparsity_upper, defaults to .5
 #'@param L0 parameter
 #'@param factor_contribution Calculate factor contributions? Defaults to TRUE
@@ -332,7 +333,8 @@ preparation <- function(Y,  X, family, pattern_samples = NULL, pattern_assays = 
 run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL, weights = NULL, family = "gaussian", inits.type = "pca",
                          num.factors = NULL, seed = NULL, scale.x = FALSE, scale.y = FALSE, num.folds = 5, 
                          warmup.iterations = NULL, max.iterations = NULL, elbo.threshold = NULL, elbo.threshold.count = NULL, cv.nlambda = 100, print.out = 100,
-                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
+                         save.model = TRUE, save.path = NULL, save.name = NULL, run.debug = FALSE, robust_eps = NULL, 
+                         multinomial.loss = "deviance", sparsity_upper = .1, L0 = 1, factor_contribution = TRUE){
   
   success.color <- "light green"
   update.color <- "green"
@@ -567,6 +569,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
                            pattern_samples = data$pattern_samples, 
                            pattern_features = data$pattern_features,
                            factor_contribution = factor_contribution,
+                           multinomial_loss = multinomial.loss,
                            nlambda = cv.nlambda)
   
   # Return a SPEARobject:
@@ -641,7 +644,7 @@ run_cv_spear <- function(X, Y, Z = NULL, Xobs = NULL, Yobs = NULL, foldid = NULL
 cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses, 
                           pattern_samples, pattern_features, nlambda = 100,
                           factor_contribution = F, weights = NULL, max_iter = 1e4,
-                          multinomical_loss = "deviance"){
+                          multinomial_loss = "deviance"){
   n = nrow(Y);
   px = ncol(X);
   py = ncol(Y);
@@ -903,7 +906,7 @@ cv.evaluation <- function(fitted.obj, X, Y, Z, family, nclasses,
         preds = exp(preds)
         probs_predictions[test_id,,1:dim(preds)[3]] = preds[test_id,,]
       }
-      if(multinomical_loss=="deviance"){
+      if(multinomial_loss=="deviance"){
         cvs = apply(probs_predictions,c(3), function(z) -2*apply(as.matrix(log(z+1e-8) * Y),1,sum))
       }else{
         #classification loss

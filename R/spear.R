@@ -282,7 +282,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     set.seed(seed)
     
     if(print_out > 0)
-      cat(paste0("*** ", SPEAR.color_text(paste0("Running w = ", weights[idx_w]), "green"), "\t------------------------\n"))
+      cat(paste0("*** ", SPEAR.color_text(paste0("Running w_x = ", all_ws[idx_w,1], " | w_y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
     
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
@@ -393,8 +393,6 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     post_pis[,,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
-    if(print_out != 0)
-      print(paste0("######weights#####",all_ws[idx_w,1], "-",all_ws[idx_w,2],"###########"))
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
   # hist(post_selections_marginal[,1,idx_w], breaks = 100)

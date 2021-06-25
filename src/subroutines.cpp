@@ -224,8 +224,6 @@ double update_projection_constrained(const int num_factors, arma::mat& Y, const 
 
 
 
-
-
 /*
  * update_factor_one: update factors for a given pattern
  * TODO: update weights_case, weights0
@@ -361,77 +359,38 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                      arma::mat& X,  const arma::mat& Xobs,
                      const arma::mat& Z,  const arma::vec weights, const arma::vec weights0,
                      const arma::vec weights_case,
-                     const List& pattern_samples, const List& pattern_features,
-                     arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi,
+                     arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi,
                      arma::mat& post_tmuX, arma::mat& post_tsigma2X,
                      arma::mat& post_tpiX, arma::mat& post_tmuY, arma::mat& post_tsigma2Y,
                      arma::mat& tauZ, arma::mat& log_pi, arma::mat& log_minus_pi,
                      arma::mat& nuXmat, arma::mat& nuYmat,
                      arma::mat& meanFactors,  arma::mat& U2,
                      arma::mat& updatingOrders){
-  double Delta = 0.0;
-  int num_pattern = pattern_samples.size();
-  for(int k = 0; k < num_pattern; k++){
-    //update for each pattern separately
-    arma::uvec ii = pattern_samples(k);
-    arma::uvec jj = pattern_features(k);
-    ii = ii - 1;
-    jj = jj -1;
-    int p_sub = jj.n_elem;
-    const arma::mat Zsub = Z.submat(ii, jj);
-    arma::mat post_mu_sub = post_mu.slice(k);
-    arma::mat post_sigma2_sub = post_sigma2.slice(k);
-    arma::mat post_pi_sub = post_pi.slice(k);
-    post_mu_sub = post_mu_sub.rows(jj);
-    post_sigma2_sub = post_sigma2_sub.rows(jj);
-    post_pi_sub = post_pi_sub.rows(jj);
-    arma::mat Ysub = Y.rows(ii);
-    const arma::mat Yobs_sub = Yobs.rows(ii);
-    arma::mat Xsub = X.rows(ii);
-    const arma::mat Xobs_sub = Xobs.rows(ii);
-    arma::mat nuYmat_sub = nuYmat.rows(ii);
-    arma::mat nuXmat_sub = nuXmat.rows(ii);
-    arma::mat meanFactors_sub = meanFactors.rows(ii);
-    double delta2 = update_factor_one(num_factors, Ysub, Yobs_sub, Xsub, Xobs_sub,
-                                      Zsub, weights, weights0, weights_case,
-                                      post_mu_sub, post_sigma2_sub,post_pi_sub ,
+    double Delta = update_factor_one(num_factors, Y, Yobs, X, Xobs,
+                                      Z, weights, weights0, weights_case,
+                                      post_mu, post_sigma2,post_pi ,
                                       post_tmuX, post_tsigma2X, post_tpiX,
                                       post_tmuY, post_tsigma2Y,
                                       tauZ, log_pi, log_minus_pi,
-                                      meanFactors_sub, nuXmat, nuYmat, updatingOrders);
-    arma::mat U2_sub = U2calculation(num_factors, Zsub, meanFactors_sub,
-                                     post_mu_sub, post_sigma2_sub, post_pi_sub);
-    if(delta2 > 0){
-      Delta = Delta+delta2;
-    }
-    meanFactors.rows(ii) = meanFactors_sub;
-    U2.rows(ii) = U2_sub;
-    for(int j = 0; j < p_sub; j++){
-      int j1 = jj(j);
-      for(int l = 0; l < num_factors; l++){
-        post_mu(j1,l,k) = post_mu_sub(j,l);
-        post_sigma2(j1,l, k) = post_sigma2_sub(j,l);
-        post_pi(j1,l, k) = post_pi_sub(j,l);
-      }
-    }
-  }
+                                      meanFactors, nuXmat, nuYmat, updatingOrders);
+  U2 = U2calculation(num_factors, Z, meanFactors,post_mu, post_sigma2, post_pi);
   return Delta;
 }
+
 
 /*
  * Update the prior distribution of coefficient inverse variance for inactive features.
  * TODO: update weights, weights0
  */
 double tau_update(const int& num_factors, const arma::vec& weights, const arma::vec& weights0,
-                  const List& pattern_features, const List& functional_path,
-                  const double a0, const double b0,arma::cube& post_mu,
-                  arma::cube& post_sigma2, arma::cube& post_pi,
+                  const List& functional_path,
+                  const double a0, const double b0,arma::mat& post_mu,
+                  arma::mat& post_sigma2, arma::mat& post_pi,
                   arma::mat& post_tmu, arma::mat& post_tsigma2,arma::mat& post_tpi,
                   arma::mat& tauZ, arma::mat& post_a0, arma::mat& post_b0, const double L,
                   const double L2){
   //posterior distribution for tau
   int num_path = functional_path.size();
-  int num_pattern = pattern_features.size();
   double Delta = 0.0;
   for(int l = 0; l < num_path; l++){
     arma::uvec path_index = functional_path(l);
@@ -441,18 +400,14 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
       double post_a = a0;
       double post_b = b0;
       //add up the effects from factors
-      for(int q = 0; q < num_pattern; q++){
-        arma::uvec jj = pattern_features(q);
-        jj -= 1;
-        arma::uvec path_q = intersect(jj, path_index);
-        int p1 = path_q.n_elem;
-        for(int j0 = 0; j0 < p1; j0++){
-          int j = path_q(j0);
-          //double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q))*post_pi(j,k,q) + (1-post_pi(j,k,q))*1.0/tauZ(j,k))* .5;
-          double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q)))* .5;
-          post_a = post_a +  weights0(0)* .5;
-          post_b = post_b + tmp;
-        }
+      arma::uvec path_q = path_index;
+      int p1 = path_q.n_elem;
+      for(int j0 = 0; j0 < p1; j0++){
+        int j = path_q(j0);
+        //double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q))*post_pi(j,k,q) + (1-post_pi(j,k,q))*1.0/tauZ(j,k))* .5;
+        double tmp = weights0(0)*((post_mu(j, k) * post_mu(j, k) + post_sigma2(j,k)))* .5;
+        post_a = post_a +  weights0(0)* .5;
+        post_b = post_b + tmp;
       }
       //add up the effects from weights
       for(int j0 = 0; j0 < p0; j0++){
@@ -495,14 +450,13 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
  * TODO: update weights, weights0
  */
 double pi_update(const int& num_factors, const arma::vec& weights, const arma::vec& weights0,
-                 const List& pattern_features, const List& functional_path,
+                 const List& functional_path,
                  const double a1, const double b1,
-                 arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi,
+                 arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi,
                  arma::mat& post_tmu, arma::mat& post_tsigma2,arma::mat& post_tpi,
                  arma::mat& log_pi, arma::mat& log_minus_pi,arma::mat& post_a1, arma::mat& post_b1, const double alpha0){
   //posterior distribution for tau
   int num_path = functional_path.size();
-  int num_pattern = pattern_features.size();
   double Delta =0.0;
   for(int l = 0; l < num_path; l++){
     arma::uvec path_index = functional_path(l);
@@ -512,16 +466,12 @@ double pi_update(const int& num_factors, const arma::vec& weights, const arma::v
       double weight_sum = 0.0;
       double total_sum = 0.0;
       //add up the effects from factors
-      for(int q = 0; q < num_pattern; q++){
-        arma::uvec jj = pattern_features(q);
-        jj -= 1;
-        arma::uvec path_q = intersect(jj, path_index);
-        int p1 = path_q.n_elem;
-        for(int j0 = 0; j0 < p1; j0++){
-          int j = path_q(j0);
-          total_sum = total_sum + weights0(0);
-          weight_sum = weight_sum + post_pi(j,k,q)*weights0(0);
-        }
+      arma::uvec path_q = path_index;
+      int p1 = path_q.n_elem;
+      for(int j0 = 0; j0 < p1; j0++){
+        int j = path_q(j0);
+        total_sum = total_sum + weights0(0);
+        weight_sum = weight_sum + post_pi(j,k)*weights0(0);
       }
       //add up the effects from weights
       for(int j0 = 0; j0 < p0; j0++){
@@ -633,7 +583,7 @@ double nu_update(arma::mat& Y, const arma::mat& Yobs, const arma::vec& weights,
     nu_mat.col(j) = post_a/post_b * ones;
     double check = arma::min(nu_mat.col(j));
     if(check < 1e-20){
-      stop("inadmissable variance estimation");
+      stop("0 variance estimation!");
     }
     post_a2(j) = post_a;
     post_b2(j) = post_b;

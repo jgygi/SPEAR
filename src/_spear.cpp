@@ -51,12 +51,14 @@ double pos(double x){
   
  */
 
+/*
+ * Remove the patterns, Z is complete.
+ */
 //' @export
 // [[Rcpp::export]]
 arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             const arma::mat& Yobs, const arma::mat& Xobs,
             const arma::mat& Z, const arma::vec nclasses, const List& functional_path,
-            const List& pattern_samples, const List& pattern_features,
             const arma::vec weights, const arma::vec weights0, 
             const arma::vec weights_case,
             const int num_factors, 
@@ -65,7 +67,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             const double a0, const double b0, const double a1, const double b1,
             const double a2, const double b2, const double lower, const int print_out,
             arma::vec interceptsX, List& interceptsY, 
-            arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi, 
+            arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi, 
             arma::mat& post_tmuX, arma::mat& post_tsigma2X, arma::mat& post_tpiX, 
             arma::mat& post_tpiX_marginal, arma::mat& post_tmuY, arma::mat& post_tsigma2Y, arma::mat& post_tpiY,
             arma::mat& tauY, arma::mat& tauZ,
@@ -77,7 +79,6 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
             arma::vec& post_a2y, arma::vec& post_b2y,
             arma::mat& meanFactors, const int seed0,
             const double robust_eps, const double alpha0, const double L, const double L2){
-    int num_pattern = pattern_samples.size();
     int py = Y.n_cols;
     int px = X.n_cols;
     int pz = Z.n_cols;
@@ -125,26 +126,13 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
      3) B from factor to X
      */
     //Initialization, step 0: calculate the expected factor and expected square factor given posterior distribution of beta. This is done for each pattern separately.
-    for(int k = 0; k < num_pattern; k++){
-        arma::uvec ii = pattern_samples(k);
-        arma::uvec jj = pattern_features(k);
-        ii = ii - 1;
-        jj = jj - 1;
-        const arma::mat Zsub = Z.submat(ii,jj);
-        arma::mat post_mu_sub = post_mu.slice(k);
-        arma::mat post_sigma2_sub = post_sigma2.slice(k);
-        arma::mat post_pi_sub = post_pi.slice(k);
-        post_mu_sub = post_mu_sub.rows(jj);
-        post_sigma2_sub = post_sigma2_sub.rows(jj);
-        post_pi_sub = post_pi_sub.rows(jj);
-        //calculate the expected factor values
-        arma::mat meanFactors_sub = Zsub * (post_mu_sub % post_pi_sub);
-        //calculate the expected squared factor values
-        arma::mat U2_sub =  U2calculation(num_factors, Zsub, meanFactors_sub,
-                                          post_mu_sub, post_sigma2_sub, post_pi_sub);
-        U2.rows(ii) = U2_sub;
-        meanFactors.rows(ii) = meanFactors_sub;
-    }
+    /*
+     * post_mu is a K by p matrix now
+     */
+    //calculate the expected factor values
+    meanFactors = Z * (post_mu % post_pi);
+    //calculate the expected squared factor values
+    U2 =  U2calculation(num_factors, Z, meanFactors, post_mu, post_sigma2, post_pi);
     //Rcout << "step1" << "\n";
     // Initialization step1:
     //remove intercepts
@@ -204,7 +192,6 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         //add weights parameters for Y, case weights
         delta2 = update_factor(num_factors, Yapprox,  Yobs, Xapprox,  Xobs, Z,  weights,
                                weights0, weights_case,
-                               pattern_samples, pattern_features,
                                post_mu, post_sigma2, post_pi,
                                post_tmuX, post_tsigma2X, post_tpiX,
                                post_tmuY, post_tsigma2Y,
@@ -243,13 +230,13 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         //Rcout << "step8" << "\n";
         //update prior tau
-        delta3 = tau_update(num_factors, weights, weights0,pattern_features , functional_path,
+        delta3 = tau_update(num_factors, weights, weights0,functional_path,
                             a0, b0 , post_mu, post_sigma2, post_pi,
                             post_tmuX, post_tsigma2X, post_tpiX,
                             tauZ, post_a0, post_b0,L, L2);
         //Rcout << "step9" << "\n";
         //update prior pi
-        delta4 = pi_update(num_factors, weights, weights0, pattern_features ,functional_path,
+        delta4 = pi_update(num_factors, weights, weights0,functional_path,
                            a1, b1, post_mu, post_sigma2, post_pi,
                            post_tmuX, post_tsigma2X, post_tpiX,
                            log_pi, log_minus_pi, post_a1, post_b1, alpha0);
@@ -284,13 +271,13 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         if(print_out != 0){
           if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-              Rcout << "iter" << it - warm_up << "\t| ΔELBO=" << std::setw(6) << Delta << "\t| thresh=" << std::setw(4) << thres_elbo << "\n";
+              Rcout << "iter" << it - warm_up << " - ELBO increase " << Delta << "\n";
           }
         }
         it += 1;
     }
     if(print_out != 0){
-      Rcout << "--- FINISHED - iterations: " << it - warm_up - 1 << "\n";
+      Rcout << "*** FINISHED - iterations: " << it - warm_up - 1 << "\n";
     }
     it = 0;
     while(it < 2){

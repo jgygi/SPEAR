@@ -1,93 +1,75 @@
-#' SuPervised Bayes fActor for Multi-omics
+#' SPEAR - SuPervised Bayes fActor for Multi-omics
+#' imports:
 #'@useDynLib SPEAR, .registration=TRUE
 #'@importFrom ordinalNet ordinalNet
 #'@importFrom MASS polr
 #'@importFrom glmnet glmnet
 #'@importFrom reshape2 melt
 #'@importFrom Rcpp evalCpp
+#'@import R6
 #'@import parallel
 #'@import ggplot2
 #'@import cowplot
 #'@import dplyr
 #'@import stringr
-#'@param Y Response matrix (can be multidimensional for gaussian data).
-#'@param X Assay matrix.
-#'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).
-#'@param family 0=gaussian (multiple response); 1 = binary(multiple response); 2 = ordinal (multiple response); 3 = multinomial (single response)
-#'@param ws A vector of weights that you want to try out, default is ws = c(0).
-#'@param num.factors Number of factors estimated.
-#'@param functional_path Grouping structure.
-#'@param pattern_samples Sample indexes for each missing pattern, default NULL (one pattern). It should be a partition of all 1-n indexes.
-#'@param pattern_features Feature indexes for each missing pattern, default NULL (one pattern). 
-#'@param inits_type Initialization type, can be None, pca, sparsepac.
-#'@param warm_up: warm up iterations for the inference.
-#'@param max_iter: max number of iterations.
-#'@param thres_elbo: if EBLO increase by less than thres_elbo, clock +1; otherwise, the clock is reset to 0.
-#'@param thres_count: stop if clock has reached thres_count.
-#'@param print_out: print out the progress for every print_out iterations.
-#'@param a0: hyper parametr, no need to tune usually.
-#'@param b0: hyper parametr, no need to tune usually.
-#'@param a1: hyper parametr, no need to tune usually.
-#'@param b1: hyper parametr, no need to tune usually.
-#'@param a2: hyper parametr, no need to tune usually.
-#'@param b2: hyper parametr, no need to tune usually.
-#'@param seed: random seed number.
-#'@param robust_eps: robust_eps
-#'@param sparsity_upper: Sparsity parameter for feature selection
-#'@param L: parameter
+
+
+#### Functions:
+#' Run SPEAR
+#' @examples
+#' SPEARobj <- make_spear_model(...)
+#' 
+#' SPEARobj$run.spear()
+#' 
 #'@export
-spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors, 
-                  functional_path, case.weights = NULL,  ws_x = NULL, ws_y = NULL,
-                  pattern_samples = NULL, pattern_features = NULL,
-                  inits_type = "pca", warm_up = 100, max_iter = 1000,
-                  thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
-                  a0 = 1e-2, b0 = 1e-2, a1 = sqrt(nrow(X)), b1 = sqrt(nrow(X)),
-                  a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), 
-                  inits_post_mu = NULL,seed = 1, robust_eps = 1.0/(nrow(X)), 
-                  sparsity_upper = 0.5, L = nrow(X)/log(ncol(X)), L2 = 1){
-  if(is.null(ws_y)){
+run.spear <- function(){
+  X = self$data$X
+  Y = self$data$Y
+  Z = self$data$Z
+  Xobs = self$data$Xobs
+  Yobs = self$data$Yobs
+  family = self$params$family_encoded
+  nclasses = self$params$nclasses
+  num_factors = self$params$num_factors
+  functional_path = self$params$functional_path
+  weights_case = self$params$weights.case
+  weights = self$params$weights
+  inits_type = self$params$inits_type
+  inits_post_mu = self$params$inits_post_mu
+  sparsity_upper = self$params$sparsity_upper
+  warm_up = self$params$warm_up
+  max_iter = self$params$max_iter
+  thres_elbo = self$params$thres_elbo
+  thres_count = self$params$thres_count
+  thres_factor = self$params$thres_factor
+  print_out = self$params$print_out
+  seed = self$params$seed
+  a0 = self$inits$a0 
+  b0 = self$inits$b0 
+  a1 = self$inits$a1 
+  b1 = self$inits$b1
+  a2 = self$inits$a2 
+  b2 = self$inits$b2 
+  L1 = self$inits$L1 
+  L2 = self$inits$L2
+  robust_eps = self$inits$robust_eps
+  
+  if(all(weights[,2] == 1)){
     type_weights = "xonly"
-  }else if(is.null(ws_x)){
+  }else if(all(weights[,1] == 1)){
     type_weights = "yonly"
   }else{
     type_weights = "both"
   }
   
-  if(is.null(ws_y) & is.null(ws_x)){
-    stop("no weights for x or y are supplied.")
-  }
-
+  
+  all_ws = weights
   if(type_weights != "yonly"){
-    if(!(1 %in% ws_x)){
-      stop("candidate weights for X must include 1 when supplied!")
-    }
-  }
-  if(type_weights != "yonly"){
-    all_ws = matrix(0, ncol = 2, nrow = length(ws_x))
-    all_ws[,1] = ws_x
-    all_ws[,2] = 1
-    if(type_weights == "both"){
-      tmp = matrix(0, ncol = 2, nrow = length(ws_y))
-      tmp[,1] = 1
-      tmp[,2] = ws_y
-      all_ws = rbind(all_ws, tmp)
-    }
-    one_penalty_idx = which(ws_x == 1)[1]
+    one_penalty_idx = which(weights[,1] == 1)[1]
   }else{
-    all_ws = matrix(0, ncol = 2, nrow = length(ws_y))
-    all_ws[,1] = 1
-    all_ws[,2] = ws_y
     one_penalty_idx = 1
   }
-  
-  if(is.null(case.weights)){
-    weights_case = rep(1, nrow(X))
-  }else if(length(case.weights)!=nrow(X)){
-    stop("Supplied case weights do not match the data dimension.")
-  }else{
-    weights_case = case.weights
-  }
-
+    
   if(is.null(dim(Y))){
     Y = matrix(Y, ncol = 1)
     Yobs = matrix(Yobs, ncol = 1)
@@ -96,58 +78,31 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   interceptsY = list()
   interceptsX = rep(0, px)
   for(j in 1:py){
-      interceptsY[[j]] = rep(0, nclasses[j]-1)
+    interceptsY[[j]] = rep(0, nclasses[j]-1)
   }
-  if(is.null(pattern_samples) | is.null(pattern_features)){
-    pattern_samples = list()
-    pattern_features = list()
-    pattern_samples[[1]] = c(1:n)
-    pattern_features[[1]] = c(1:px)
-  }else if(length(pattern_samples)!=length(pattern_features)){
-    stop("feature patterns and sample patterns do not match!")
-  }else{
-    tmp1 = pattern_samples[[1]]
-    tmp2 = pattern_samples[[1]]
-    for(k in 1:length(pattern_samples)){
-      tmp1 = intersect(tmp1, pattern_samples[[k]])
-      tmp2 = sort(union(tmp2, pattern_samples[[k]]))
-      if((length(tmp1) > 0 & k > 1) | length(tmp2)!=n){
-        stop("pattern_samples is not a partition of all samples!")
-      }
-    }
-  }
-  num_patterns = length(pattern_samples)
-  post_mu = array(0, dim = c(ncol(Z), num_factors, length(pattern_samples)))
-  post_sigma2 = array(0.1, dim=c(ncol(Z), num_factors, length(pattern_samples)));
-  post_pi = array(1, dim=c(ncol(Z), num_factors, length(pattern_samples)));
+  post_mu = array(0, dim = c(ncol(Z), num_factors))
+  post_sigma2 = array(0.1, dim=c(ncol(Z), num_factors));
+  post_pi = array(1, dim=c(ncol(Z), num_factors));
   if(!is.null(inits_post_mu)){
     if((ncol(inits_post_mu)!=num_factors) | (nrow(inits_post_mu)!= ncol(Z))){
       stop("wrong initialization dimension for post_mu!")
     }
-    for(k in 1:num_patterns){
-      post_mu[,,k] = inits_post_mu;
-    }
+    post_mu = inits_post_mu;
   }else if(inits_type == "None"){
-    post_mu = array(rnorm(pz*num_factors*num_patterns), dim = c(pz, num_factors, num_factors))
+    post_mu = array(rnorm(pz*num_factors), dim = c(pz, num_factors))
     for(k in 1:num_factors){
-      for(j in 1:num_patterns){
-        post_mu[,k,j] =post_mu[,k,j]/sqrt(sum(post_mu[,k,j])^2)
-      }
+      post_mu[,k] =post_mu[,k]/sqrt(sum(post_mu[,k])^2)
     }
   }else if(inits_type == "pca"){
     z_svd = svd(Z)
     for(k in 1:num_factors){
-      for(j in 1:num_patterns){
-        post_mu[,k,j] = z_svd$v[,k]
-      }
+      post_mu[,k] = z_svd$v[,k]
     }
   }else if (inits_type == "sparsepca"){
     z_svd = spca(Z, num_factors,  sparse="varnum", type = "predictor",
                  para = rep(min(ceiling(sqrt(nrow(X))), ncol(X)/2),num_factors))
     for(k in 1:num_factors){
-      for(j in 1:num_patterns){
-        post_mu[,k,j] = z_svd$v[,k]
-      }
+      post_mu[,k] = z_svd$v[,k]
     }
   }
   
@@ -176,7 +131,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   post_a2y = rep(1, ncol(Y))
   post_b2y = rep(1, ncol(Y))
   ##record the model estimated with weights all 1 for initial start of y
-  one_post_mu = post_mu
+  one_post_mu = post_mu; one_post_pi = post_pi;one_post_sigma2 = post_sigma2;
   one_post_tmuX =array(0, dim=c(px, num_factors));
   one_post_tsigma2X = array(1e-4, dim=c(px, num_factors));
   one_post_tpiX = array(1.0, dim=c(px, num_factors));
@@ -202,44 +157,13 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
   one_post_a2y = rep(1, ncol(Y))
   one_post_b2y = rep(1, ncol(Y))
   lowers = rep(0, length(all_ws))
-  post_betas = array(NA, dim  = c(ncol(X),num_factors , num_patterns,  nrow(all_ws)))
+  post_betas = array(NA, dim  = c(ncol(X),num_factors , nrow(all_ws)))
   post_bys = array(NA, dim = c(num_factors, ncol(Y), nrow(all_ws)))
   post_bxs = array(NA, dim = c(ncol(X), num_factors,  nrow(all_ws)))
-  post_pis = array(NA, dim = c(ncol(X), num_factors, num_patterns,  nrow(all_ws)))
+  post_pis = array(NA, dim = c(ncol(X), num_factors, nrow(all_ws)))
   post_selections = array(NA, dim = c(ncol(X), num_factors, nrow(all_ws)))
   post_selections_marginal = array(NA, dim = c(ncol(X), num_factors,  nrow(all_ws)))
-  colnames(all_ws) = c("x_weight", "y_weight")
 
-  DEBUG = F
-  if(DEBUG){
-    print("post_mu -- log_minus_pi--nuYmat")
-    print(dim(post_mu))
-    print(dim(post_sigma2))
-    print(dim(post_pi))
-    print(dim(post_tmuX))
-    print(dim(post_tsigma2X))
-    print(dim(post_tpiX))
-    print(dim(post_tpiX_marginal))
-    print(dim(post_tmuY))
-    print(dim(post_tsigma2Y))
-    print(dim(post_tpiY))
-    print(dim(tauY))
-    print(dim(tauZ))
-    print(dim(log_pi))
-    print(dim(log_minus_pi))
-    print(dim(nuXmat))
-    print(dim(nuYmat))
-    print("post_a0 -- post_b2y--meanFactors")
-    print(dim(post_a0))
-    print(dim(post_b0))
-    print(dim(post_a1))
-    print(dim(post_b1))
-    print(length(post_a2x))
-    print(length(post_a2y))
-    print(length(post_b2x))
-    print(length(post_b2y))
-    print(dim(meanFactors))
-  }
   for(idx_w in 1:nrow(all_ws)){
     weights = rep(all_ws[idx_w,1], ncol(X))
     weights_y = rep(all_ws[idx_w,2], ncol(Y))
@@ -250,7 +174,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     }else{
       warm_up1 = 1
     }
-    if((type_weights != "yonly") & (idx_w == (length(ws_x)+1))){
+    if((type_weights != "yonly") & (idx_w == (nrow(all_ws)+1))){
       post_mu = one_post_mu
       post_sigma2 =  one_post_sigma2
       post_pi =  one_post_pi
@@ -283,11 +207,10 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     set.seed(seed)
     
     if(print_out > 0)
-      cat(paste0("\n--- ", SPEAR.color_text(paste0("Running weight.x = ", all_ws[idx_w,1], " | weight.y = ",all_ws[idx_w,2]), "green"), "\t------------------------\n"))
+      cat(paste0("\n--- ", self$color.text(paste0("Running weight.x = ", all_ws[idx_w,1], " | weight.y = ",all_ws[idx_w,2]), "green"), " ---\n"))
     
     spear_(family  = family, Y = Y, X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
            nclasses =  nclasses,  functional_path = functional_path,
-           pattern_samples = pattern_samples, pattern_features = pattern_features,
            weights = weights,  weights0 = weights_y, 
            weights_case = weights_case,
            num_factors = num_factors, warm_up = warm_up1,
@@ -305,8 +228,7 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
            post_a2x = post_a2x, post_b2x = post_b2x,
            post_a2y = post_a2y, post_b2y = post_b2y,
            meanFactors = meanFactors, 
-           seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L,L2 = L2)
-    
+           seed0 = seed,robust_eps =robust_eps, alpha0 = sparsity_upper, L = L1,L2 = L2)
     if(idx_w==one_penalty_idx){
       one_post_mu = post_mu
       one_post_sigma2 = post_sigma2
@@ -336,18 +258,11 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
       one_post_b2y = post_b2y
       one_meanFactors = meanFactors
     }
-    
     ###return both the factors after re-order and sign-fliping
     post_beta =array(0, dim = dim(post_mu))
     post_bx =  post_tmuX *  post_tpiX
-    for(j in 1:num_patterns){
-      ii = pattern_samples[[j]]
-      jj = pattern_features[[j]]
-      for(k in 1:num_factors){
-        post_beta[,k,j] = (post_mu[,k,j] * post_pi[,k,j])
-        meanFactors[ii,k] = Z[ii,] %*%post_beta[,k,j]
-      }
-    }
+    post_beta = post_mu*post_pi
+    meanFactors = Z%*%post_beta
     post_by = post_tmuY
     cors = matrix(0, nrow  = num_factors, ncol = ncol(Y))
     if(family != 0){
@@ -371,197 +286,524 @@ spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors,
     for(k in 1:num_factors){
       k0 = ordering[k]
       aligning = sum(cors[k0,])
-      for(j in 1:num_patterns){
-        post_beta[,k,j] = (post_mu[,k0,j] * post_pi[,k0,j])
-      }
+      post_beta[,k] = (post_mu[,k0] * post_pi[,k0])
       post_bx[,k] = post_tmuX[,k0] *post_tpiX[,k0]
       post_by[,k] = post_tmuY[,k0] *post_tpiY[,k0]
       if(aligning < 0){
-        for(j in 1:num_patterns){
-          post_beta[,k,j] = - post_beta[,k,j]
-        }
+        post_beta[,k] = - post_beta[,k]
         post_bx[,k] = -post_bx[,k]
         post_by[,k] = -post_by[,k]
       }
     }
-    for(j in 1:num_patterns){
-      post_mu[,,j] = post_mu[,ordering,j]
-      post_pi[,,j] = post_pi[,ordering,j]
-    } 
+    post_mu = post_mu[,ordering]
+    post_pi = post_pi[,ordering]
     post_tpiX = post_tpiX[,ordering]
     post_tpiX_marginal = post_tpiX_marginal[,ordering]
-    post_betas[,,,idx_w] = post_beta
+    post_betas[,,idx_w] = post_beta
     post_bys[,,idx_w] = post_by
     post_bxs[,,idx_w] = post_bx
-    post_pis[,,,idx_w] = post_pi
+    post_pis[,,idx_w] = post_pi
     post_selections[,,idx_w] = post_tpiX
     post_selections_marginal[,,idx_w]  = post_tpiX_marginal
   }
   post_selections_joint = ifelse(post_selections<=post_selections_marginal, post_selections, post_selections_marginal)
+
+  self$fit <- list(regression.coefs = post_betas, 
+                   projection.coefs.x = post_bxs, 
+                   projection.coefs.y = post_bys,
+                   post_pis = post_pis, 
+                   projection.probs = post_selections, 
+                   marginal.probs = post_selections_marginal,
+                   joint.probs = post_selections_joint,
+                   intercepts.x = interceptsX, 
+                   intercepts.y = interceptsY)
   
-  return(list(post_betas = post_betas, post_bys = post_bys, post_bxs =post_bxs,
-              post_pis = post_pis, post_selections = post_selections, 
-              post_selections_marginal = post_selections_marginal,
-              post_selections_joint = post_selections_joint,
-              interceptsX = interceptsX, interceptsY = interceptsY,
-              weights_all = all_ws))
+  self$update.dimnames()
   
+  self$options$current.weight.idx = 1
 }
 
-
-#' Cross-fit of SPEAR
-#'@param Y Response matrix (can be multidimensional for gaussian data).
-#'@param X Feature matrix.
-#'@param ws A vector of weights that you want to try out, default is ws = c(0).
-#'@param num.factors Number of factors estimated.
-#'@param functional_path Grouping structure.
-#'@param foldid CV foldid
-#'@param inits_type Initialization type, can be None, pca, sparsepac.
-#'@param warm_up: warm up iterations for the inference.
-#'@param max_iter: max number of iterations.
-#'@param thres_elbo: if EBLO increase by less than thres_elbo, clock +1; otherwise, the clock is reset to 0.
-#'@param thres_count: stop if clock has reached thres_count.
-#'@param print_out: print out the progress for every print_out iterations.
-#'@param a0: hyper parametr, no need to tune usually.
-#'@param b0: hyper parametr, no need to tune usually.
-#'@param a1: hyper parametr, no need to tune usually.
-#'@param b1: hyper parametr, no need to tune usually.
-#'@param a2: hyper parametr, no need to tune usually.
-#'@param b2: hyper parametr, no need to tune usually.
-#'@param seed: random seed number.
-#'@param sparsity_upper: Sparsity parameter
-#'@param robust_eps: robust_eps
-#'@param run.debug: debug?
-#'@param L: parameter
+#' Update the dimension names for all SPEARobject matrices. Used internally.
 #'@export
-cv.spear <- function(X, Xobs, Y, Yobs, Z, family, nclasses, num_factors, 
-                     functional_path, foldid = foldid, case.weights = NULL,  ws_x = NULL, ws_y = NULL,
-                     pattern_samples = NULL, pattern_features = NULL,
-                     inits_type = "pca", warm_up = 100, max_iter = 1000,
-                     thres_elbo = 0.01, thres_count = 5, thres_factor = 1e-8, print_out = 10,
-                     a0 = 1e-2, b0 = 1e-2, a1 = 1, b1 = 1,
-                     a2= sqrt(nrow(X)), b2 = sqrt(nrow(X)), robust_eps =1/nrow(X),
-                     sparsity_upper = 0.1, L = nrow(X)/log(nrow(X)),
-                     L2 = 1,
-                     inits_post_mu = NULL,seed = 1, crossYonly = F, numCores = NULL, run.debug = FALSE){
-  fold_ids = sort(unique(foldid))
-  fold_ids = c(0, fold_ids)
-  px = ncol(X); py = ncol(Y); pz = ncol(Z); n = nrow(Y)
-  num_patterns = length(pattern_samples)
-  if(is.null(pattern_samples) | is.null(pattern_features)){
-    pattern_samples = list()
-    pattern_features = list()
-    pattern_samples[[1]] = c(1:n)
-    pattern_features[[1]] = c(1:px)
-  }else if(length(pattern_samples)!=length(pattern_features)){
-    stop("feature patterns and sample patterns do not match!")
-  }else{
-    tmp1 = pattern_samples[[1]]
-    tmp2 = pattern_samples[[1]]
-    for(k in 1:length(pattern_samples)){
-      tmp1 = intersect(tmp1, pattern_samples[[k]])
-      tmp2 = sort(union(tmp2, pattern_samples[[k]]))
-      if((length(tmp1) > 0 & k > 1) | length(tmp2)!=n){
-        stop("pattern_samples is not a partition of all samples!")
-      }
-    }
+update.dimnames = function(call = "fit"){
+  if(call == "fit"){
+    dimnames(self$fit$regression.coefs) = list()
+    dimnames(self$fit$projection.coefs.x) = list() 
+    dimnames(self$fit$projection.coefs.y) = list() 
+    dimnames(self$fit$post_pis) = list() 
+    dimnames(self$fit$projection.probs) = list() 
+    dimnames(self$fit$marginal.probs) = list() 
+    dimnames(self$fit$joint.probs) = list()
   }
-  if(is.null(inits_post_mu)){
-    inits_post_mu = matrix(0, nrow = ncol(X), ncol = num_factors)
+}
+
+#+ post_betas ($P$ x $K$ x $G$ x $W$)
+#
+#+ post_bys ($K$ x $Y$ x $W$)
+#
+#+ post_bxs ($K$ x $P$ x $W$)
+#
+#+ post_pis ($P$ x $K$ x $W$)
+#
+#+ post_selections ($P$ x $K$ x $W$)
+
+
+#### Functions:
+#' Print out a variety of summary information about a SPEARobject
+#' @param type Which type of summary to print? Can be "data". Defaults to NULL.
+#' @param remove.formatting Remove text color/bold font face. Defaults to FALSE.
+#' @param quiet Do not print anything. Defaults to FALSE.
+#' @examples
+#' SPEARobj <- make_spear_model(...)
+#' 
+#' SPEARobj$run.spear()
+#' 
+#'@export
+print.out = function(type = NULL, remove.formatting = FALSE, quiet = FALSE){
+  if(quiet){
+    return(NULL)
   }
-  if(inits_type == "None"){
-    for(k in 1:num_factors){
-      inits_post_mu[,k] = rnorm(ncol(X))
-      inits_post_mu[,k] = inits_post_mu[,k]/sqrt(sum(inits_post_mu[,k]^2))
-    }
-  }else if (inits_type == "pca"){
-    x_svd = svd(Z)
-    for(k in 1:num_factors){
-      inits_post_mu[,k] = x_svd$v[,k]
-    }
-  }
-  run_parallel <- function(fold_id){
-    if(fold_id == 0){
-      res = spear(family  = family, Y = as.matrix(Y, drop=F), X = X, Yobs = Yobs, Xobs = Xobs, Z = Z,
-                   nclasses =  nclasses,  functional_path = functional_path,
-                   pattern_samples = pattern_samples, pattern_features = pattern_features,
-                   ws_x = ws_x, ws_y  = ws_y, case.weights = case.weights,  num_factors = num_factors, warm_up = warm_up,
-                   max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
-                   thres_factor = thres_factor,  print_out = print_out, a0  = a0, b0 = b0,
-                   a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
-                  robust_eps=robust_eps, sparsity_upper = sparsity_upper, L = L,  L2=  L2)
-      
-    }else{
-      subsets = which(foldid != fold_id)
-      Ycv = Y;
-      Xcv = X;
-      Zcv = Z;
-      Yobs_cv = Yobs;
-      Xobs_cv = Xobs;
-      pattern_samples_cv = pattern_samples;
-      if(crossYonly){
-        for(j in 1:py){
-          Ycv[foldid==fold_id,j] = 0
-          Yobs_cv[foldid==fold_id,j] = 0
-        }
-      }else{
-        Xcv = Xcv[subsets,]
-        Ycv = Ycv[subsets,,drop = F]
-        Zcv = Zcv[subsets,]
-        Yobs_cv = Yobs_cv[subsets,,drop = F]
-        Xobs_cv = Xobs_cv[subsets,]
-        ids = 1:length(subsets)
-        ids_names = subsets
-        names(ids) = subsets
-        for(k in 1:num_patterns){
-          ll = pattern_samples_cv[[k]]
-          ll1 = intersect(ll, subsets)
-          pattern_samples_cv[[k]] = as.integer(ids[as.character(ll1)])
-        }
-      }
-      fit <- try(spear(family  = family,  Y = as.matrix(Ycv,drop = F), X = Xcv, Yobs = Yobs_cv, 
-                       Xobs = Xobs_cv, Z = Zcv,
-                       nclasses =  nclasses,  functional_path = functional_path,
-                       pattern_samples = pattern_samples_cv, pattern_features = pattern_features,
-                       ws_x = ws_x, ws_y  = ws_y, case.weights = case.weights,  num_factors = num_factors, warm_up = warm_up,
-                       max_iter = max_iter, thres_elbo = thres_elbo,  thres_count = thres_count,
-                       thres_factor = thres_factor,  print_out = 0, a0  = a0, b0 = b0,
-                       a1 = a1, b1 = b1,a2 = a2,b2 = b2, inits_post_mu = inits_post_mu, seed = seed,
-                       robust_eps=robust_eps, sparsity_upper = sparsity_upper, L = L,  L2 =  L2))
-      if(class(fit)=="try-error"){
-        stop(paste0("fold",fold_id,":C++failure."))
-      }
-      res = list(post_betas = fit$post_betas, post_bys = fit$post_bys, 
-                 fold_id = fold_id)
-    }
-    return(res)
-  }
-  if(is.null(numCores)){
-    numCores <- detectCores()
-  }
+  success.color <- "light green"
+  update.color <- "green"
+  error.color.bold <- "light red"
+  error.color <- "red"
+  dataset.color <- "light cyan"
+  response.color <-"yellow"
   
-  cl <- parallel::makeCluster(numCores, outfile = "")
-  a <- system.time(
-    #results <- parallel::mclapply(fold_ids, run_parallel, mc.cores = numCores)
-    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
-  )
-  on.exit(parallel::stopCluster(cl))
-  
-  cat("\n--- All runs finished in ", as.numeric(round(a['elapsed'], 2)), " seconds\n")
-  
-  if(run.debug){
-    print(results)
+  if(is.null(type)){
+    cat("")
   }
-  factors_coefs = array(0, dim = c(ncol(X), num_factors, num_patterns,max(foldid), length(ws_x)));
-  projection_coefs = array(0, dim = c(num_factors, ncol(Y), max(foldid), length(ws_x)));
-  for(k in 1:(length(results)-1)){
-    factors_coefs[,,,k,] =results[[k+1]]$post_betas
-    projection_coefs[,,k,] = results[[k+1]]$post_bys
+  # ---------------------------------
+  if(type == "data"){
+    cat(paste0("Detected ", length(self$data$Xlist), " datasets:\n"))
+    for(i in 1:length(self$data$Xlist)){
+      cat(self$color.text(names(self$data$Xlist)[i], dataset.color), "\tSubjects: ", nrow(self$data$Xlist[[i]]), "\tFeatures: ", ncol(self$data$Xlist[[i]]), "\n")
+    }
+    cat(paste0("Detected ", ncol(self$data$Y), " response ", ifelse(ncol(self$data$Y) == 1, "variable", "variables"), ":\n"))
+    for(i in 1:ncol(self$data$Y)){
+      cat(self$color.text(colnames(self$data$Y)[i], response.color), "\tSubjects: ", sum(!is.na(self$data$Y[,i])), "\tType: ", self$params$family, "\n")
+    }
   }
-  return(list(results = results[[1]],
-              factors_coefs = factors_coefs,
-              projection_coefs = projection_coefs, foldid = foldid))
+  # ---------------------------------
+  if(type == "help"){
+    cat("For assistance, browse the SPEAR vignettes\nType browseVignettes('SPEAR')")
+  }
   
 }
 
 
+#' Color text for output in the terminal
+#'@param text A string to be colored
+#'@param fg Foreground color
+#'@param bg Background color
+#'@return Text that has been formatted.
+#' @examples
+#' color.text("Error", fg = "red", bg = NULL)
+#'@export
+color.text <- function(text, fg = "black", bg = NULL) {
+  if(self$options$remove.formatting){
+    return(text)
+  }
+  term <- Sys.getenv()["TERM"]
+  colour_terms <- c("xterm-color","xterm-256color", "screen", "screen-256color")
+  .fg_colours <- c(
+    "black" = "0;30",
+    "blue" = "0;34",
+    "green" = "0;32",
+    "cyan" = "0;36",
+    "red" = "0;31",
+    "purple" = "0;35",
+    "brown" = "0;33",
+    "light gray" = "0;37",
+    "dark gray" = "1;30",
+    "light blue" = "1;34",
+    "light green" = "1;32",
+    "light cyan" = "1;36",
+    "light red" = "1;31",
+    "light purple" = "1;35",
+    "yellow" = "1;33",
+    "white" = "1;37"
+  )
+  .bg_colours <- c(
+    "black" = "40",
+    "red" = "41",
+    "green" = "42",
+    "brown" = "43",
+    "blue" = "44",
+    "purple" = "45",
+    "cyan" = "46",
+    "light gray" = "47"
+  )
+  if(nchar(Sys.getenv('R_TESTS')) != 0 || !any(term %in% colour_terms, na.rm = TRUE)) {
+    return(text)
+  }
+  col_escape <- function(col) {
+    paste0("\033[", col, "m")
+  }
+  col <- .fg_colours[tolower(fg)]
+  if (!is.null(bg)) {
+    col <- paste0(col, .bg_colours[tolower(bg)], sep = ";")
+  }
+  init <- col_escape(col)
+  reset <- col_escape("0")
+  return(paste0(init, text, reset))
+}
+
+
+# Define SPEARobject class:
+SPEARobject <- R6::R6Class("SPEARobject",
+            public = list(
+              data = NULL,
+              params = NULL,
+              inits = NULL,
+              options = NULL,
+              
+              # This needs to be another object...
+              fit = NULL,
+              # This needs to be another object...
+              cv.fit = NULL, # has eval member
+              
+              # Functions:
+              initialize = function(
+                                    # data:
+                                    X = NULL, 
+                                    Y = NULL, 
+                                    Z = NULL, 
+                                    # data descriptors:
+                                    family = "gaussian", 
+                                    # weights:
+                                    weights.case = NULL,  
+                                    weights.x = NULL, 
+                                    weights.y = NULL,
+                                    # model parameters:
+                                    num_factors = 5, 
+                                    inits_type = "pca", 
+                                    inits_post_mu = NULL,
+                                    sparsity_upper = 0.5,
+                                    warm_up = 100, 
+                                    max_iter = 1000,
+                                    thres_elbo = 0.01, 
+                                    thres_count = 5, 
+                                    thres_factor = 1e-8, 
+                                    print_out = 100,
+                                    seed = 123, 
+                                    # coefficients:
+                                    a0 = NULL, 
+                                    b0 = NULL, 
+                                    a1 = NULL, 
+                                    b1 = NULL,
+                                    a2 = NULL, 
+                                    b2 = NULL, 
+                                    L0 = NULL,
+                                    L1 = NULL,
+                                    L2 = NULL,
+                                    robust_eps = NULL,
+                                    remove.formatting = FALSE,
+                                    quiet = FALSE
+              ) {
+                # called by SPEARobj$new(...)
+                
+                # Start with options:
+                options = list()
+                # remove.formatting - display text without color/bold? Defaults to FALSE
+                options$remove.formatting = remove.formatting
+                # quiet - should extra print statements be silenced? Defaults to FALSE
+                options$quiet = quiet
+                self$options = options
+                
+                if(!quiet){
+                  cat("----------------------------------------------------------------\n")
+                  cat("SPEAR version 1.1.0   Please direct all questions to Jeremy Gygi\n(", self$color.text("jeremy.gygi@yale.edu", ifelse(remove.formatting, "black", "green")), ") or Leying Guan (", self$color.text("leying.guan@yale.edu", ifelse(remove.formatting, "black", "green")), ")\n", sep = "")
+                  cat("----------------------------------------------------------------\n")
+                  cat("Generating SPEARobject...\n")
+                }
+                
+                # Data:
+                if(!quiet){cat("$data...\t")}
+                data <- list()
+                
+                if(any(sapply(X, function(X.d){return(class(X.d)[1])}) != "matrix")){
+                  X <- lapply(X, as.matrix)
+                }
+                data$Xlist = X
+                data$X = do.call("cbind", X)
+                data$Xobs <- array(1, dim  = dim(data$X))
+                if(any(is.na(data$X))){
+                  data$Xobs[which(is.na(data$X))] <- 0
+                } else if(any(is.nan(data$X))){
+                  data$Xobs[which(is.nan(data$X))] <- 0
+                }
+                
+                if(is.null(dim(Y))){
+                  data$Y = matrix(Y, ncol = 1)
+                  colnames(data$Y) = "Y"
+                  rownames(data$Y) = rownames(data$X)
+                } else if(class(Y)[1] != "matrix"){
+                  data$Y = as.matrix(Y)
+                } else{
+                  data$Y = Y
+                }
+                data$Yobs <- array(1, dim  = dim(data$Y))
+                if(any(is.na(data$Y))){
+                  data$Yobs[which(is.na(data$Y))] <- 0
+                } else if(any(is.nan(data$Y))){
+                  data$Yobs[which(is.nan(data$Y))] <- 0
+                }
+                
+                # generate full matrix Z (impute if necessary...)
+                if(is.null(Z)){
+                  Z = data$X
+                }
+                # check for missing values in Z...
+                if(any(is.na(Z)) | any(is.nan(Z))){
+                  # if missing, IMPUTE Z!
+                }
+                # else...
+                data$Z = Z
+                
+                if(!quiet){cat("Done!\n")}
+                if(!quiet){cat("$params...\t")}
+                # Parameters:
+                params <- list()
+                
+                # family encoded
+                if(is.numeric(family)){
+                  if(!family %in% 0:3){
+                    stop("ERROR: Family provided (", family, ') is not accepted. Must be:\n
+                         0 | "gaussian"\n
+                         1 | "binomial"\n
+                         2 | "ordinal"\n
+                         3 | "multinomial"\n')
+                  } else if (family == 0){
+                    params$family_encoded = 0
+                    params$family = "gaussian"
+                  } else if (family == 1){
+                    params$family_encoded = 1
+                    params$family = "binomial"
+                  } else if (family == 2){
+                    params$family_encoded = 2
+                    params$family = "ordinal"
+                  } else if (family == 3){
+                    params$family_encoded = 3
+                    params$family = "multinomial"
+                    if(any(rowSums(data$Y) != 0)){
+                      stop("ERROR: Values in Y do not follow a multinomial structure. All row sums must be equal to 1.")
+                    }
+                  }
+                } else {
+                  if(!family %in% c("gaussian", "binomial", "ordinal", "multinomial")){
+                    stop("ERROR: Family provided (", family, ') is not accepted. Must be:\n
+                         0 | "gaussian"\n
+                         1 | "binomial"\n
+                         2 | "ordinal"\n
+                         3 | "multinomial"\n')
+                  } else if (family == "gaussian"){
+                    params$family_encoded = 0
+                    params$family = "gaussian"
+                  } else if (family == "binomial"){
+                    params$family_encoded = 1
+                    params$family = "binomial"
+                  } else if (family == "ordinal"){
+                    params$family_encoded = 2
+                    params$family = "ordinal"
+                  } else if (family == "multinomial"){
+                    params$family_encoded = 3
+                    params$family = "multinomial"
+                    if(any(rowSums(data$Y) != 0)){
+                      stop("ERROR: Values in Y do not follow a multinomial structure. All row sums must be equal to 1.")
+                    }
+                  }
+                }
+                
+                # How to determine the number of factors by default?
+                params$num_factors = num_factors
+                
+                params$nclasses = sapply(1:ncol(data$Y), function(j){
+                  if(params$family == "gaussian"){
+                    return(2)
+                  } else if(params$family == "binomial"){
+                    if(any(!unique(data$Y[,j] %in% 0:1))){
+                      stop("ERROR: Values in Y do not follow an binomial structure. Values must be either 0 or 1.")
+                    }
+                    return(2)
+                  } else if(params$family == "ordinal"){
+                    labs <- unique(data$Y[,j])
+                    if(any(!labs %in% 0:(length(labs-1)))){
+                      stop("ERROR: Values in Y do not follow an ordinal structure. Values must be 0 - (num.classes-1) and not skip any classes.")
+                    }
+                    return(length(labs))
+                  } else if(params$family == "multinomial"){
+                    if(any(!unique(data$Y[,j] %in% 0:1))){
+                      stop("ERROR: Values in Y do not follow a multinomial structure. Values must be either 0 or 1")
+                    }
+                    return(2)
+                  } 
+                })
+                
+                
+                params$functional_path = list()
+                start.ind = 1
+                for(d in 1:length(data$Xlist)){
+                  end.ind = start.ind + ncol(data$Xlist[[d]]) - 1
+                  params$functional_path[[d]] <- start.ind:end.ind
+                  start.ind = end.ind + 1
+                }
+                
+                # Weights:
+                if(is.null(weights.x) & is.null(weights.y)){
+                  weights.x <- c(0, .01, .1, .5, 1, 2)
+                  weights.y <- rep(1, length(weights.x))
+                } else if(is.null(weights.x)){
+                  weights.x <- rep(1, length(weights.y))
+                } else if(is.null(weights.y)){
+                  weights.y = rep(1, length(weights.x))
+                } else if(length(weights.x) != length(weights.y)){
+                  stop("ERROR: lengths of weights.x and weights.y do not match. They need to have the same length.")
+                }
+                params$weights = cbind(weights.x, weights.y)
+                params$weights = params$weights[order(params$weights[,1], decreasing = TRUE),]
+                colnames(params$weights) = c("w.x", "w.y")
+                
+                if(is.null(weights.case)){
+                  params$weights.case = rep(1, nrow(data$X))
+                }else if(length(weights.case)!=nrow(data$X)){
+                  stop("ERROR: Supplied weights.case do not match the data dimension.")
+                }else{
+                  params$weights.case = weights.case
+                }
+                
+                # Seed
+                params$seed = seed
+                
+                # Misc. Parameters:
+                params$inits_type = inits_type
+                params$inits_post_mu = inits_post_mu
+                params$sparsity_upper = sparsity_upper
+                params$warm_up = warm_up
+                params$max_iter = max_iter
+                params$thres_elbo = thres_elbo
+                params$thres_count = thres_count
+                params$thres_factor =thres_factor
+                params$print_out = print_out
+                
+                
+                # Initial Coefficients:
+                if(!quiet){cat("Done!\n")}
+                if(!quiet){cat("$inits...\t")}
+                inits = list()
+                if(is.null(a0)){inits$a0 = 1e-2}else{inits$a0 = a0}
+                if(is.null(b0)){inits$b0 = 1e-2}else{inits$b0 = b0}
+                if(is.null(a1)){inits$a1 = sqrt(nrow(data$X))}else{inits$a1 = a1}
+                if(is.null(b1)){inits$b1 = sqrt(nrow(data$X))}else{inits$b1 = b1}
+                if(is.null(a2)){inits$a2 = sqrt(nrow(data$X))}else{inits$a2 = a2}
+                if(is.null(b2)){inits$b2 = sqrt(nrow(data$X))}else{inits$b2 = b2}
+                if(is.null(L0)){inits$L0 = 1}else{inits$L0 = L0}
+                if(is.null(L1)){inits$L1 = nrow(data$X)/inits$L0}else{inits$L1 = L1}
+                if(is.null(L2)){inits$L2 = nrow(data$X)/log(ncol(data$X))}else{inits$L2 = L2}
+                if(is.null(robust_eps)){inits$robust_eps = 1.0/(nrow(data$X))}else{inits$robust_eps = robust_eps}
+                
+                # Save:
+                self$data = data
+                self$params = params
+                self$inits = inits
+                
+                if(!quiet){
+                  cat("Done!\n")
+                  cat("SPEARobject generated!\n\n")
+                }
+                self$print.out(type = "data", remove.formatting = self$options$remove.formatting, quiet = self$options$quiet)
+                cat("\n")
+                self$print.out(type = "help", remove.formatting = self$options$remove.formatting, quiet = self$options$quiet)
+              },
+              
+              # Method functions:
+              print.out = print.out,
+              color.text = color.text,
+              update.dimnames = update.dimnames,
+              run.spear = run.spear
+              
+            ) # end public
+)
+
+#' Make a SPEARobject. Will return an R6 class SPEARobject used for the "SPEAR" package.
+#'@param X Assay matrix.
+#'@param Y Response matrix (can be multidimensional for gaussian data).
+#'@param Z Complete feature matrix (usually the features are the imputed version of X, other features are attached to the end).
+#'@export
+make_spear_object <- function(
+  # data:
+  X = NULL, 
+  Y = NULL, 
+  Z = NULL, 
+  # data descriptors:
+  family = "gaussian", 
+  # weights:
+  weights.case = NULL,  
+  weights.x = NULL, 
+  weights.y = NULL,
+  # model parameters:
+  num_factors = 5, 
+  inits_type = "pca", 
+  inits_post_mu = NULL,
+  sparsity_upper = 0.5,
+  warm_up = 100, 
+  max_iter = 1000,
+  thres_elbo = 0.01, 
+  thres_count = 5, 
+  thres_factor = 1e-8, 
+  print_out = 100,
+  seed = 123, 
+  # coefficients:
+  a0 = NULL, 
+  b0 = NULL, 
+  a1 = NULL, 
+  b1 = NULL,
+  a2 = NULL, 
+  b2 = NULL, 
+  L0 = NULL,
+  L1 = NULL,
+  L2 = NULL,
+  robust_eps = NULL,
+  # options:
+  remove.formatting = FALSE,
+  quiet = FALSE
+){
+  return(SPEARobject$new(
+    # data:
+    X = X, 
+    Y = Y, 
+    Z = Z, 
+    # data descriptors:
+    family = family, 
+    # weights:
+    weights.case = weights.case,  
+    weights.x = weights.x, 
+    weights.y = weights.y,
+    # model parameters:
+    num_factors = num_factors, 
+    inits_type = inits_type, 
+    inits_post_mu = inits_post_mu,
+    sparsity_upper = sparsity_upper,
+    warm_up = warm_up, 
+    max_iter = max_iter,
+    thres_elbo = thres_elbo, 
+    thres_count = thres_count, 
+    thres_factor = thres_factor, 
+    print_out = print_out,
+    seed = seed, 
+    # coefficients:
+    a0 = a0, 
+    b0 = b0, 
+    a1 = a1, 
+    b1 = b1,
+    a2 = a2, 
+    b2 = b2, 
+    L0 = L0,
+    L1 = L1,
+    L2 = L2,
+    robust_eps = robust_eps,
+    # options:
+    remove.formatting = remove.formatting,
+    quiet = quiet
+  ))
+}

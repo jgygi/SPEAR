@@ -57,8 +57,7 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                      arma::mat& X,  const arma::mat& Xobs,
                      const arma::mat& Z,  const arma::vec weights, const arma::vec weights0,
                      const arma::vec weights_case,
-                     const List& pattern_samples, const List& pattern_features,
-                     arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi,
+                     arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi,
                      arma::mat& post_tmuX, arma::mat& post_tsigma2X,
                      arma::mat& post_tpiX, arma::mat& post_tmuY, arma::mat& post_tsigma2Y,
                      arma::mat& tauZ, arma::mat& log_pi, arma::mat& log_minus_pi,
@@ -66,29 +65,19 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                      arma::mat& meanFactors,  arma::mat& U2,
                      arma::mat& updatingOrders);
 
-double update_factor_one(const int num_factors, arma::mat& Y,  const arma::mat& Yobs,
-                         arma::mat& X,  const arma::mat& Xobs,
-                         const arma::mat& Z, const arma::vec weights, const arma::vec weights0,
-                         const arma::vec weights_case,
-                         arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi,
-                         arma::mat& post_tmuX, arma::mat& post_tsigma2X,
-                         arma::mat& post_tpiX, arma::mat& post_tmuY, arma::mat& post_tsigma2Y,
-                         arma::mat& tau,  arma::mat& log_pi, arma::mat& log_minus_pi,
-                         arma::mat& meanFactors, arma::mat& nuXmat,
-                         arma::mat& nuYmat, arma::mat& updatingOrders);
 
 double tau_update(const int& num_factors, const arma::vec& weights, const arma::vec& weights0,
-                  const List& pattern_features, const List& functional_path,
-                  const double a0, const double b0,arma::cube& post_mu,
-                  arma::cube& post_sigma2, arma::cube& post_pi,
+                  const List& functional_path,
+                  const double a0, const double b0,arma::mat& post_mu,
+                  arma::mat& post_sigma2, arma::mat& post_pi,
                   arma::mat& post_tmu, arma::mat& post_tsigma2,arma::mat& post_tpi,
                   arma::mat& tauZ, arma::mat& post_a0, arma::mat& post_b0, const double L,
                   const double L2);
 
 double pi_update(const int& num_factors, const arma::vec& weights, const arma::vec& weights0,
-                 const List& pattern_features, const List& functional_path,
+                 const List& functional_path,
                  const double a1, const double b1,
-                 arma::cube& post_mu, arma::cube& post_sigma2, arma::cube& post_pi,
+                 arma::mat& post_mu, arma::mat& post_sigma2, arma::mat& post_pi,
                  arma::mat& post_tmu, arma::mat& post_tsigma2,arma::mat& post_tpi,
                  arma::mat& log_pi, arma::mat& log_minus_pi,arma::mat& post_a1, arma::mat& post_b1, const double alpha0);
 

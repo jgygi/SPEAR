@@ -81,11 +81,6 @@ seed <- 123 # reproducible seed
 ```
 
 ```{r}
-sourceCpp("~/Documents/Coding/IMPACC/SPEAR/packageR6/src/_spear.cpp")
-```
-
-
-```{r}
 SPEARobj <- make_spear_object(X = X,
                               Y = Y,
                               num_factors = num.factors,

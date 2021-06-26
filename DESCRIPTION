@@ -12,3 +12,4 @@ LinkingTo: Rcpp, RcppArmadillo, BH
 RoxygenNote: 7.1.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
+Collate: spear.R, helpers.R, SPEARobject.R

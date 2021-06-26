@@ -1,6 +1,3 @@
-source("spear.R")
-source("helpers.R")
-
 # Define SPEARobject class:
 SPEARobject <- R6::R6Class("SPEARobject",
                            public = list(

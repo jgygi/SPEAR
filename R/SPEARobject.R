@@ -227,17 +227,17 @@ SPEARobject <- R6::R6Class("SPEARobject",
                              },
                              
                              # Method functions:
-                             run.spear = run.spear,
-                             set.weights = set.weights,
-                             add.data = add.data
+                             run.spear = SPEAR::run.spear,
+                             set.weights = SPEAR::set.weights,
+                             add.data = SPEAR::add.data
                              
                            ), # end public
                            private = list(
-                             spear = spear,
-                             print.out = print.out,
-                             color.text = color.text,
-                             update.dimnames = update.dimnames,
-                             impute.z = impute.z
+                             spear = SPEAR::spear,
+                             print.out = SPEAR::print.out,
+                             color.text = SPEAR::color.text,
+                             update.dimnames = SPEAR::update.dimnames,
+                             impute.z = SPEAR::impute.z
                            )
 )
 

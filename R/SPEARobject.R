@@ -1,3 +1,6 @@
+source("spear.R")
+source("helpers.R")
+
 # Define SPEARobject class:
 SPEARobject <- R6::R6Class("SPEARobject",
                            public = list(
@@ -227,17 +230,17 @@ SPEARobject <- R6::R6Class("SPEARobject",
                              },
                              
                              # Method functions:
-                             run.spear = SPEAR::run.spear,
-                             set.weights = SPEAR::set.weights,
-                             add.data = SPEAR::add.data
+                             run.spear = run.spear,
+                             set.weights = set.weights,
+                             add.data = add.data
                              
                            ), # end public
                            private = list(
-                             spear = SPEAR::spear,
-                             print.out = SPEAR::print.out,
-                             color.text = SPEAR::color.text,
-                             update.dimnames = SPEAR::update.dimnames,
-                             impute.z = SPEAR::impute.z
+                             spear = spear,
+                             print.out = print.out,
+                             color.text = color.text,
+                             update.dimnames = update.dimnames,
+                             impute.z = impute.z
                            )
 )
 

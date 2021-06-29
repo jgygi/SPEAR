@@ -517,10 +517,10 @@ get.features = function(rank = "probability", factors = NULL, datasets = NULL, c
                                marginal.probability,
                                projection.probability,
                                nonzero.probability,
-                               in.sample.correlation, 
-                               in.sample.pvalue, 
-                               cv.correlation, 
-                               cv.pvalue)
+                               factor.correlation, 
+                               factor.cor.pvalue, 
+                               factor.cv.correlation, 
+                               factor.cv.cor.pvalue)
         } else {
           colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "nonzero.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor")
           rownames(res) <- NULL

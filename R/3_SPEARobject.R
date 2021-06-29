@@ -6,10 +6,10 @@ SPEARobject <- R6::R6Class("SPEARobject",
                              inits = NULL,
                              options = NULL,
                              
-                             # This needs to be another object...
+                             # Update with run.spear or run.cv.spear
                              fit = NULL,
-                             # This needs to be another object...
-                             fit.cv = NULL, # has eval member
+                             # Update with get.model
+                             model = NULL,
                              
                              # Functions:
                              initialize = function(
@@ -34,7 +34,7 @@ SPEARobject <- R6::R6Class("SPEARobject",
                                thres_count = 5, 
                                thres_factor = 1e-8, 
                                print_out = 100,
-                               seed = 123, 
+                               seed = 123,
                                # coefficients:
                                a0 = NULL, 
                                b0 = NULL, 
@@ -69,6 +69,7 @@ SPEARobject <- R6::R6Class("SPEARobject",
                                # Data:
                                if(!quiet){cat("$data...\t")}
                                self$data = list()
+                               
                                self$add.data(X = X, Y = Y, Z = Z, name = "train")
                                
                                if(!quiet){cat("Done!\n")}
@@ -96,7 +97,7 @@ SPEARobject <- R6::R6Class("SPEARobject",
                                  } else if (family == 3){
                                    params$family_encoded = 3
                                    params$family = "multinomial"
-                                   if(any(rowSums(self$data$train$train$Y) != 0)){
+                                   if(any(rowSums(self$data$train$Y) != 1)){
                                      stop("ERROR: Values in Y do not follow a multinomial structure. All row sums must be equal to 1.")
                                    }
                                  }
@@ -119,7 +120,7 @@ SPEARobject <- R6::R6Class("SPEARobject",
                                  } else if (family == "multinomial"){
                                    params$family_encoded = 3
                                    params$family = "multinomial"
-                                   if(any(rowSums(self$data$train$train$Y) != 0)){
+                                   if(any(rowSums(self$data$train$Y) != 1)){
                                      stop("ERROR: Values in Y do not follow a multinomial structure. All row sums must be equal to 1.")
                                    }
                                  }
@@ -228,16 +229,25 @@ SPEARobject <- R6::R6Class("SPEARobject",
                              
                              # Method functions:
                              run.spear = run.spear,
+                             run.cv.spear = run.cv.spear,
+                             cv.evaluate = cv.evaluate,
                              set.weights = set.weights,
-                             add.data = add.data
+                             add.data = add.data,
+                             get.factor.scores = get.factor.scores,
+                             get.predictions = get.predictions,
+                             get.features = get.features,
+                             get.contributions = get.contributions
                              
                            ), # end public
                            private = list(
                              spear = spear,
+                             cv.spear = cv.spear,
                              print.out = print.out,
                              color.text = color.text,
                              update.dimnames = update.dimnames,
-                             impute.z = impute.z
+                             impute.z = impute.z,
+                             check.fold.ids = check.fold.ids,
+                             check.fit = check.fit
                            )
 )
 
@@ -269,7 +279,7 @@ make.SPEARobject <- function(
   thres_count = 5, 
   thres_factor = 1e-8, 
   print_out = 100,
-  seed = 123, 
+  seed = 123,
   # coefficients:
   a0 = NULL, 
   b0 = NULL, 
@@ -307,7 +317,7 @@ make.SPEARobject <- function(
     thres_count = thres_count, 
     thres_factor = thres_factor, 
     print_out = print_out,
-    seed = seed, 
+    seed = seed,
     # coefficients:
     a0 = a0, 
     b0 = b0, 

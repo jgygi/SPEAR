@@ -13,18 +13,18 @@
 #'@import dplyr
 #'@import stringr
 #'@export
-spear <- function(){
+spear <- function(X = NULL, Y = NULL, Z = NULL, Xobs = NULL, Yobs = NULL, weights_case = NULL, silence = NULL){
   # Pull parameters from SPEARobject:
-  X = self$data$train$X
-  Y = self$data$train$Y
-  Z = self$data$train$Z
-  Xobs = self$data$train$Xobs
-  Yobs = self$data$train$Yobs
+  if(is.null(X)){X = self$data$train$X}
+  if(is.null(Y)){Y = self$data$train$Y}
+  if(is.null(Z)){Z = self$data$train$Z}
+  if(is.null(Xobs)){Xobs = self$data$train$Xobs}
+  if(is.null(Yobs)){Yobs = self$data$train$Yobs}
+  if(is.null(weights_case)){weights_case = self$params$weights.case}
   family = self$params$family_encoded
   nclasses = self$params$nclasses
   num_factors = self$params$num_factors
   functional_path = self$params$functional_path
-  weights_case = self$params$weights.case
   weights = self$params$weights
   inits_type = self$params$inits_type
   inits_post_mu = self$params$inits_post_mu
@@ -34,7 +34,8 @@ spear <- function(){
   thres_elbo = self$params$thres_elbo
   thres_count = self$params$thres_count
   thres_factor = self$params$thres_factor
-  print_out = self$params$print_out
+  if(is.null(silence)){silence = self$options$quiet}
+  if(silence){print_out = 0}else{print_out = self$params$print_out}
   seed = self$params$seed
   a0 = self$inits$a0 
   b0 = self$inits$b0 
@@ -319,10 +320,107 @@ spear <- function(){
 }
 
 
+cv.spear <- function(){
+  
+  fold_ids = sort(unique(self$params$fold.ids))
+  num_factors = self$params$num_factors
+  num.cores = self$params$num.cores
+  if(num.cores > (self$params$num.folds + 1)){
+    num.cores = self$params$num.folds + 1
+  }
+  
+  # add 0 fold_id:
+  fold_ids = c(0, fold_ids)
+  
+  if(is.null(self$params$inits_post_mu)){
+    inits_post_mu = matrix(0, nrow = ncol(self$data$train$X), ncol = num_factors)
+  }
+  if(self$params$inits_type == "None"){
+    for(k in 1:num_factors){
+      inits_post_mu[,k] = rnorm(ncol(self$data$train$X))
+      inits_post_mu[,k] = inits_post_mu[,k]/sqrt(sum(inits_post_mu[,k]^2))
+    }
+  }else if (self$params$inits_type == "pca"){
+    x_svd = svd(self$data$train$Z)
+    for(k in 1:num_factors){
+      inits_post_mu[,k] = x_svd$v[,k]
+    }
+  }
+  
+  run_parallel <- function(fold_id){
+    if(fold_id == 0){
+      X = self$data$train$X
+      Y = self$data$train$Y
+      Z = self$data$train$Z
+      Xobs = self$data$train$Xobs
+      Yobs = self$data$train$Yobs
+      res = private$spear(X = X, Y = Y, Z = Z, Xobs = Xobs, Yobs = Yobs)
+    }else{
+      subsets = which(self$params$fold.ids != fold_id)
+      Ycv = self$data$train$Y;
+      Xcv = self$data$train$X;
+      Zcv = self$data$train$Z;
+      Yobs_cv = self$data$train$Yobs;
+      Xobs_cv = self$data$train$Xobs;
+      if(self$params$only.cross.Y){
+        for(j in 1:py){
+          Ycv[self$params$fold.ids==fold_id,j] = 0
+          Yobs_cv[self$params$fold.ids==fold_id,j] = 0
+          weights_case = self$params$weights.case
+        }
+      }else{
+        Xcv = Xcv[subsets,,drop = F]
+        Ycv = Ycv[subsets,,drop = F]
+        Zcv = Zcv[subsets,,drop = F]
+        Yobs_cv = Yobs_cv[subsets,,drop = F]
+        Xobs_cv = Xobs_cv[subsets,,drop = F]
+        weights_case = self$params$weights.case[subsets]
+      }
+      fit <- try(private$spear(X = Xcv, Y = Ycv, Z = Zcv, Xobs = Xobs_cv, Yobs = Yobs_cv, weights_case = weights_case, silence = TRUE))
+      if(class(fit)=="try-error"){
+        stop(paste0("fold",fold_id,":C++failure."))
+      }
+      res = list(post_betas = fit$post_betas, post_bys = fit$post_bys, 
+                 fold_id = fold_id)
+    }
+    return(res)
+  }
+  if(self$options$quiet){
+    cl <- parallel::makeCluster(num.cores)
+  } else {
+    cl <- parallel::makeCluster(num.cores, outfile = "")
+  }
+  parallel::clusterExport(cl, "spear_")
+  a <- system.time(
+    #results <- parallel::mclapply(fold_ids, run_parallel, mc.cores = numCores)
+    results <- parallel::parLapply(cl, fold_ids, fun = run_parallel)
+  )
+  on.exit(parallel::stopCluster(cl))
+  
+  if(!self$options$quiet){cat("\n--- All runs finished in ", as.numeric(round(a['elapsed'], 2)), " seconds\n")}
+  
+  # Make two new return lists:
+  factors_coefs = array(0, dim = c(ncol(self$data$train$X), num_factors, max(self$params$fold.ids), nrow(self$params$weights)));
+  projection_coefs = array(0, dim = c(num_factors, ncol(self$data$train$Y), max(self$params$fold.ids), nrow(self$params$weights)));
+  for(k in 1:(length(results)-1)){
+    factors_coefs[,,k,] =results[[k+1]]$post_betas
+    projection_coefs[,,k,] = results[[k+1]]$post_bys
+  }
+  #fit = results[[1]]
+  #fit[['post_betas_cv']] = factors_coefs
+  #fit[['post_bys_cv']] = projection_coefs
+  #return(fit)
+  
+  return(list(results = results[[1]],
+              factors_coefs = factors_coefs,
+              projection_coefs = projection_coefs))
+}
+
+
 
 #' Run SPEAR
 #' @examples
-#' SPEARobj <- make_spear_model(...)
+#' SPEARobj <- make.SPEARobject(...)
 #' 
 #' SPEARobj$run.spear()
 #' 
@@ -331,6 +429,9 @@ run.spear <- function(){
   
   tmp <- private$spear()
   
+  if(!is.null(self$fit)){
+    cat("\n", private$color.text("NOTE:", "yellow"), " this SPEARobject has been trained before. Overwriting previous $fit...\n", sep = "")
+  }
   self$fit <- list(regression.coefs = tmp$post_betas, 
                    projection.coefs.x = tmp$post_bxs, 
                    projection.coefs.y = tmp$post_bys,
@@ -344,7 +445,451 @@ run.spear <- function(){
   
   private$update.dimnames()
   
-  cat("\n", private$color.text("NOTE: ", "yellow"), "Setting current.weight.idx to 1\nUse SPEARobject$set.weights(...) to choose a different model.\n", sep = "")
+  if(!self$options$quiet){
+    cat("\n", private$color.text("NOTE: ", "yellow"), "Setting current.weight.idx to 1\nUse SPEARobject$set.weights(...) to choose a different model.\n", sep = "")
+  }
   self$options$current.weight.idx = 1
+  if(!self$options$quiet){cat("\n")}
+  return(invisible(self))
 }
+
+
+
+#' Run CV SPEAR
+#' @examples
+#' SPEARobj <- make.SPEARobject(...)
+#' 
+#' SPEARobj$run.cv.spear()
+#' 
+#'@export
+run.cv.spear <- function(fold.ids = NULL, num.folds = NULL, only.cross.Y = FALSE, num.cores = NULL){
+  # Reset from previous runs...
+  self$params$fold.ids <- NULL
+  self$params$num.folds <- NULL
+  self$params$only.cross.Y = only.cross.Y
+  # num.cores:
+  if(is.null(num.cores)){self$params$num.cores = parallel::detectCores()}else{self$params$num.cores = num.cores}
+  
+  # If fold.ids are NULL, generate them...
+  if(is.null(fold.ids)){
+    # Set seed:
+    set.seed(self$params$seed)
+    if(is.null(num.folds)){
+      self$params$num.folds = 5
+    } else {
+      self$params$num.folds = num.folds
+    }
+    fold.ids = sample(1:self$params$num.folds, nrow(self$data$train$X), replace = TRUE)
+    if(self$params$family != "gaussian"){
+      flag = TRUE
+      counter = 0
+      while(flag){
+        flag = private$check.fold.ids(fold.ids)
+        # make new ones if there is an issue
+        if(flag){
+          fold.ids = sample(1:self$params$num.folds, nrow(self$data$train$X), replace = TRUE)
+          counter = counter + 1
+          if(counter > 100){
+            stop("ERROR: Tried 100 times to generate fold.ids where each class is represented at least twice in the training folds. Try increasing num.folds or removing classes with very few samples.")
+          }
+        }
+      }
+    }
+  } else {
+    # TODO: Check that fold.ids work!
+    if(length(fold.ids) != nrow(self$data$train$Y)){
+      stop("ERROR: fold.ids provided have a different length (", length(fold.ids), ") than number of samples in $data$train (", nrow(self$data$train$Y), "). Need to match.")
+    }
+    if(is.null(num.folds)){
+      self$params$num.folds = max(fold.ids)
+    } else {
+      self$params$num.folds = num.folds
+    }
+    if(any(!fold.ids %in% 1:self$params$num.folds)){
+      stop("ERROR: fold.ids provided are outside of the range of possible fold.ids: 1 - ", self$params$num.folds)
+    }
+    if(length(unique(fold.ids)) != self$params$num.folds){
+      stop("ERROR: not enough fold.ids provided for each possible fold (1 - ", self$params$num.folds, "). Need to provide at least one instance for each fold.")
+    }
+    if(private$check.fold.ids(fold.ids)){
+      stop("ERROR: fold.ids provided do not have at least 2 of each possible response class in the training folds. Consider increasing the num.folds argument or removing classes with too few instances.")
+    }
+  }
+  self$params$fold.ids <- fold.ids
+  
+  # Run cv.spear:
+  if(!self$options$quiet){
+    cat("Beginning cross-validated SPEAR with K = ", self$params$num.folds, " folds\n", sep = "")
+    cat(private$color.text("NOTE: ", "yellow"), " Only printing out progress of one fold for interpretability\n", sep = "")
+  }
+  tmp <- private$cv.spear()
+  
+  if(!is.null(self$fit)){
+    cat("\n", private$color.text("NOTE: ", "yellow"), " this SPEARobject has already been trained before. Overwriting previous $fit...\n", sep = "")
+  }
+
+  self$fit <- list(regression.coefs = tmp$results$post_betas, 
+                   projection.coefs.x = tmp$results$post_bxs, 
+                   projection.coefs.y = tmp$results$post_bys,
+                   nonzero.probs = tmp$results$post_pis, 
+                   projection.probs = tmp$results$post_selections, 
+                   marginal.probs = tmp$results$post_selections_marginal,
+                   joint.probs = tmp$results$post_selections_joint,
+                   intercepts.x = tmp$results$interceptsX, 
+                   intercepts.y = tmp$results$interceptsY,
+                   regression.coefs.cv = tmp$factors_coefs,
+                   projection.coefs.y.cv = tmp$projection_coefs,
+                   type = "cv")
+   
+  private$update.dimnames()
+  
+  
+  if(!self$options$quiet){
+    cat("\n", private$color.text("NOTE: ", "yellow"), "Setting current.weight.idx to 1\nUse SPEARobject$set.weights(...) to choose a different model.\n", sep = "")
+  }
+  self$options$current.weight.idx = 1
+  if(!self$options$quiet){cat("\n")}
+  return(invisible(self))
+}
+
+
+
+#' Evaluate cv SPEAR object
+#' @param nlambda Number of lambdas (defaults to 100)
+#' @param calculate.factor.contributions Calculate factor contributions? When `$params$family == "multinomial"` or `"ordinal"` can save time to put `FALSE`. Defaults to `TRUE`.
+#' @param max_iter Maximum number of iterations (defaults to 10000)
+#' @param multinomial_loss Type of loss for when `$params$family == "multinomial"`. Can be `"deviance"` (default) or `"misclassification"`
+#'@export
+cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, max_iter = 1e4, multinomial_loss = "deviance"){
+    if(self$fit$type != "cv"){stop("ERROR: $evaluate.cv must be used after $run.cv.spear. Proper $fit not found.")}
+    if(!self$options$quiet){cat("Beginning evaluation of cv.spear...\n")}
+    time.start = Sys.time()
+    fitted.obj = self$fit
+    cv.fact_coefs = fitted.obj$regression.coefs.cv;
+    cv.projection_coefs = fitted.obj$projection.coefs.y.cv;
+    fact_coefs = fitted.obj$regression.coefs
+    projection_coefs = fitted.obj$projection.coefs.y
+    X = self$data$train$X
+    Y = self$data$train$Y
+    Z = self$data$train$Z
+    foldid = self$params$fold.ids
+    family = self$params$family_encoded
+    nclasses = self$params$nclasses
+    n = nrow(Y);
+    px = ncol(X);
+    py = ncol(Y);
+    pz = ncol(Z);
+    standardize_family = c(2,3)
+    nfolds = length(unique(foldid))
+    #estimate the across validation error for each of the weight
+    num_factors = self$params$num_factors
+    num_weights = nrow(self$params$weights)
+    intercepts = list()
+    scale.factors = array(1, dim  = c(num_factors,nfolds,num_weights))
+    for(j in 1:py){
+      intercepts[[j]] = matrix(NA, nrow = num_weights,ncol = nclasses[j]-1)
+    }
+    if(family!=3){
+      cvm = matrix(NA, nrow = num_weights, ncol = py)
+      cvsd =matrix(NA, nrow = num_weights, ncol = py)
+    }else{
+      cvm = matrix(NA, nrow = num_weights, ncol = 1)
+      cvsd =matrix(NA, nrow = num_weights, ncol = 1)
+    }
+    
+    #rescale the overall coefficients
+    Yhat = array(NA, dim = c(n, py, num_weights))
+    cmin = 0
+    Yhat.keep = array(NA, dim = c(n, py, num_weights))
+    factors.keep = array(NA, dim = c(n, num_factors, py, num_weights))
+    Uhat.cv = array(0, dim = c(n,num_factors,num_weights))
+    Yhat.cv = array(0, dim = c(n, py, nfolds, num_weights))
+    for(l in 1:num_weights){
+      for(k in 1:nfolds){
+        ucv = array(0, dim = c(n, num_factors))
+        beta = cv.fact_coefs[,,k,l]
+        ucv = Z[foldid==k,,drop = F]%*%beta
+        Uhat.cv[foldid==k,,l] =  ucv
+        for(j in 1:py){
+          factors.keep[foldid==k,,j,l] = t(apply(ucv, 1, function(z) z*cv.projection_coefs[,j,k,l]))
+        }
+      }
+    }
+    for(l in 1:num_weights){
+      U0 = array(0, dim = c(n, num_factors))
+      U0 = Z%*% fact_coefs[,,l]
+      #find the best scaling factors for each weight and response
+      if(family != 3){
+        r2norm = rep(1, py)
+        if(py == 1){
+          Yhat[,1,l] =  (U0 %*% projection_coefs[,1,l])
+          if(family %in%  standardize_family){
+            r2norm =  sqrt(mean(Yhat[,1,l]^2))
+            Yhat[,1,l] = Yhat[,1,l]/r2norm
+          }
+        }else{
+          Yhat[,,l] =  (U0 %*% projection_coefs[,,l])
+          if(family %in%  standardize_family){
+            r2norm =  sqrt(apply(Yhat[,,l]^2,2,function(z) mean(z^2)))
+            Yhat[,,l] = apply(Yhat[,,l],2,function(z) z/sqrt(mean(z^2)))
+          }
+        }
+        r2norm_cv = matrix(1, nrow = nfolds, ncol = py)
+        for(k in 1:nfolds){
+          beta = cv.fact_coefs[,,k,l]
+          ucv = Z%*%beta
+          b = cv.projection_coefs[,,k,l]
+          if(py == 1){
+            Yhat.cv[,1,k,l] =  (ucv %*% b)
+            if(family %in%  standardize_family){
+              r2norm_cv[k,1] = sqrt(mean(Yhat.cv[,1,k,l]^2))
+              Yhat.cv[,1,k,l] = Yhat.cv[,1,k,l]/sqrt(mean(Yhat.cv[,1,k,l]^2))
+            }
+          }else{
+            Yhat.cv[,,k,l] =  (ucv %*% b)
+            if(family %in%  standardize_family){
+              r2norm_cv[k,j] = sqrt(apply(Yhat.cv[,,k,l]^2,2,function(z) mean(z^2)))
+              Yhat.cv[,,k,l] =apply(Yhat.cv[,,k,l],2,function(z) z/sqrt(mean(z^2)))
+            }
+          }
+        }
+        for(j in 1:py){
+          ##note that scaling is only required for Gaussian and logistic!
+          y = Y[,j]
+          yhat = Yhat[,j,l]
+          if(family == 0){
+            tmp = lm(y~Yhat[,j,l])
+            cmax = tmp$coefficients[2]
+          }else if(family==1){
+            tmp = glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
+            cmax = tmp$beta[1,ncol(tmp$beta)]
+          }else if(family == 2){
+            reverseY = max(y) - y
+            reverseY = as.factor(reverseY)
+            tmp = ordinalNet(cbind(yhat,rep(0,length(yhat))), reverseY,lambdaVals=1e-4)
+            tmp = tmp$coefs
+            cmax = tmp[length(tmp)-1]
+          }
+          chats = seq(0, cmax, length.out = nlambda)
+          errs = array(NA, dim = c(n,length(chats)))
+          for(k in 1:nfolds){
+            yhat_cv = Yhat.cv[,j,k,l]
+            if(family == 1){
+              tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
+              a0 = tmp0$a0
+              c0 = tmp0$beta[1]
+            }else if(family == 2){
+              tmp0 = ordinalNet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),reverseY[foldid!=k],lambdaVals=1e-4)
+              a0 = tmp0$coefs[1:(nclasses[j]-1)]
+              c0 = tmp0$coefs[nclasses[j]]
+            }
+            for(ll in 1:length(chats)){
+              if(family == 0){
+                a = mean(y[foldid!=k] - chats[ll] * yhat_cv[foldid!=k])
+                errs[foldid==k,ll] = (y[foldid == k] - a - chats[ll] * yhat_cv[foldid==k])^2
+              }else if(family == 1){
+                if(ll == 1){
+                  tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial")
+                  a = tmp$coefficients[1]
+                }else{
+                  if(abs(c0) >=abs(chats[ll])){
+                    tmp <-glm(y[foldid!=k] ~ offset(-yhat_cv[foldid!=k]*chats[ll]), family = "binomial",  start = a)
+                    a = tmp$coefficients[1]
+                  }else{
+                    a = a0
+                  }
+                }
+                Probs = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a))
+                errs[foldid==k, ll] = -2*(y[foldid == k] * log(Probs+1e-10) +
+                                            (1 - y[foldid == k]) * log(1 - Probs+1e-10));
+              }else if(family == 2){
+                if(ll == 1){
+                  tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]))
+                  a = tmp$zeta
+                }else{
+                  if(abs(c0) >=abs(chats[ll])){
+                    tmp <-polr(reverseY[foldid!=k] ~ offset(-chats[ll]*yhat_cv[foldid !=k]),start = a)
+                    a = tmp$zeta
+                  }else{
+                    a = a0
+                  }
+                }
+                a1 = a[(nclasses[j]-1):1]
+                ##deviance loss
+                Pmat0 = matrix(0, ncol = max(y), nrow = sum(foldid == k))
+                Pmat = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
+                y_extended = matrix(0, ncol = max(y)+1, nrow = sum(foldid == k))
+                for(kk in 1:length(a)){
+                  Pmat0[,kk] = 1/(1+exp(-chats[ll] * yhat_cv[foldid == k]-a1[kk]))
+                }
+                for(kk in 1:ncol(Pmat)){
+                  y_extended[y[foldid==k]==(kk-1),kk]=1
+                  if(kk==1){
+                    Pmat[,kk] = 1 - Pmat0[,kk]
+                  }else if(kk==ncol(Pmat)){
+                    Pmat[,kk] = Pmat0[,kk-1]
+                  }else{
+                    Pmat[,kk] = Pmat0[,kk-1] - Pmat0[,kk]
+                  }
+                }
+                errs[foldid==k,ll] = -2 * apply(log(Pmat+1e-10) * y_extended,1,sum)
+              }
+            }
+          }
+          cv_tmp = apply(errs,2,mean)
+          cvsd_tmp = apply(errs,2,sd)/sqrt(n-1)
+          cvm[l,j] = min(cv_tmp)
+          cvsd[l,j] = cvsd_tmp[which.min(cv_tmp)]
+          for(foldind in 1:nfolds){
+            Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
+          }
+          projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
+          if(family %in% standardize_family){
+            projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
+          }
+          if(family == 0){
+            intercepts[[j]][l,] = mean(y - mean(yhat *chats[which.min(cv_tmp)] ))
+          }else if(family==1){
+            tmp = glm(y ~ offset(chats[which.min(cv_tmp)] * yhat), family = "binomial")
+            a = tmp$coefficients[1]
+            intercepts[[j]][l,] = a
+          }else{
+            tmp = polr(reverseY ~ offset(-chats[which.min(cv_tmp)] * yhat))
+            a = tmp$zeta
+            a = a[length(a):1]
+            intercepts[[j]][l,] = a
+          }
+          ###scale the projection coefficients post_by in the original data object
+          for(foldind in 1:nfolds){
+            cv.projection_coefs[,j,foldind,l] =cv.projection_coefs[,j,foldind,l]/r2norm_cv[foldind,j]
+            cv.projection_coefs[,j,foldind,l]= cv.projection_coefs[,j,foldind,l] *chats[which.min(cv_tmp)]
+          }
+        }
+      }else{
+        if(family %in% standardize_family){
+          r2norm = sqrt(apply(U0,2,function(z) mean(z^2)))
+          U0std  = U0
+        }else{
+          U0std = U0
+          r2norm = rep(1, ncol(U0))
+        }
+        if(ncol(Y) <=2){
+          stop('multinomial class < 3, please use binomial.')
+        }
+        ycollapsed = rep(0, nrow(Y))
+        for(j in 1:ncol(Y)){
+          ycollapsed[Y[,j]==1] = (j-1)
+        }
+        #get penalty lists
+        fitted_multinomial = glmnet(x =U0std, y = ycollapsed, standardize = F, family = 'multinomial', nlambda = nlambda)
+        lambdas =fitted_multinomial$lambda
+        # perform cv fit with given penalty lists
+        probs_predictions = array(NA, dim  = c(nrow(Y),ncol(Y),length(lambdas)))
+        tmp.fit = list()
+        for(fold_id in 1:nfolds){
+          test_id = which(foldid == fold_id)
+          train_id = which(foldid != fold_id)
+          U0cv = array(0, dim = c(n, num_factors))
+          #' This is where the error occurs previously!
+          #' changed from U0cv * scale.factors[,fold_id,l] to
+          #'  U0cv %*%diag(scale.factors[,fold_id,l])
+          U0cv = Z%*% cv.fact_coefs[,,fold_id, l]
+          if(family %in% standardize_family){
+            tmp = sqrt(apply(U0cv,2,function(z) mean(z^2)))
+            scale.factors[,fold_id,l] = r2norm/tmp
+            U0cv.std  = U0cv %*%diag(scale.factors[,fold_id,l])
+          }else{
+            U0cv.std  = U0cv
+          }
+          tmp.fit[[fold_id]] = glmnet(x =U0cv.std[train_id,], y = ycollapsed[train_id], standardize = F, family = 'multinomial', lambda = lambdas)
+          preds = predict(tmp.fit[[fold_id]], U0cv.std)
+          total = apply(preds,c(1,3),function(z) matrixStats::logSumExp(z))
+          for(kkk in 1:dim(preds)[2]){
+            preds[,kkk,] =  preds[,kkk,] -total
+          }
+          preds = exp(preds)
+          probs_predictions[test_id,,1:dim(preds)[3]] = preds[test_id,,]
+        }
+        if(multinomial_loss=="deviance"){
+          cvs = apply(probs_predictions,c(3), function(z) -2*apply(as.matrix(log(z+1e-8) * Y),1,sum))
+        }else{
+          #classification loss
+          cvs = apply(probs_predictions,c(3), function(z){
+            tmp = apply(z,1,which.max)
+            tmp1 = apply(Y==1, 1, which)
+            ifelse(tmp==tmp1, 0, 1)
+          } )
+        }
+        # choose penalty and model refit
+        cvs0 = apply(cvs,2,mean)
+        idx = which.min(cvs0)
+        cvm[l] =cvs0[idx]
+        cvsd[l] = sd(cvs[,idx])/sqrt(nrow(cvs))
+        for(j in 1:py){
+          projection_coefs[,j,l] = fitted_multinomial$beta[[j]][,idx]
+          intercepts[[j]][l] = fitted_multinomial$a0[j,idx]
+          for(fold_id in 1:nfolds){
+            cv.projection_coefs[,j,fold_id,l] = tmp.fit[[fold_id]]$beta[[j]][,idx]/scale.factors[,fold_id,l]
+          }
+        }
+      }
+    }
+    ##regression coefficients
+    reg_coefs = array(0, dim = c(pz,py,num_weights))
+    for(l in 1:num_weights){
+      for(j in 1:py){
+        reg_coefs[,j,l] = fact_coefs[,,l]%*%projection_coefs[,j,l]
+      }
+    }
+    #replace deviance contribution to spearman correlation
+    factor_contributions = array(NA,dim = c(num_factors, py, num_weights))
+    factor_contributions_pvals = array(NA,dim = c(num_factors, py, num_weights))
+    if(calculate.factor.contributions){
+      for(l in 1:num_weights){
+        if(!self$options$quiet)
+          cat(paste0("--- Calculating contribution for ", private$color.text(paste0("weight.x = ", self$params$weights[l,1], " | weight.y = ",self$params$weights[l,2]), "green"), " - (", l, "/", num_weights, ")", " ---\n"))
+
+        for(k in 1:num_factors){
+          for(j in 1:py){
+            yhat = Uhat.cv[,k,l]
+            y = Y[,j]
+            for(fold_id in 1:nfolds){
+              b = cv.projection_coefs[k,j,fold_id,l]
+              yhat[foldid==fold_id] = yhat[foldid==fold_id] *b
+            }
+            yhat = yhat + rnorm(n = length(yhat), mean = 0, sd = sqrt(var(y))*1/n)
+            tmp_pearson = cor(y, yhat)
+            suppressWarnings( tmp_spearman <- cor.test(y, yhat, method = 'spearman') )
+            if( tmp_pearson<0){
+              factor_contributions[k,j,l] = 0
+              factor_contributions_pvals[k,j,l] = 1
+            }else{
+              factor_contributions[k,j,l] = (tmp_spearman$estimate)^2
+              factor_contributions_pvals[k,j,l] = tmp_spearman$p.value
+            }
+          }
+        }
+      }
+    }
+    
+    if(!self$options$quiet){cat("\n--- Finished evaluation in ", round(as.numeric(Sys.time() - time.start), 4), " seconds\n")}
+    
+    self$fit$cv.eval = list(projection_coefs_scaled = projection_coefs,
+                cv.projection_coefs_scaled = cv.projection_coefs,
+                reg_coefs = reg_coefs,
+                intercepts = intercepts,
+                cvm = cvm, cvsd = cvsd,
+                factor_contributions = factor_contributions,
+                factor_contributions_pvals = factor_contributions_pvals,
+                Yhat.keep = Yhat.keep)
+    
+    self$fit$projection.coefs.y.scaled = projection_coefs
+    self$fit$projection.coefs.y.cv.scaled = cv.projection_coefs
+    self$fit$intercepts.scaled = intercepts
+    
+    if(!self$options$quiet){cat("\n")}
+    return(invisible(self))
+}
+
+
 

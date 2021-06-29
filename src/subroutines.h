@@ -63,7 +63,7 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                      arma::mat& tauZ, arma::mat& log_pi, arma::mat& log_minus_pi,
                      arma::mat& nuXmat, arma::mat& nuYmat,
                      arma::mat& meanFactors,  arma::mat& U2,
-                     arma::mat& updatingOrders);
+                     arma::mat& updatingOrders, double const L2);
 
 
 double tau_update(const int& num_factors, const arma::vec& weights, const arma::vec& weights0,

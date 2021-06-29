@@ -24,6 +24,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
                                 arma::mat& post_tmu, arma::mat& post_tsigma2,  arma::mat& post_tpi,
                                 arma::mat& tau, arma::mat& log_pi,  arma::mat& log_minus_pi){
   int p = X.n_cols;
+  int n = X.n_rows;
   double Delta = 0.0;
   for(int j = 0; j < p; j++){
     arma::uvec obs = arma::find(Xobs.col(j) == 1);
@@ -56,32 +57,32 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
       response = response + f * bkl;
       //update post_tmu, post_tsigma2 and post_tpi
       arma::vec response1 = (response % nu_vec % weight_obs) *weights(j);
+      //double tmp_tau = sqrt(n);
+      double tmp_tau = tau(j,k);
+      double tmp_tau1 = 0;//1.0*(weights(j)+1e-2);
       //arma::vec response1 = (response % nu_vec % weight_obs);
       //denominator of eq. (1)
-      double tmp = arma::sum(nu_vec % u % weight_obs) *weights(j)+  tau(j,k);
+      double tmp = arma::sum(nu_vec % u % weight_obs) *weights(j)+  tmp_tau+tmp_tau1;
       //double tmp = arma::sum(nu_vec % u % weight_obs)+  tau(j,k);
       //numerator of eq. (1)
       double tmp1 = sum(response1 % f);
       //deduct current contribution from B_{jk} to the EBLO using eq (1).
-      //double delta1 = post_tpi(j,k) * (weights(j)*log_pi(j,k) -log(post_tpi(j,k)));
       double delta1 = post_tpi(j,k) * (log_pi(j,k) -log(post_tpi(j,k)));
-      //double delta2 = (1.0 - post_tpi(j,k)) * (weights(j)*log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
       double delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)) - 0.5);
-      //double delta2 = (1.0 - post_tpi(j,k)) * (log_minus_pi(j,k) -log(1.0 - post_tpi(j,k)));
       if(post_tpi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
       if(post_tpi(j,k) >= (1.0-1e-8)){
         delta2 = 0.0;
       }
-      Delta = Delta - (0.5 * post_tpi(j,k) *(-tmp * bkl2 + 2* tmp1 * post_tmu(j,k) + log(post_tsigma2(j,k) * tau(j,k))) +  delta1+ delta2);
+      Delta = Delta - (0.5 * post_tpi(j,k) *(-tmp * bkl2 + 2* tmp1 * post_tmu(j,k) + log(post_tsigma2(j,k) * tmp_tau)) +  delta1+ delta2);
       //update post_tmu, post_tsigma2, post_tpi with formulas (1)-(3)
       post_tsigma2(j,k)  = 1.0/tmp;
       post_tmu(j,k) = tmp1 * post_tsigma2(j,k);
       // double tmp2 = 0.5 *(post_tmu(j,k)* post_tmu(j,k)) / post_tsigma2(j,k) +
       //   0.5 * std::log(tau(j,k) * post_tsigma2(j,k)) +  weights(j)* log_pi(j,k) - weights(j)*log_minus_pi(j,k);
       double tmp2 = 0.5 *(post_tmu(j,k)* post_tmu(j,k)) / post_tsigma2(j,k) +
-        0.5 * std::log(tau(j,k) * post_tsigma2(j,k)) +  log_pi(j,k) -log_minus_pi(j,k);
+        0.5 * std::log(tmp_tau * post_tsigma2(j,k)) +  log_pi(j,k) -log_minus_pi(j,k);
       if(tmp2 < 0){
         post_tpi(j,k) = std::exp(tmp2);
         post_tpi(j,k) = post_tpi(j,k)/(1.0+post_tpi(j,k));
@@ -104,7 +105,7 @@ double update_projection_sparse(const int num_factors, arma::mat& X,   const arm
       if(post_tpi(j,k) >= (1.0-1e-8)){
         delta2 = 0.0;
       }
-      Delta = Delta + (0.5 * post_tpi(j,k) *(-tmp * bkl2 + 2* tmp1 * post_tmu(j,k) + log(post_tsigma2(j,k) * tau(j,k)))
+      Delta = Delta + (0.5 * post_tpi(j,k) *(-tmp * bkl2 + 2* tmp1 * post_tmu(j,k) + log(post_tsigma2(j,k) * tmp_tau))
                          +  delta1+ delta2);    
       }
     
@@ -157,6 +158,7 @@ double update_projection_constrained(const int num_factors, arma::mat& Y, const 
                                      arma::mat& post_tmu, arma::mat& post_tsigma2,
                                      arma::mat& tau, double lower){
   int p = Y.n_cols;
+  int n =  Y.n_rows;
   double Delta = 0.0;
   for(int j = 0; j < p; j++){
     arma::vec y =  Y.col(j);
@@ -183,7 +185,8 @@ double update_projection_constrained(const int num_factors, arma::mat& Y, const 
     }
     for(int k = 0; k < num_factors; k++){
       arma::vec u = U2_sub.col(k);
-      cov(k,k) = arma::sum( u % nu_vec%weight_obs)*weights0(j)+tau(j,k) * weights0(j);
+      double tmp_tau = 1.0/sqrt(n);
+      cov(k,k) = arma::sum( u % nu_vec%weight_obs)*weights0(j)+tmp_tau * weights0(j);
       post_tsigma2(j,k) = 1.0/(cov(k,k));
     }
     arma::mat V1, U1;
@@ -297,15 +300,13 @@ double update_factor_one(const int num_factors, arma::mat& Y,  const arma::mat& 
       meanFactors.col(k) = meanFactors.col(k) - Z.col(j) * betajk;
       arma::vec response1 = response - s_vec % meanFactors.col(k);
       //tmp = denominator of mu_jk.
-      //double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
-      //double tmp_tau = 1.0;
-      double tmp_tau =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
-      double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tmp_tau*weights0(0);
+      //double tmp_tau =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tau(j,k)*weights0(0);
+      double tmp_tau = tau(j,k)*weights0(0);
+      double tmp =  arma::sum(s_vec % arma::square(Z.col(j))%weights_case)+tmp_tau;
       //tmp1 = numerator of mu_jk.
       double tmp1 = sum(response1 % Z.col(j)%weights_case);
       double delta1 = post_pi(j,k) * (log_pi(j,k)*weights0(0) -log(post_pi(j,k)));
       double delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0)  -log(1.0 - post_pi(j,k)) - 0.5);
-      //double delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0)  -log(1.0 - post_pi(j,k)));
       if(post_pi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
@@ -329,8 +330,7 @@ double update_factor_one(const int num_factors, arma::mat& Y,  const arma::mat& 
       betajk = post_mu(j,k) * post_pi(j,k);
       delta1 = post_pi(j,k) * (log_pi(j,k)*weights0(0) -log(post_pi(j,k)));
       delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0) -log(1.0 - post_pi(j,k)) - 0.5);
-      //delta2 = (1.0 - post_pi(j,k)) * ( log_minus_pi(j,k)*weights0(0) -log(1.0 - post_pi(j,k)));
-      if(post_pi(j,k) <= 1e-8){
+       if(post_pi(j,k) <= 1e-8){
         delta1 = 0.0;
       }
       if(post_pi(j,k) >= (1.0-1e-8)){
@@ -365,7 +365,8 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                      arma::mat& tauZ, arma::mat& log_pi, arma::mat& log_minus_pi,
                      arma::mat& nuXmat, arma::mat& nuYmat,
                      arma::mat& meanFactors,  arma::mat& U2,
-                     arma::mat& updatingOrders){
+                     arma::mat& updatingOrders, double const L2){
+  int n = Y.n_rows;
     double Delta = update_factor_one(num_factors, Y, Yobs, X, Xobs,
                                       Z, weights, weights0, weights_case,
                                       post_mu, post_sigma2,post_pi ,
@@ -374,6 +375,9 @@ double update_factor(const int num_factors, arma::mat& Y,  const arma::mat& Yobs
                                       tauZ, log_pi, log_minus_pi,
                                       meanFactors, nuXmat, nuYmat, updatingOrders);
   U2 = U2calculation(num_factors, Z, meanFactors,post_mu, post_sigma2, post_pi);
+  for(int k = 0; k < num_factors; k++){
+    U2.col(k) += L2;
+  }
   return Delta;
 }
 
@@ -404,7 +408,7 @@ double tau_update(const int& num_factors, const arma::vec& weights, const arma::
       int p1 = path_q.n_elem;
       for(int j0 = 0; j0 < p1; j0++){
         int j = path_q(j0);
-        //double tmp = weights0(0)*((post_mu(j, k, q) * post_mu(j, k, q) + post_sigma2(j,k,q))*post_pi(j,k,q) + (1-post_pi(j,k,q))*1.0/tauZ(j,k))* .5;
+        //double tmp = weights0(0)*((post_mu(j, k) * post_mu(j, k) + post_sigma2(j,k))*post_pi(j,k) + (1-post_pi(j,k))*1.0/tauZ(j,k))* .5;
         double tmp = weights0(0)*((post_mu(j, k) * post_mu(j, k) + post_sigma2(j,k)))* .5;
         post_a = post_a +  weights0(0)* .5;
         post_b = post_b + tmp;

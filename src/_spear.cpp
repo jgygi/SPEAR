@@ -196,7 +196,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
                                post_tmuX, post_tsigma2X, post_tpiX,
                                post_tmuY, post_tsigma2Y,
                                tauZ,  log_pi, log_minus_pi,
-                               nuXmat, nuYmat, meanFactors,  U2, updatingOrders);
+                               nuXmat, nuYmat, meanFactors,  U2, updatingOrders, L2);
         //Update the residuals given the current model.
         //Rcout << "step6" << "\n";
         for(int j = 0; j < px; j++){
@@ -271,7 +271,7 @@ arma::mat spear_(const int family, arma::mat& Y,  arma::mat& X,
         }
         if(print_out != 0){
           if((it > warm_up) & ((it - warm_up)% print_out == 0)){
-              Rcout << "iter" << it - warm_up << " - Δ ELBO = " << Delta << "\n";
+              Rcout << "iter" << it - warm_up << " - ELBO increase " << Delta << "\n";
           }
         }
         it += 1;

@@ -1,0 +1,274 @@
+---
+title: "SPEAR: Using the new version"
+author: "Jeremy Gygi"
+date: "06/28/21"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SPEAR_new_tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+### This vignette will provide a walkthrough for using the new version of SPEAR on multi-omic data.
+
+##### Installing SPEAR:
+
+Follow installation instructions in README (located [here](https://github.com/jgygi/SPEAR))
+
+##### Required Libraries:
+
+```{r message = FALSE, warning = FALSE}
+library(SPEAR)
+```
+
+### Loading the multi-omic data:
+
+Loading your own multi-omic data:
+
+```{r}
+# Parameters:
+# X - a list of matrices of omics data [subjects = rows, features = columns] (i.e. OmicsData 1 would be X[[1]], ...)
+# Y - a matrix of response data [subjects = rows, response.variables = columns] (i.e. Response1 would be Y[,1], ...)
+# 
+# Data should be scaled/standardized (mean = 0, variance = 1) before using SPEAR:
+
+X <- NULL # Replace with your list of matrices...
+Y <- NULL # Replace with your matrix...
+```
+
+Read in simulated data...
+
+```{r}
+# Generated from the SPEAR_simulate_data.Rmd file:
+path_to_sim_data <- ""
+sim.data <- readRDS(paste0(path_to_sim_data, "simulated_gaussian_data.rds"))
+
+X <- sim.data$data.tr$xlist
+Y <- sim.data$data.tr$Y
+```
+
+Naming the features, subjects, and datasets (for downstream analysis):
+
+```{r}
+colnames(Y) <- "GausResponse"
+rownames(Y) <- paste0("Subject", 1:nrow(Y))
+names(X) <- paste0("OmicsData", 1:length(X))
+for(i in 1:length(X)){
+  colnames(X[[i]]) <- paste0(names(X)[i], "_feat", 1:ncol(X[[i]]))
+  rownames(X[[i]]) <- paste0("Subject", 1:nrow(X[[i]]))
+}
+```
+
+# Getting SPEAR to run:
+
+## 1) Make a SPEARobject-class object:
+
+```{r}
+SPEARobj <- make.SPEARobject(X = X,
+                             Y = Y,
+                             family = "gaussian",
+                             # options:
+                             seed = 456, # set the seed (for consistent runs)
+                             print_out = 10, # Print ELBO change after how many iterations? (default is 100)
+                             remove.formatting = TRUE, # if TRUE, removes coloring from output (doesn't work in HTML)
+                             quiet = FALSE # if TRUE, will silence all unnecessary print messages
+                             )
+
+# NOTE: you can use encoded family parameters as well (i.e. family = 0 for gaussian, 1 for binomial,
+#                                                      2 for ordinal and 3 for multinomial)
+```
+
+When you initialize a SPEARobject, the `$fit` list will be `NULL`...
+
+```{r}
+names(SPEARobj$fit)
+```
+
+Some parameters are automatically initialized if you don't specify them in the `make.SPEARobject` function...
+
+```{r}
+SPEARobj$params$num_factors
+```
+
+This includes the `$params$weights` argument, which is now a matrix...
+
+```{r}
+SPEARobj$params$weights
+```
+
+We have only used one `weight` or `w` parameter up until this point. That has been renamed `w.x` (we have always had `w.y = 1`)
+
+## 2) Running regular SPEAR (no cross validation):
+
+```{r}
+SPEARobj$run.spear()
+```
+
+This will populate the `$fit` parameter:
+
+```{r}
+names(SPEARobj$fit)
+```
+
+Right now, there aren't any of the helper functions for plotting. You can directly access all of the coefficients, however:
+
++ regression.coefs - post_betas
+
++ projection.coefs.x - post_bxs
+
++ projection.coefs.y - post_bys
+
++ nonzero.probs - post_pis
+
++ projection.probs - post_selections
+
++ marginal.probs - post_selections_marginal
+
++ joint.probs - post_selections_joint
+
++ intercepts.x - interceptsX
+
++ intercepts.y - interceptsY
+
++ type - new, either 'regular' if called from `run.spear` or 'cv' if called from `run.cv.spear`.
+
+## 3) Running cross validation SPEAR:
+
+NOTE: This will overwrite the results stored in the `$fit` list.
+
+```{r}
+# First, run cv spear:
+SPEARobj$run.cv.spear()
+
+# Then, run the cv evaluation function:
+SPEARobj$cv.evaluate()
+```
+
+The `cv.evaluate` function does a lot of important calculations, including getting the mean cross validation error per weight:
+
+```{r}
+cvm.df <- SPEARobj$fit$cv.eval$cvm
+rownames(cvm.df) <- paste0("w.idx", 1:nrow(cvm.df))
+colnames(cvm.df) <- "mean.cv.error"
+cvm.df
+```
+
+Now that we have a `w.x` and a `w.y` to worry about, we simplify the process by choosing a **pair of weights**, given by a weight index (`w.idx`)
+
+We set the `w.idx` parameter either through the `set.weights(...)` function...
+
+```{r}
+SPEARobj$set.weights(w.idx = 1) # this refers to the first row of SPEARobj$params$weights...
+```
+
+... or we can set it manually.
+
+```{r}
+SPEARobj$options$current.weight.idx <- 1
+```
+
+# Analyzing the new SPEARobject-class object:
+
+As of right now, there aren't many helper functions... below are the current ones available:
+
+### Adding a testing dataset
+
+If you have test data, you can add it to the SPEARobject using the `add.data(...)` function...
+
+While providing a list of matrices for `X` is required, `Y` is optional.
+
+*NOTE:* The column names (features) in `X` **must** match the column names of the training data...
+
+```{r}
+X.test <- sim.data$data.te$xlist
+Y.test <- sim.data$data.te$Y
+colnames(Y.test) <- "GausResponse"
+rownames(Y.test) <- paste0("Subject", 1:nrow(Y.test))
+names(X.test) <- paste0("OmicsData", 1:length(X.test))
+for(i in 1:length(X.test)){
+  colnames(X.test[[i]]) <- paste0(names(X.test)[i], "_feat", 1:ncol(X[[i]]))
+  rownames(X.test[[i]]) <- paste0("Subject", 1:nrow(X.test[[i]]))
+}
+
+SPEARobj$add.data(X = X.test, Y = Y.test, name = "test.dataset")
+```
+
+The dataset has been stored under `$data`...
+
+```{r}
+names(SPEARobj$data)
+```
+
+Many of the functions below support choosing which dataset to use.
+
+### Factor Scores:
+
+Return a matrix of N X K (num. samples x num. factors). Can choose to get in.sample (`cv = FALSE`) or cross-validated scores (`cv = TRUE`). For most purposes, leave `cv = FALSE`.
+
+```{r fig.width = 4, fig.height = 5, fig.align = "center"}
+factor.scores = SPEARobj$get.factor.scores()
+factor.scores.cv = SPEARobj$get.factor.scores(cv = TRUE) # cv defaults to FALSE above
+heatmap(factor.scores)
+```
+
+You can get new factor scores for a dataset added via the `add.data` function...
+
+```{r fig.width = 4, fig.height = 5, fig.align = "center"}
+factor.scores = SPEARobj$get.factor.scores(data = "test.dataset")
+factor.scores.cv = SPEARobj$get.factor.scores(data = "test.dataset", cv = TRUE) # cv defaults to FALSE above
+heatmap(factor.scores)
+```
+
+### Predictions:
+
+This will return the predictions (in a vector if `family = "gaussian"`, and in a named list otherwise)...
+
+```{r fig.width = 6, fig.height = 5}
+preds <- SPEARobj$get.predictions() # Defaults to use CV factors (cv = TRUE) and data = "train"
+true <- SPEARobj$data$train$Y
+plot(true ~ preds)
+```
+
+You can also use datasets from the `add.data` function here...
+
+```{r fig.width = 6, fig.height = 5}
+preds <- SPEARobj$get.predictions(data = "test.dataset") # Defaults to use CV factors (cv = TRUE)
+true <- SPEARobj$data$test.dataset$Y
+plot(true ~ preds)
+```
+
+### Factor contributions:
+
+You can get the factor contributions for X and Y:
+
+```{r}
+factor.contributions <- SPEARobj$get.contributions() # defaults to return X and Y, use do.X = FALSE for only Y...
+factor.contributions
+```
+
+Notice that Factor 1 and Factor 2 contribute the most to the prediction of Y
+
+### Features:
+
+Get a data.table of features using a cutoff:
+
+```{r}
+features <- SPEARobj$get.features() # defaults to coefficient.cutoff = 0 and probability.cutoff = .95
+nrow(features)
+
+# To get ALL features, just set both cutoffs to 0:
+all.features <- SPEARobj$get.features(coefficient.cutoff = 0,
+                                      probability.cutoff = 0)
+nrow(all.features)
+
+# To add columns including correlation with factor scores, use the correlation argument:
+features.with.correlation <- SPEARobj$get.features(correlation = "pearson")
+
+features.with.correlation[1:10,]
+
+# Get features for a specific Factor / Dataset:
+features.factor1.dataset3 = SPEARobj$get.features(factors = 1, datasets = "OmicsData3")
+head(features.factor1.dataset3)
+```
+
+

@@ -1,3 +1,11 @@
+### TODOS:
+#
+# fix prediction for spear only runs (multinomial, ordinal, binomial - see email from Leying)
+#
+#
+#
+
+
 #' Update the dimension names for all SPEARobject matrices. Used internally.
 #'@export
 update.dimnames = function(){
@@ -205,12 +213,10 @@ check.fold.ids = function(fold.ids){
 
 #' Choose a combination of weights for a SPEARobject. Print `SPEARobject$params$weights` to see all combinations trained.
 #' @param w.idx Use a manual weight index (row from `SPEARobject$params$weights`)? Defaults to `NULL`
-#' @param method Which method to 
+#' @param method Which method to use? Needs to be from a `$run.cv.spear` object. Can be `"min"` (overall lowest mean cross validated loss), `"sd"` (take highest weight within 1 sd cross validated loss).
 #'@export
-set.weights = function(w.idx = NULL, method = NULL){
-  # TODO... add other ways
-  #
-  #
+set.weights = function(w.idx = NULL, method = "min"){
+  private$check.fit()
   if(!is.null(w.idx)){
     if(!w.idx %in% 1:nrow(self$params$weights)){
       stop("ERROR: w.idx supplied not valid (must be between 1 and ", nrow(self$params$weights), "). Type SPEARobject$params$weights to see all combinations (rows).")
@@ -225,7 +231,46 @@ set.weights = function(w.idx = NULL, method = NULL){
     }
     
   } else if(!is.null(method)){
-    cat("To do...")
+    if(self$fit$type != "cv"){
+      stop("ERROR: $fit needs to come from $run.cv.spear(), not $run.spear to use a method.")
+    } else if(is.null(self$fit$loss)){
+      stop("ERROR: $cv.evaluate needs to be run to calculate the loss.")
+    }
+    # min -----------
+    if(method == "min"){
+      if(ncol(self$fit$loss$cvm) > 1){
+        overall.cvm <- apply(self$fit$loss$cvm, 1, rowSums)
+      } else {
+        overall.cvm <- self$fit$loss$cvm
+      }
+      w.idx <- which.min(overall.cvm)
+      if(!self$options$quiet){
+        cat("Setting current weight index to ", w.idx, "\n", 
+            private$color.text("w.x: ", "green"), self$params$weights[w.idx,1], "\n",
+            private$color.text("w.y: ", "green"), self$params$weights[w.idx,2], "\n",
+            sep = "")
+      }
+      self$options$current.weight.idx = w.idx
+    } else if(method == "sd"){
+      if(ncol(self$fit$loss$cvm) > 1){
+        overall.cvm <- apply(self$fit$loss$cvm, 1, rowSums)
+        overall.cvsd <- apply(self$fit$loss$cvsd, 1, rowSums)
+      } else {
+        overall.cvm <- self$fit$loss$cvm
+        overall.cvsd <- self$fit$loss$cvsd
+      }
+      tmp.w.idx <- which.min(overall.cvm)
+      tmp.cvsd <- overall.cvsd[tmp.w.idx]
+      w.idx <- min(which(overall.cvm <= overall.cvm[tmp.w.idx] + tmp.cvsd))
+      if(!self$options$quiet){
+        cat("Setting current weight index to ", w.idx, "\n", 
+            private$color.text("w.x: ", "green"), self$params$weights[w.idx,1], "\n",
+            private$color.text("w.y: ", "green"), self$params$weights[w.idx,2], "\n",
+            sep = "")
+      }
+    } else {
+      stop("ERROR: method not recognized. See documentation for available methods to select a weight index.")
+    }
     
     
     
@@ -357,22 +402,32 @@ get.predictions = function(data = "train", cv = TRUE){
 
 
 #' Get features from a SPEARobject.
-#' @param Factor
+#' @param rank How to rank features? Defaults to `"probability"` (joint.probability) followed by projection.coefficient. Can also be "`coefficient`" (only projection.coefficient magnitude).
+#' @param factors Which factors to return features for? Accepts integers (i.e. `factors = c(1,2,4)` or `factors = 1`) Defaults to `NULL` (all).
+#' @param datasets Which datasets? Check names via `names(SPEARobject$data$train$Xlist)`. Defaults to `NULL` (all)
+#' @param coefficient.cutoff What projection.coefficient value to use as the cutoff? Defaults to 0
+#' @param probability.cutoff What joint.probability value to use as the cutoff? Defaults to .95
+#' @param correlation Return columns with factor score correlations? Accepts `"spearman"`, `"pearson"`, `"kendall"`, or "`none`" (default)
 #'@export
-get.features = function(rank = "probability", factors = NULL, omics = NULL, coefficient.cutoff = 0, probability.cutoff = .95, correlation = "none"){
+get.features = function(rank = "probability", factors = NULL, datasets = NULL, coefficient.cutoff = 0, probability.cutoff = .95, correlation = "none"){
   private$check.fit()
   w.idx <- self$options$current.weight.idx
   if(is.null(factors)){
     factors <- 1:self$params$num_factors
   }
   factors.string <- paste0("Factor", factors)
-  if(is.null(omics)){
-    omics <- names(self$data$train$Xlist)
+  if(is.null(datasets)){
+    datasets <- names(self$data$train$Xlist)
+  } else {
+    if(any(!datasets %in% names(self$data$train$Xlist))){
+      stop("ERROR: datasets provided not recognized. Need to be names found in names(SPEARobject$data$train$Xlist)")
+    }
   }
   features <- list()
   w.joint.probabilities = self$fit$joint.probs[,,w.idx]
   w.marginal.probabilities = self$fit$marginal.probs[,,w.idx]
   w.projection.probabilities = self$fit$projection.probs[,,w.idx]
+  w.nonzero.probabilities = self$fit$nonzero.probs[,,w.idx]
   w.regression.coefficients = self$fit$regression.coefs[,,w.idx]
   w.projection.coefficients = self$fit$projection.coefs.x[,,w.idx]
   colnames(w.joint.probabilities) <- paste0("Factor", 1:ncol(w.joint.probabilities))
@@ -381,6 +436,8 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
   rownames(w.marginal.probabilities) <- colnames(self$data$train$X)
   colnames(w.projection.probabilities) <- paste0("Factor", 1:ncol(w.projection.probabilities))
   rownames(w.projection.probabilities) <- colnames(self$data$train$X)
+  colnames(w.nonzero.probabilities) <- paste0("Factor", 1:ncol(w.nonzero.probabilities))
+  rownames(w.nonzero.probabilities) <- colnames(self$data$train$X)
   colnames(w.regression.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
   rownames(w.regression.coefficients) <- colnames(self$data$train$X)
   colnames(w.projection.coefficients) <- paste0("Factor", 1:ncol(w.joint.probabilities))
@@ -397,6 +454,7 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
       w.joint.probabilities.current <- w.joint.probabilities[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
       w.marginal.probabilities.current <- w.marginal.probabilities[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
       w.projection.probabilities.current <- w.projection.probabilities[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
+      w.nonzero.probabilities.current <- w.nonzero.probabilities[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
       w.regression.coefficients.current <- w.regression.coefficients[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
       w.projection.coefficients.current <- w.projection.coefficients[s:(s + ncol(self$data$train$Xlist[[o]]) - 1),factor]
       s <- s + ncol(self$data$train$Xlist[[o]])
@@ -410,10 +468,12 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
       w.joint.probabilities.current <- w.joint.probabilities.current[feat.order]
       w.marginal.probabilities.current <- w.marginal.probabilities.current[feat.order]
       w.projection.probabilities.current <- w.projection.probabilities.current[feat.order]
+      w.nonzero.probabilities.current <- w.nonzero.probabilities.current[feat.order]
       temp[[names(self$data$train$Xlist)[o]]]$features <- names(w.joint.probabilities.current)
       temp[[names(self$data$train$Xlist)[o]]]$joint.probabilities <- w.joint.probabilities.current
       temp[[names(self$data$train$Xlist)[o]]]$marginal.probabilities <- w.marginal.probabilities.current
       temp[[names(self$data$train$Xlist)[o]]]$projection.probabilities <- w.projection.probabilities.current
+      temp[[names(self$data$train$Xlist)[o]]]$nonzero.probabilities <- w.nonzero.probabilities.current
       temp[[names(self$data$train$Xlist)[o]]]$projection.coefficients <- w.projection.coefficients.current
       temp[[names(self$data$train$Xlist)[o]]]$regression.coefficients <- w.regression.coefficients.current
     }
@@ -423,7 +483,7 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
   fs.cv <- self$get.factor.scores(cv = TRUE)
   results.list <- list()
   for(f in factors.string){
-    for(o in omics){
+    for(o in datasets){
       feature.vec <- features[[f]][[o]]
       passed.coeff.cutoff <- abs(feature.vec$projection.coefficients) >= coefficient.cutoff
       passed.prob.cutoff <- feature.vec$joint.probabilities >= probability.cutoff
@@ -445,7 +505,7 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
             res$pval.in.sample[r] <- suppressWarnings(cor.test(vals, fs[,f], method = correlation)$p.value)
             res$pval.cv[r] <- suppressWarnings(cor.test(vals, fs.cv[,f], method = correlation)$p.value)
           }
-          colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor", "in.sample.correlation", "cv.correlation", "in.sample.pvalue", "cv.pvalue")
+          colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "nonzero.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor", "factor.correlation", "factor.cv.correlation", "factor.cor.pvalue", "factor.cv.cor.pvalue")
           rownames(res) <- NULL
           res <- dplyr::select(res, 
                                Factor,
@@ -456,12 +516,13 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
                                joint.probability,
                                marginal.probability,
                                projection.probability,
+                               nonzero.probability,
                                in.sample.correlation, 
                                in.sample.pvalue, 
                                cv.correlation, 
                                cv.pvalue)
         } else {
-          colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor")
+          colnames(res) <- c("Feature", "joint.probability", "marginal.probability", "projection.probability", "nonzero.probability", "projection.coefficient", "regression.coefficient", "Dataset", "Factor")
           rownames(res) <- NULL
           res <- dplyr::select(res, 
                                Factor,
@@ -471,14 +532,15 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
                                projection.coefficient, 
                                joint.probability,
                                marginal.probability,
-                               projection.probability)
+                               projection.probability,
+                               nonzero.probability)
         }
         results.list[[length(results.list) + 1]] <- res
       }
     }
   }
   if(length(results.list) == 0){
-    warning("*** Warning: No features found within cutoffs for chosen Factors/Omics. Returning data.frame with 0 rows. Try broadening the criteria.")
+    warning("*** Warning: No features found within cutoffs for chosen Factors/Datasets Returning data.frame with 0 rows. Try broadening the criteria.")
     total.results <- data.frame( Factor = character(0),
                                  Feature = character(0), 
                                  Dataset = character(0), 
@@ -486,7 +548,8 @@ get.features = function(rank = "probability", factors = NULL, omics = NULL, coef
                                  projection.coefficient = numeric(0), 
                                  joint.probability = numeric(0),
                                  marginal.probability = numeric(0),
-                                 projection.probability = numeric(0))
+                                 projection.probability = numeric(0),
+                                 nonzero.probability = numeric(0))
   } else {
     total.results <- do.call("rbind", results.list)
     total.results <- dplyr::arrange(total.results, Factor, -joint.probability, -abs(projection.coefficient))
@@ -544,14 +607,14 @@ get.contributions = function(do.X = TRUE, do.Y = TRUE, do.Y.pvals = FALSE){
   }
   # Y:
   if(do.Y){
-    var_explained_Y <- matrix(NA, nrow = dim(self$fit$cv.eval$factor_contributions)[1], ncol = dim(self$fit$cv.eval$factor_contributions)[2])
-    var_explained_Y.pvals <- matrix(NA, nrow = dim(self$fit$cv.eval$factor_contributions)[1], ncol = dim(self$fit$cv.eval$factor_contributions)[2])
-    for(j in 1:dim(self$fit$cv.eval$factor_contributions)[2]){
-      if(length(self$fit$cv.eval$factor_contributions[,j,w.idx]) != 0){
-        var_explained_Y[,j] <- self$fit$cv.eval$factor_contributions[,j,w.idx]
+    var_explained_Y <- matrix(NA, nrow = dim(self$fit$factor.contributions)[1], ncol = dim(self$fit$factor.contributions)[2])
+    var_explained_Y.pvals <- matrix(NA, nrow = dim(self$fit$factor.contributions)[1], ncol = dim(self$fit$factor.contributions)[2])
+    for(j in 1:dim(self$fit$factor.contributions)[2]){
+      if(length(self$fit$factor.contributions[,j,w.idx]) != 0){
+        var_explained_Y[,j] <- self$fit$factor.contributions[,j,w.idx]
       }
-      if(length(self$fit$cv.eval$factor_contributions_pvals[,j,w.idx]) != 0){
-        var_explained_Y.pvals[,j] <- self$fit$cv.eval$factor_contributions_pvals[,j,w.idx]
+      if(length(self$fit$factor.contributions.pvals[,j,w.idx]) != 0){
+        var_explained_Y.pvals[,j] <- self$fit$factor.contributions.pvals[,j,w.idx]
       }
     }
     colnames(var_explained_Y) <- colnames(self$data$train$Y)

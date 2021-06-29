@@ -600,7 +600,6 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
     #rescale the overall coefficients
     Yhat = array(NA, dim = c(n, py, num_weights))
     cmin = 0
-    Yhat.keep = array(NA, dim = c(n, py, num_weights))
     factors.keep = array(NA, dim = c(n, num_factors, py, num_weights))
     Uhat.cv = array(0, dim = c(n,num_factors,num_weights))
     Yhat.cv = array(0, dim = c(n, py, nfolds, num_weights))
@@ -740,9 +739,7 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
           cvsd_tmp = apply(errs,2,sd)/sqrt(n-1)
           cvm[l,j] = min(cv_tmp)
           cvsd[l,j] = cvsd_tmp[which.min(cv_tmp)]
-          for(foldind in 1:nfolds){
-            Yhat.keep[foldid == foldind,j,l] = Yhat.cv[foldid == foldind,j,foldind,l]
-          }
+
           projection_coefs[,j,l] = projection_coefs[,j,l] *chats[which.min(cv_tmp)]
           if(family %in% standardize_family){
             projection_coefs[,j,l] = projection_coefs[,j,l]/r2norm[j]
@@ -880,12 +877,14 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
                 intercepts = intercepts,
                 cvm = cvm, cvsd = cvsd,
                 factor_contributions = factor_contributions,
-                factor_contributions_pvals = factor_contributions_pvals,
-                Yhat.keep = Yhat.keep)
+                factor_contributions_pvals = factor_contributions_pvals)
     
     self$fit$projection.coefs.y.scaled = projection_coefs
     self$fit$projection.coefs.y.cv.scaled = cv.projection_coefs
     self$fit$intercepts.scaled = intercepts
+    self$fit$factor.contributions = factor_contributions
+    self$fit$factor.contributions.pvals = factor_contributions_pvals
+    self$fit$loss <- list(cvm = cvm, cvsd = cvsd)
     
     if(!self$options$quiet){cat("\n")}
     return(invisible(self))

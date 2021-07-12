@@ -17,7 +17,7 @@
 Print out a variety of summary information about a SPEARobject
 }
 \examples{
-SPEARobj <- make_spear_model(...)
+SPEARobj <- make.SPEARobject(...)
 
 SPEARobj$run.spear()
 

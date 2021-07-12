@@ -660,7 +660,7 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
             tmp = lm(y~Yhat[,j,l])
             cmax = tmp$coefficients[2]
           }else if(family==1){
-            tmp = glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
+            tmp = glmnet::glmnet(cbind(yhat,rep(0,length(yhat))),y, family = "binomial",lambda = 1e-4)
             cmax = tmp$beta[1,ncol(tmp$beta)]
           }else if(family == 2){
             reverseY = max(y) - y
@@ -674,7 +674,7 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
           for(k in 1:nfolds){
             yhat_cv = Yhat.cv[,j,k,l]
             if(family == 1){
-              tmp0 = glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
+              tmp0 = glmnet::glmnet(cbind(yhat_cv[foldid!=k],rep(0,sum(foldid!=k))),y[foldid!=k], family = "binomial",lambda = 1e-4)
               a0 = tmp0$a0
               c0 = tmp0$beta[1]
             }else if(family == 2){
@@ -778,7 +778,7 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
           ycollapsed[Y[,j]==1] = (j-1)
         }
         #get penalty lists
-        fitted_multinomial = glmnet(x =U0std, y = ycollapsed, standardize = F, family = 'multinomial', nlambda = nlambda)
+        fitted_multinomial = glmnet::glmnet(x =U0std, y = ycollapsed, standardize = F, family = 'multinomial', nlambda = nlambda)
         lambdas =fitted_multinomial$lambda
         # perform cv fit with given penalty lists
         probs_predictions = array(NA, dim  = c(nrow(Y),ncol(Y),length(lambdas)))
@@ -798,7 +798,7 @@ cv.evaluate <- function(nlambda = 100, calculate.factor.contributions = TRUE, ma
           }else{
             U0cv.std  = U0cv
           }
-          tmp.fit[[fold_id]] = glmnet(x =U0cv.std[train_id,], y = ycollapsed[train_id], standardize = F, family = 'multinomial', lambda = lambdas)
+          tmp.fit[[fold_id]] = glmnet::glmnet(x =U0cv.std[train_id,], y = ycollapsed[train_id], standardize = F, family = 'multinomial', lambda = lambdas)
           preds = predict(tmp.fit[[fold_id]], U0cv.std)
           total = apply(preds,c(1,3),function(z) matrixStats::logSumExp(z))
           for(kkk in 1:dim(preds)[2]){

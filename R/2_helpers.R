@@ -2,8 +2,7 @@
 #
 # fix prediction for spear only runs (multinomial, ordinal, binomial - see email from Leying)
 #
-#
-#
+# Test get.misclassification function!!!
 
 
 #' Update the dimension names for all SPEARobject matrices. Used internally.
@@ -176,6 +175,30 @@ add.data = function(X, Y = NULL, Z = NULL, name = NULL){
     Z = Z
   )
   if(!self$options$quiet & name != "train"){cat("Saved dataset to $data$", name, "\n\n", sep = "")}
+  return(invisible(self))
+}
+
+
+
+
+#' Save a SPEARobject
+#' @param file Name and path for the stored SPEARobject. Defaults to NULL, which is (workingdirectory)/SPEARobject__date__
+#' @examples
+#' SPEARobj <- make.SPEARobject(...)
+#' 
+#' SPEARobj$run.cv.spear()$cv.evaluation()
+#' 
+#' SPEARobj$save.model(path = getwd(), file = "SPEARmodel.rds")
+#'@export
+save.model = function(file = NULL){
+  if(is.null(file)){
+    cat("***", paste0(" No filename specified for saving SPEAR results. Saving as ", paste0(path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds"), "\n"))
+    file <- paste0(path, "SPEARobject_", format(Sys.time(), "%m%d%Y_%H_%M_%S"), ".rds")
+  } else if(!endsWith(file, ".rds")){
+    file <- paste0(file, ".rds")
+  }
+  saveRDS(SPEARobj, file = file)
+  cat(paste0("Saved SPEARobject to RDS file at ", file, "\n\n"))
   return(invisible(self))
 }
 
@@ -627,6 +650,40 @@ get.contributions = function(do.X = TRUE, do.Y = TRUE, do.Y.pvals = FALSE){
     }
   }
   return(output)
+}
+
+
+
+#' Get misclassification error rates and confusion matrices from a SPEARobject and a dataset `data`.
+#' @param data Which dataset to use? Can be any dataset listed under `$data$____`. Defaults to `"train"`.
+#' @param cv If `data = "train"`, get factor scores generated from `$run.cv.spear`? If `$run.spear` was used or if `data != "train"` this parameter is ignored. Defaults to `TRUE`.
+#'@export
+get.misclassification = function(data = "train", cv = TRUE){
+  if(self$params$family != "multinomial"){
+    stop("ERROR: family must be multinomial to get misclassification error rates / confusion matrices.")
+  }
+  
+  df <- data.frame(true.vals = colnames(self$data[[data]]$Y)[apply(self$data[[data]]$Y, 1, which.max)],
+                   pred.vals = self$get.predictions(data = data, cv = cv)$predictions)
+  
+  cm <- table(df)
+  colnames(cm) <- colnames(self$data[[data]]$Y)
+  rownames(cm) <- colnames(self$data[[data]]$Y)
+  cm_wrong<-cm
+  diag(cm_wrong)<-0
+  cm_wrong_sum<-apply(cm_wrong,1,sum)
+  
+  cm_sum<-apply(cm,1,sum)
+  misclass_error <- round(sum(cm_wrong)/sum(cm),2)
+  misclass_error_ind <- round(cm_wrong_sum/cm_sum,2)
+  ber <-round(sum(cm_wrong_sum/cm_sum)/nrow(cm),2)
+  
+  misclass_out<-list('confusion_mat' = cm,
+                     'misclass_error' = misclass_error,
+                     'misclass_error_ind' = misclass_error_ind,
+                     'balanced_misclass_error' = ber)
+  
+  return(misclass_out)
 }
 
 

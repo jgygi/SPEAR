@@ -233,10 +233,12 @@ SPEARobject <- R6::R6Class("SPEARobject",
                              cv.evaluate = cv.evaluate,
                              set.weights = set.weights,
                              add.data = add.data,
+                             save.model = save.model,
                              get.factor.scores = get.factor.scores,
                              get.predictions = get.predictions,
                              get.features = get.features,
-                             get.contributions = get.contributions
+                             get.contributions = get.contributions,
+                             get.misclassification = get.misclassification
                              
                            ), # end public
                            private = list(
@@ -334,3 +336,21 @@ make.SPEARobject <- function(
     quiet = quiet
   ))
 }
+
+
+#' Load a SPEARobject. Will return an R6 class SPEARobject used for the "SPEAR" package.
+#'@param file Where the SPEARobject Rds file is located. Defaults to NULL
+#'@export
+load.SPEARobject <- function(file = NULL){
+  if(is.null(file)){
+    stop("ERROR: File SPEARobject .rds file not found at ", file)
+  }
+  SPEARobj <- readRDS(file = file)
+  if(is.null(SPEARobj$data)){
+    stop("ERROR: SPEARobject loaded has no data. Are you sure you loaded a SPEARobject saved with saveRDS or $save.model()?")
+  }
+  return(SPEARobj)
+}
+
+
+

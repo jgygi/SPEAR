@@ -4,7 +4,7 @@
 \alias{update.dimnames}
 \title{Update the dimension names for all SPEARobject matrices. Used internally.}
 \usage{
-\method{update}{dimnames}(call = "fit")
+\method{update}{dimnames}()
 }
 \description{
 Update the dimension names for all SPEARobject matrices. Used internally.

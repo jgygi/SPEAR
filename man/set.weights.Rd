@@ -4,12 +4,12 @@
 \alias{set.weights}
 \title{Choose a combination of weights for a SPEARobject. Print `SPEARobject$params$weights` to see all combinations trained.}
 \usage{
-set.weights(w.idx = NULL, method = NULL)
+set.weights(w.idx = NULL, method = "min")
 }
 \arguments{
 \item{w.idx}{Use a manual weight index (row from `SPEARobject$params$weights`)? Defaults to `NULL`}
 
-\item{method}{Which method to}
+\item{method}{Which method to use? Needs to be from a `$run.cv.spear` object. Can be `"min"` (overall lowest mean cross validated loss), `"sd"` (take highest weight within 1 sd cross validated loss).}
 }
 \description{
 Choose a combination of weights for a SPEARobject. Print `SPEARobject$params$weights` to see all combinations trained.

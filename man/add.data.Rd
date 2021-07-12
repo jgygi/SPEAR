@@ -19,7 +19,7 @@ add.data(X, Y = NULL, Z = NULL, name = NULL)
 Add a dataset to a SPEARobject. Needs to have the same number of datasets/columns as `SPEARobject$data$train$Xlist`. Response not required (will be recorded as NULL). Can be accessed via `SPEARobject$data$__name__`.
 }
 \examples{
-SPEARobj <- make_spear_model(...)
+SPEARobj <- make.SPEARobject(...)
 
 X.test = ... # Define X.test as a list of matrices that have the same columns as SPEARobj$data$train$Xlist
 SPEARobj$add.data(X = X.test) # will default name to "dataset1"

@@ -10,7 +10,7 @@ run.spear()
 Run SPEAR
 }
 \examples{
-SPEARobj <- make_spear_model(...)
+SPEARobj <- make.SPEARobject(...)
 
 SPEARobj$run.spear()
 

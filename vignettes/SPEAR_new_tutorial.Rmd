@@ -167,6 +167,18 @@ SPEARobj$set.weights(w.idx = 1) # this refers to the first row of SPEARobj$param
 SPEARobj$options$current.weight.idx <- 1
 ```
 
+# Save the new SPEARobject-class object:
+
+```{r}
+SPEARobj$save.model(file = "SPEARobj_test.rds")
+
+# Can be read in with...
+SPEARobj <- load.SPEARobject("SPEARobj_test.rds")
+# or...
+# SPEARobj <- readRDS("SPEARobj_test.rds")
+```
+
+
 # Analyzing the new SPEARobject-class object:
 
 As of right now, there aren't many helper functions... below are the current ones available:

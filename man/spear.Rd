@@ -5,7 +5,15 @@
 \title{SPEAR - SuPervised Bayes fActor for Multi-omics
 imports:}
 \usage{
-spear()
+spear(
+  X = NULL,
+  Y = NULL,
+  Z = NULL,
+  Xobs = NULL,
+  Yobs = NULL,
+  weights_case = NULL,
+  silence = NULL
+)
 }
 \description{
 SPEAR - SuPervised Bayes fActor for Multi-omics
